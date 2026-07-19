@@ -1,9 +1,8 @@
 # Vocabulary Trainer — EN/DE B2→C1
 
-Single-page vocabulary trainer (verbs & adjectives, English ↔ German), rebuilt
-1:1 from the original localStorage prototype but backed by Supabase for
-persistence (progress, favorites, mistakes, session history survive across
-devices/browsers instead of living only in `localStorage`).
+Next.js rebuild of the vocabulary trainer: 1,948 English↔German verbs and
+adjectives, 8 exercise formats, clean light "Apple" design, persisted per
+browser via Supabase (anonymous auth, no login screen).
 
 ## Setup
 
@@ -13,20 +12,33 @@ devices/browsers instead of living only in `localStorage`).
    - `format_stats` — accuracy per exercise format
    - `session_history` — completed session results
    - `app_meta` — total practice session counter
+
    All tables have row-level security scoped to `auth.uid()`.
 2. In **Authentication → Sign In / Providers**, make sure **Anonymous
    Sign-ins** is enabled. The app signs each browser in anonymously
    (`supabase.auth.signInAnonymously()`) on first load to get a stable user
-   id — no login screen, same zero-friction experience as before.
-3. Open `index.html` directly in a browser (or serve the folder statically).
-   No build step — it's a single static file, same as the original.
+   id — progress persists across visits on the same browser without any
+   login UI.
+3. Copy `.env.example` to `.env.local` and fill in your Supabase project URL
+   and publishable key (already pre-filled for the English-practise
+   project if you're using the same one).
+4. `npm install && npm run dev` — open http://localhost:3000.
 
-## What changed vs. the original
+## Stack
 
-- The vocabulary list (1,948 words) and all exercise logic (8 formats:
-  translation, gap fill, multiple choice, sentence translation, matching,
-  sentence building, multi-gap, confusable pairs) are unchanged.
-- The `Store` object that used to read/write `localStorage` now loads/saves
-  the same data shape from Supabase tables. Reads happen once on boot
-  (short loading spinner); writes are fired in the background after each
-  answer so the UI stays instant, exactly like before.
+- Next.js App Router, TypeScript, Tailwind CSS v4
+- `@supabase/supabase-js` for auth + persistence
+- No backend routes — the client talks to Supabase directly, gated by RLS
+
+## Structure
+
+- `src/lib/vocab*.ts` — the vocabulary dataset and typed model
+- `src/lib/store.tsx` — React context wrapping Supabase reads/writes,
+  replacing what used to be a `localStorage` blob
+- `src/lib/sessionLogic.ts` — pure functions for building a practice queue
+  (weighted word selection, format mix, direction)
+- `src/components/exercises/*` — the 8 exercise types (translate, gap fill,
+  multiple choice, sentence translation, matching, sentence building,
+  multi-gap, confusable pairs)
+- `src/components/screens/*` — Home, Session, Summary, Word List, Word
+  Detail, Stats
