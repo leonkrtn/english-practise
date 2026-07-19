@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { supabase } from "./supabase";
+import { supabase, supabaseConfigError } from "./supabase";
 import { blankWordState, type FormatStat, type SessionRecord, type WordState, type AnswerResultKind } from "./types";
 
 interface StoreShape {
@@ -42,6 +42,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
+        if (supabaseConfigError) throw new Error(supabaseConfigError);
         const { data: sessionData } = await supabase.auth.getSession();
         let session = sessionData.session;
         if (!session) {
