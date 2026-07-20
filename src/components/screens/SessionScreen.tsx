@@ -5,8 +5,9 @@ import type { QueueItem } from "@/lib/sessionLogic";
 import type { ResultEntry } from "@/lib/types";
 
 export default function SessionScreen({
-  index,
-  total,
+  renderKey,
+  progressPct,
+  progressLabel,
   item,
   favorite,
   onExit,
@@ -14,8 +15,9 @@ export default function SessionScreen({
   onAnswered,
   onNext,
 }: {
-  index: number;
-  total: number;
+  renderKey: string | number;
+  progressPct: number;
+  progressLabel: string;
   item: QueueItem;
   favorite: boolean;
   onExit: () => void;
@@ -23,7 +25,6 @@ export default function SessionScreen({
   onAnswered: (entries: ResultEntry[]) => void;
   onNext: () => void;
 }) {
-  const progress = Math.round((index / total) * 100);
   return (
     <section className="animate-fade-in">
       <div className="flex items-center gap-3.5 mb-5.5">
@@ -35,11 +36,9 @@ export default function SessionScreen({
           ✕
         </button>
         <div className="flex-1 h-1.5 bg-line-soft rounded-full overflow-hidden">
-          <div className="h-full bg-blue rounded-full transition-[width] duration-300" style={{ width: progress + "%" }} />
+          <div className="h-full bg-blue rounded-full transition-[width] duration-300" style={{ width: progressPct + "%" }} />
         </div>
-        <div className="text-[13px] text-ink-faint font-semibold whitespace-nowrap tabular-nums">
-          {index + 1} / {total}
-        </div>
+        <div className="text-[13px] text-ink-faint font-semibold whitespace-nowrap tabular-nums">{progressLabel}</div>
         <button
           onClick={onToggleFav}
           title="Favorite (F)"
@@ -51,7 +50,10 @@ export default function SessionScreen({
           {favorite ? "★" : "☆"}
         </button>
       </div>
-      <div key={index} className="bg-card border border-line-soft rounded-[20px] p-7 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.06)] min-h-[220px] flex flex-col animate-fade-in">
+      <div
+        key={renderKey}
+        className="bg-card border border-line-soft rounded-[20px] p-7 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.06)] min-h-[220px] flex flex-col animate-fade-in"
+      >
         <ExerciseRouter item={item} onAnswered={onAnswered} onNext={onNext} />
       </div>
     </section>

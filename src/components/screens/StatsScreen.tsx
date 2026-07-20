@@ -5,6 +5,7 @@ import { VOCAB, VOCAB_BY_ID } from "@/lib/vocab";
 import { useStore } from "@/lib/store";
 
 const FMT_LABELS: Record<string, string> = {
+  learn: "Kennenlernen",
   translate: "Direct Translation",
   gap: "Missing Word",
   mc: "Multiple Choice",

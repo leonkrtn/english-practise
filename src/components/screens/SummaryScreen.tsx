@@ -13,6 +13,10 @@ export interface SummaryStats {
   accuracy: number;
   newWordsCount: number;
   results: ResultEntry[];
+  /** Learning-session only: words that reached the final "schreiben" stage and now enter long-term review. */
+  wordsMastered?: number;
+  /** Learning-session only: words still in progress, picked up again in a future session. */
+  wordsInProgress?: number;
 }
 
 export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: SummaryStats; onHome: () => void; onRepeat: (wordIds: string[]) => void }) {
@@ -57,6 +61,25 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
         <SStat value={stats.almost} label="Almost" color="text-amber" />
         <SStat value={stats.incorrect} label="Incorrect" color="text-red" />
       </div>
+
+      {(stats.wordsMastered !== undefined || stats.wordsInProgress !== undefined) && (
+        <div className="flex gap-2.5 mb-7">
+          {stats.wordsMastered !== undefined && stats.wordsMastered > 0 && (
+            <div className="flex-1 bg-green-light border border-green/20 rounded-xl px-4 py-3.5 text-center">
+              <div className="text-[19px] font-bold text-green">{stats.wordsMastered}</div>
+              <div className="text-[12px] text-[#0d7a4f] mt-0.5">
+                {stats.wordsMastered === 1 ? "Wort gelernt — kommt bald zur Wiederholung" : "Wörter gelernt — kommen bald zur Wiederholung"}
+              </div>
+            </div>
+          )}
+          {stats.wordsInProgress !== undefined && stats.wordsInProgress > 0 && (
+            <div className="flex-1 bg-blue-light border border-blue/20 rounded-xl px-4 py-3.5 text-center">
+              <div className="text-[19px] font-bold text-blue-dark">{stats.wordsInProgress}</div>
+              <div className="text-[12px] text-blue-dark mt-0.5">weiter in Arbeit — nächstes Mal geht&apos;s weiter</div>
+            </div>
+          )}
+        </div>
+      )}
       <div className="mb-7">
         <h2 className="text-xl font-semibold tracking-tight mb-3.5">Personal Review</h2>
         {wrongWordIds.length === 0 ? (

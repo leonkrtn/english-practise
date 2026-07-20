@@ -1,3 +1,6 @@
+/** 0 new · 1 learned (needs quiz) · 2 quizzed (needs contextual use) · 3 applied (needs free production) · 4 produced (mastered-active, long-term review) */
+export type LearningStage = 0 | 1 | 2 | 3 | 4;
+
 export interface WordState {
   score: number;
   timesSeen: number;
@@ -10,6 +13,9 @@ export interface WordState {
   lastSeen: number | null;
   recentMistake: boolean;
   streak: number;
+  stage: LearningStage;
+  reviewStreak: number;
+  dueAtSession: number | null;
 }
 
 export function blankWordState(): WordState {
@@ -25,6 +31,9 @@ export function blankWordState(): WordState {
     lastSeen: null,
     recentMistake: false,
     streak: 0,
+    stage: 0,
+    reviewStreak: 0,
+    dueAtSession: null,
   };
 }
 
@@ -47,6 +56,7 @@ export interface SessionRecord {
 export type Direction = "en-de" | "de-en" | "mixed";
 export type ExerciseFormat =
   | "mixed"
+  | "learn"
   | "translate"
   | "gap"
   | "mc"

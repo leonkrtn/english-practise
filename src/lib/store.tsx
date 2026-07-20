@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { supabase, supabaseConfigError } from "./supabase";
-import { blankWordState, type FormatStat, type SessionRecord, type WordState, type AnswerResultKind } from "./types";
+import { blankWordState, type FormatStat, type SessionRecord, type WordState, type AnswerResultKind, type LearningStage } from "./types";
 
 interface StoreShape {
   words: Record<string, WordState>;
@@ -23,6 +23,7 @@ interface StoreApi {
   recordFormatStat: (format: string, result: AnswerResultKind) => void;
   toggleFavorite: (id: string) => boolean;
   recordSession: (session: SessionRecord) => void;
+  setLearningStage: (id: string, stage: LearningStage, reviewStreak: number, dueAtSession: number | null) => void;
 }
 
 const StoreContext = createContext<StoreApi | null>(null);
@@ -82,6 +83,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             lastSeen: row.last_seen ? new Date(row.last_seen).getTime() : null,
             recentMistake: !!row.recent_mistake,
             streak: row.streak || 0,
+            stage: (row.stage ?? 0) as LearningStage,
+            reviewStreak: row.review_streak || 0,
+            dueAtSession: row.due_at_session ?? null,
           };
         });
 
@@ -142,6 +146,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           last_seen: w.lastSeen ? new Date(w.lastSeen).toISOString() : null,
           recent_mistake: w.recentMistake,
           streak: w.streak,
+          stage: w.stage,
+          review_streak: w.reviewStreak,
+          due_at_session: w.dueAtSession,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "user_id,word_id" }
@@ -215,6 +222,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [persistWord]
   );
 
+  const setLearningStage = useCallback(
+    (id: string, stage: LearningStage, reviewStreak: number, dueAtSession: number | null) => {
+      setState((prev) => {
+        const w = { ...(prev.words[id] || blankWordState()) };
+        w.stage = stage;
+        w.reviewStreak = reviewStreak;
+        w.dueAtSession = dueAtSession;
+        persistWord(id, w);
+        return { ...prev, words: { ...prev.words, [id]: w } };
+      });
+    },
+    [persistWord]
+  );
+
   const recordSession = useCallback((session: SessionRecord) => {
     setState((prev) => {
       const total = (prev.totalPracticeSessions || 0) + 1;
@@ -257,6 +278,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     recordFormatStat,
     toggleFavorite,
     recordSession,
+    setLearningStage,
   };
 
   return <StoreContext.Provider value={api}>{children}</StoreContext.Provider>;
