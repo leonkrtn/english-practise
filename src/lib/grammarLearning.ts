@@ -50,9 +50,19 @@ export interface GrammarBatch {
   reviewRules: GrammarRule[];
 }
 
-/** Picks the ~5 rules this session works on (in-progress first, then new) plus a couple of due long-term reviews, most-overdue-first. */
-export function buildGrammarBatch(getState: (id: string) => GrammarRuleState, totalPracticeSessions: number): GrammarBatch {
-  const duePool = GRAMMAR_RULES.filter((r) => {
+/** Every rule minus any the user has permanently blocked ("I don't care about adjective order"). */
+export function activeGrammarRules(blockedRuleIds: ReadonlySet<string> = new Set()): GrammarRule[] {
+  return blockedRuleIds.size === 0 ? GRAMMAR_RULES : GRAMMAR_RULES.filter((r) => !blockedRuleIds.has(r.id));
+}
+
+/** Picks the ~5 rules this session works on (in-progress first, then new) plus a couple of due long-term reviews, most-overdue-first. Blocked rules are excluded entirely. */
+export function buildGrammarBatch(
+  getState: (id: string) => GrammarRuleState,
+  totalPracticeSessions: number,
+  blockedRuleIds: ReadonlySet<string> = new Set()
+): GrammarBatch {
+  const pool = activeGrammarRules(blockedRuleIds);
+  const duePool = pool.filter((r) => {
     const s = getState(r.id);
     return s.stage === 4 && s.dueAtSession !== null && s.dueAtSession <= totalPracticeSessions;
   });
@@ -60,7 +70,7 @@ export function buildGrammarBatch(getState: (id: string) => GrammarRuleState, to
   const reviewRules = duePool.slice(0, GRAMMAR_REVIEW_SAMPLE);
 
   const inProgressPool = shuffle(
-    GRAMMAR_RULES.filter((r) => {
+    pool.filter((r) => {
       const s = getState(r.id);
       return s.stage >= 1 && s.stage <= 3;
     })
@@ -68,7 +78,7 @@ export function buildGrammarBatch(getState: (id: string) => GrammarRuleState, to
   const inProgressRules = inProgressPool.slice(0, GRAMMAR_BATCH_SIZE);
 
   const remaining = GRAMMAR_BATCH_SIZE - inProgressRules.length;
-  const newPool = GRAMMAR_RULES.filter((r) => getState(r.id).stage === 0);
+  const newPool = pool.filter((r) => getState(r.id).stage === 0);
   const newRules = remaining > 0 ? sample(newPool, remaining) : [];
 
   return { activeRules: inProgressRules.concat(newRules), reviewRules };

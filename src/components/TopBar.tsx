@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { BarChart3, LogOut, ScrollText, Volume2, VolumeX } from "lucide-react";
+import { BarChart3, LogOut, ScrollText, Settings, Volume2, VolumeX } from "lucide-react";
 import type { Screen } from "./AppShell";
 import { useSoundMuted } from "@/lib/sound";
 
@@ -10,12 +10,14 @@ export default function TopBar({
   goHome,
   goList,
   goStats,
+  goSettings,
   onLogout,
 }: {
   screen: Screen;
   goHome: () => void;
   goList: () => void;
   goStats: () => void;
+  goSettings: () => void;
   onLogout: () => void;
 }) {
   const [muted, toggleMuted] = useSoundMuted();
@@ -33,6 +35,9 @@ export default function TopBar({
         </IconButton>
         <IconButton active={screen === "stats"} onClick={goStats} title="Stats">
           <BarChart3 size={18} />
+        </IconButton>
+        <IconButton active={screen === "settings"} onClick={goSettings} title="Settings">
+          <Settings size={18} />
         </IconButton>
         <IconButton onClick={onLogout} title="Abmelden">
           <LogOut size={18} />

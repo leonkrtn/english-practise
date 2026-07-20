@@ -5,7 +5,8 @@ import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { useAuth } from "@/lib/auth";
 import { VOCAB, VOCAB_BY_ID, type Word } from "@/lib/vocab";
-import { GRAMMAR_RULES } from "@/lib/grammar-data";
+import { GRAMMAR_RULES, type GrammarRule } from "@/lib/grammar-data";
+import { WRITING_TOPICS, WRITING_MIN_WORDS, WRITING_MIN_RULES, type WritingTopic } from "@/lib/writingTopics";
 import type { QueueItem } from "@/lib/sessionLogic";
 import {
   buildLearningBatch,
@@ -27,7 +28,7 @@ import {
   GRAMMAR_MAX_ATTEMPTS,
   type GrammarQueueItem,
 } from "@/lib/grammarLearning";
-import { shuffle } from "@/lib/utils";
+import { sample, shuffle } from "@/lib/utils";
 import type { ResultEntry } from "@/lib/types";
 import type { GrammarResultEntry } from "@/lib/grammarTypes";
 import ExerciseRouter from "@/components/exercises/ExerciseRouter";
@@ -40,9 +41,11 @@ import SummaryScreen, { type SummaryStats } from "./screens/SummaryScreen";
 import WordListScreen from "./screens/WordListScreen";
 import WordDetailScreen from "./screens/WordDetailScreen";
 import StatsScreen from "./screens/StatsScreen";
+import SettingsScreen from "./screens/SettingsScreen";
+import WritingScreen, { type WritingCheckResult } from "./screens/WritingScreen";
 
-export type Screen = "home" | "session" | "summary" | "list" | "stats" | "detail";
-export type SessionMode = "vocab" | "grammar" | "mixed";
+export type Screen = "home" | "session" | "summary" | "list" | "stats" | "detail" | "settings" | "writing";
+export type SessionMode = "vocab" | "grammar" | "mixed" | "writing";
 
 type UnifiedItem = { domain: "vocab"; item: LearningQueueItem } | { domain: "grammar"; item: GrammarQueueItem };
 
@@ -52,6 +55,15 @@ interface QuickSessionState {
   index: number;
   results: ResultEntry[];
 }
+
+/** Free-writing exercise: one topic, a fixed set of already-learned words/rules the writer must
+ * work in, checked at the end via LanguageTool rather than the stage engine. */
+export interface WritingSessionState {
+  topic: WritingTopic;
+  requiredWords: Word[];
+  requiredRules: GrammarRule[];
+}
+
 
 /** Primary session mode: an adaptive queue that grows as vocab words / grammar rules move through their stage. Ids in attempts/finishedItemIds/masteredItemIds/totalItemIds are prefixed "v:"/"g:" to keep the two domains apart. */
 interface LearningSessionState {
@@ -78,6 +90,7 @@ export default function AppShell() {
   const [detailWordId, setDetailWordId] = useState<string | null>(null);
   const [quickSession, setQuickSession] = useState<QuickSessionState | null>(null);
   const [learningSession, setLearningSession] = useState<LearningSessionState | null>(null);
+  const [writingSession, setWritingSession] = useState<WritingSessionState | null>(null);
   const [summary, setSummary] = useState<SummaryStats | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -96,7 +109,7 @@ export default function AppShell() {
         matchPool = built.matchPool;
       }
       if (mode === "grammar" || mode === "mixed") {
-        const gBatch = buildGrammarBatch(grammarStore.ruleState, grammarStore.totalPracticeSessions);
+        const gBatch = buildGrammarBatch(grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds);
         grammarQueueItems = buildGrammarQueue(gBatch, grammarStore.ruleState);
       }
 
@@ -131,7 +144,7 @@ export default function AppShell() {
       });
       setScreen("session");
     },
-    [store.wordState, store.totalPracticeSessions, grammarStore.ruleState, grammarStore.totalPracticeSessions]
+    [store.wordState, store.totalPracticeSessions, grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds]
   );
 
   // Drills exclusively every word/rule that has already reached stage 4 ("gelernt"), using the
@@ -151,7 +164,7 @@ export default function AppShell() {
           : [];
       const grammarQueueItems: GrammarQueueItem[] =
         mode === "grammar" || mode === "mixed"
-          ? GRAMMAR_RULES.filter((r) => grammarStore.ruleState(r.id).stage === 4).map((rule) => ({ kind: "review" as const, rule }))
+          ? GRAMMAR_RULES.filter((r) => !grammarStore.blockedRuleIds.has(r.id) && grammarStore.ruleState(r.id).stage === 4).map((rule) => ({ kind: "review" as const, rule }))
           : [];
 
       const queue: UnifiedItem[] = shuffle([
@@ -175,6 +188,35 @@ export default function AppShell() {
       setScreen("session");
     },
     [store, grammarStore]
+  );
+
+  // ---------- Writing: free-text exercise checked against required words/grammar + LanguageTool ----------
+
+  const startWritingSession = useCallback(() => {
+    const learnedWords = VOCAB.filter((w) => store.wordState(w.id).stage === 4);
+    const learnedRules = GRAMMAR_RULES.filter((r) => !grammarStore.blockedRuleIds.has(r.id) && grammarStore.ruleState(r.id).stage === 4);
+    if (learnedWords.length < WRITING_MIN_WORDS || learnedRules.length < WRITING_MIN_RULES) return;
+    setWritingSession({
+      topic: sample(WRITING_TOPICS, 1)[0],
+      requiredWords: sample(learnedWords, WRITING_MIN_WORDS),
+      requiredRules: sample(learnedRules, WRITING_MIN_RULES),
+    });
+    setScreen("writing");
+  }, [store, grammarStore]);
+
+  const finishWriting = useCallback(
+    (result: WritingCheckResult) => {
+      const allWordsUsed = result.requiredWordsUsed === result.requiredWordsTotal;
+      const errorCount = result.issues.length;
+      const correct = allWordsUsed && errorCount === 0 ? 1 : 0;
+      const almost = allWordsUsed && errorCount > 0 ? 1 : 0;
+      const incorrect = allWordsUsed ? 0 : 1;
+      const accuracy = correct ? 100 : almost ? 60 : 0;
+      grammarStore.recordSession({ date: Date.now(), total: 1, correct, almost, incorrect, accuracy, format: "writing" });
+      setWritingSession(null);
+      setScreen("home");
+    },
+    [grammarStore]
   );
 
   const endLearningSession = useCallback(
@@ -433,6 +475,9 @@ export default function AppShell() {
   function goStats() {
     setScreen("stats");
   }
+  function goSettings() {
+    setScreen("settings");
+  }
 
   const activeMode: "learning" | "quick" | null = learningSession ? "learning" : quickSession ? "quick" : null;
   const currentWordId =
@@ -449,14 +494,32 @@ export default function AppShell() {
       className="h-[100dvh] max-w-[720px] mx-auto flex flex-col px-5 w-full overflow-hidden"
       style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <TopBar screen={screen} goHome={goHome} goList={goList} goStats={goStats} onLogout={() => signOut()} />
+      <TopBar screen={screen} goHome={goHome} goList={goList} goStats={goStats} goSettings={goSettings} onLogout={() => signOut()} />
       <main
         className={
           "flex-1 min-h-0 py-3 flex flex-col overscroll-x-none [-webkit-overflow-scrolling:touch] " +
-          (screen === "session" ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden")
+          (screen === "session" || screen === "writing" ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden")
         }
       >
-        {screen === "home" && <HomeScreen onStart={startLearningSession} onReview={startReviewSession} />}
+        {screen === "home" && (
+          <HomeScreen
+            onStart={(mode) => (mode === "writing" ? startWritingSession() : startLearningSession(mode))}
+            onReview={startReviewSession}
+          />
+        )}
+
+        {screen === "writing" && writingSession && (
+          <WritingScreen
+            topic={writingSession.topic}
+            requiredWords={writingSession.requiredWords}
+            requiredRules={writingSession.requiredRules}
+            onExit={() => {
+              setWritingSession(null);
+              setScreen("home");
+            }}
+            onFinish={finishWriting}
+          />
+        )}
 
         {screen === "session" && activeMode === "learning" && learningSession && currentItem && (
           <SessionScreen
@@ -524,6 +587,8 @@ export default function AppShell() {
         )}
 
         {screen === "stats" && <StatsScreen />}
+
+        {screen === "settings" && <SettingsScreen />}
       </main>
 
       <Modal

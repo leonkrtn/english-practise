@@ -2,9 +2,9 @@
 
 import { useMemo } from "react";
 import { VOCAB, VOCAB_BY_ID } from "@/lib/vocab";
-import { GRAMMAR_RULES } from "@/lib/grammar-data";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
+import { activeGrammarRules } from "@/lib/grammarLearning";
 
 const FMT_LABELS: Record<string, string> = {
   learn: "Kennenlernen",
@@ -49,8 +49,11 @@ export default function StatsScreen() {
     return { practiced, mastered, difficult, favorites, overallAcc, verbsTotal, adjTotal, verbsPracticed, adjPracticed };
   }, [store.words]);
 
+  const activeRules = useMemo(() => activeGrammarRules(grammarStore.blockedRuleIds), [grammarStore.blockedRuleIds]);
+
   const grammarStats = useMemo(() => {
-    const rules = Object.entries(grammarStore.rules);
+    const activeIds = new Set(activeRules.map((r) => r.id));
+    const rules = Object.entries(grammarStore.rules).filter(([id]) => activeIds.has(id));
     const practiced = rules.filter(([, s]) => s.timesSeen > 0);
     const known = rules.filter(([, s]) => s.stage === 4);
     let totalCorrect = 0,
@@ -60,8 +63,8 @@ export default function StatsScreen() {
       totalAll += s.timesCorrect + s.timesAlmost + s.timesIncorrect;
     });
     const overallAcc = totalAll ? Math.round((totalCorrect / totalAll) * 100) : 0;
-    return { practiced, known, overallAcc };
-  }, [grammarStore.rules]);
+    return { practiced, known, overallAcc, total: activeRules.length };
+  }, [activeRules, grammarStore.rules]);
 
   return (
     <section className="animate-fade-in">
@@ -79,7 +82,7 @@ export default function StatsScreen() {
 
       <h2 className="text-lg font-semibold tracking-tight mb-3">Grammar</h2>
       <div className="grid grid-cols-2 gap-3 mb-7">
-        <StatCard value={`${grammarStats.practiced.length} / ${GRAMMAR_RULES.length}`} label="Rules practiced" />
+        <StatCard value={`${grammarStats.practiced.length} / ${grammarStats.total}`} label="Rules practiced" />
         <StatCard value={grammarStats.known.length} label="Known" />
         <StatCard value={`${grammarStats.overallAcc}%`} label="Overall accuracy" />
         <StatCard value={grammarStore.totalPracticeSessions || 0} label="Sessions completed" />
@@ -111,8 +114,8 @@ export default function StatsScreen() {
         <BarRow label="Adjectives" value={`${stats.adjPracticed}/${stats.adjTotal}`} pct={Math.round((stats.adjPracticed / stats.adjTotal) * 100)} />
         <BarRow
           label="Grammar"
-          value={`${grammarStats.practiced.length}/${GRAMMAR_RULES.length}`}
-          pct={Math.round((grammarStats.practiced.length / GRAMMAR_RULES.length) * 100)}
+          value={`${grammarStats.practiced.length}/${grammarStats.total}`}
+          pct={Math.round((grammarStats.practiced.length / grammarStats.total) * 100)}
         />
       </div>
     </section>

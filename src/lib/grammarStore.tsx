@@ -10,6 +10,7 @@ interface GrammarStoreShape {
   formatStats: Record<string, GrammarFormatStat>;
   sessionHistory: GrammarSessionRecord[];
   totalPracticeSessions: number;
+  blockedRuleIds: Set<string>;
 }
 
 interface GrammarStoreApi {
@@ -19,11 +20,13 @@ interface GrammarStoreApi {
   formatStats: Record<string, GrammarFormatStat>;
   sessionHistory: GrammarSessionRecord[];
   totalPracticeSessions: number;
+  blockedRuleIds: Set<string>;
   ruleState: (id: string) => GrammarRuleState;
   updateRule: (id: string, result: AnswerResultKind, hintsUsed?: number) => void;
   recordFormatStat: (format: string, result: AnswerResultKind) => void;
   setLearningStage: (id: string, stage: LearningStage, reviewStreak: number, dueAtSession: number | null) => void;
   recordSession: (session: GrammarSessionRecord) => void;
+  setRuleBlocked: (id: string, blocked: boolean) => void;
 }
 
 const GrammarStoreContext = createContext<GrammarStoreApi | null>(null);
@@ -32,7 +35,7 @@ const GrammarStoreContext = createContext<GrammarStoreApi | null>(null);
 export function GrammarStoreProvider({ userId, children }: { userId: string; children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [state, setState] = useState<GrammarStoreShape>({ rules: {}, formatStats: {}, sessionHistory: [], totalPracticeSessions: 0 });
+  const [state, setState] = useState<GrammarStoreShape>({ rules: {}, formatStats: {}, sessionHistory: [], totalPracticeSessions: 0, blockedRuleIds: new Set() });
 
   useEffect(() => {
     let cancelled = false;
@@ -86,7 +89,13 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
         }));
 
         if (cancelled) return;
-        setState({ rules, formatStats, sessionHistory, totalPracticeSessions: meta.data ? meta.data.total_practice_sessions : 0 });
+        setState({
+          rules,
+          formatStats,
+          sessionHistory,
+          totalPracticeSessions: meta.data ? meta.data.total_practice_sessions : 0,
+          blockedRuleIds: new Set(meta.data?.blocked_rule_ids || []),
+        });
         setReady(true);
       } catch (e) {
         console.error("Grammar store init failed", e);
@@ -233,6 +242,24 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
     [userId]
   );
 
+  const setRuleBlocked = useCallback(
+    (id: string, blocked: boolean) => {
+      setState((prev) => {
+        const next = new Set(prev.blockedRuleIds);
+        if (blocked) next.add(id);
+        else next.delete(id);
+        supabase
+          .from("grammar_meta")
+          .upsert({ user_id: userId, blocked_rule_ids: [...next] }, { onConflict: "user_id" })
+          .then(({ error: err }) => {
+            if (err) console.error("grammar_meta blocked_rule_ids", err);
+          });
+        return { ...prev, blockedRuleIds: next };
+      });
+    },
+    [userId]
+  );
+
   const api: GrammarStoreApi = {
     ready,
     error,
@@ -240,11 +267,13 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
     formatStats: state.formatStats,
     sessionHistory: state.sessionHistory,
     totalPracticeSessions: state.totalPracticeSessions,
+    blockedRuleIds: state.blockedRuleIds,
     ruleState,
     updateRule,
     recordFormatStat,
     setLearningStage,
     recordSession,
+    setRuleBlocked,
   };
 
   return <GrammarStoreContext.Provider value={api}>{children}</GrammarStoreContext.Provider>;

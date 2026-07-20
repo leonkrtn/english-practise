@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookOpen, Blocks, Flame, Heart, Repeat, Shuffle, Target, TrendingDown } from "lucide-react";
+import { BookOpen, Blocks, Flame, Heart, PenLine, Repeat, Shuffle, Target, TrendingDown } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { VOCAB, VOCAB_BY_ID } from "@/lib/vocab";
-import { GRAMMAR_RULES } from "@/lib/grammar-data";
+import { activeGrammarRules } from "@/lib/grammarLearning";
+import { WRITING_MIN_RULES, WRITING_MIN_WORDS } from "@/lib/writingTopics";
 import type { SessionMode } from "@/components/AppShell";
 import type { SessionRecord } from "@/lib/types";
 import type { GrammarSessionRecord } from "@/lib/grammarTypes";
@@ -45,6 +46,15 @@ const MODES: {
     tint: "bg-gradient-to-br from-blue-light to-purple-light text-blue-dark",
     glow: "shadow-[0_10px_24px_-8px_rgba(99,90,230,0.45)]",
     ring: ["#0071e3", "#8b5cf6"],
+  },
+  {
+    val: "writing",
+    label: "Writing",
+    icon: PenLine,
+    grad: "from-amber to-amber-dark",
+    tint: "bg-amber-light text-amber",
+    glow: "shadow-[0_10px_24px_-8px_rgba(232,161,46,0.5)]",
+    ring: ["#e8a12e", "#c9860f"],
   },
 ];
 
@@ -116,8 +126,10 @@ export default function HomeScreen({
     return { learned, total: VOCAB.length, sessions: store.totalPracticeSessions || 0, accuracy };
   }, [store.words, store.totalPracticeSessions]);
 
+  const activeRules = useMemo(() => activeGrammarRules(grammarStore.blockedRuleIds), [grammarStore.blockedRuleIds]);
+
   const grammarStats = useMemo(() => {
-    const rules = Object.values(grammarStore.rules);
+    const rules = activeRules.map((r) => grammarStore.rules[r.id]).filter((s): s is NonNullable<typeof s> => !!s);
     const learned = rules.filter((r) => r.stage === 4).length;
     let totalCorrect = 0;
     let totalAll = 0;
@@ -126,8 +138,8 @@ export default function HomeScreen({
       totalAll += r.timesCorrect + r.timesAlmost + r.timesIncorrect;
     });
     const accuracy = totalAll ? Math.round((totalCorrect / totalAll) * 100) : 0;
-    return { learned, total: GRAMMAR_RULES.length, sessions: grammarStore.totalPracticeSessions || 0, accuracy };
-  }, [grammarStore.rules, grammarStore.totalPracticeSessions]);
+    return { learned, total: activeRules.length, sessions: grammarStore.totalPracticeSessions || 0, accuracy };
+  }, [activeRules, grammarStore.rules, grammarStore.totalPracticeSessions]);
 
   const wordTypeBreakdown = useMemo(() => {
     const verbsTotal = VOCAB.filter((w) => w.type === "verb").length;
@@ -151,13 +163,13 @@ export default function HomeScreen({
 
   const grammarCategoryBreakdown = useMemo(() => {
     const byCategory: Record<string, { learned: number; total: number }> = {};
-    GRAMMAR_RULES.forEach((r) => {
+    activeRules.forEach((r) => {
       if (!byCategory[r.category]) byCategory[r.category] = { learned: 0, total: 0 };
       byCategory[r.category].total++;
       if (grammarStore.rules[r.id]?.stage === 4) byCategory[r.category].learned++;
     });
     return Object.entries(byCategory).sort((a, b) => b[1].total - a[1].total);
-  }, [grammarStore.rules]);
+  }, [activeRules, grammarStore.rules]);
 
   // A practice streak reflects overall commitment, not the currently selected mode —
   // it's computed from both domains' session history so it doesn't flip when switching tabs.
@@ -188,6 +200,12 @@ export default function HomeScreen({
         }
       : vocabStats;
 
+  const writingSessionsCount = useMemo(
+    () => grammarStore.sessionHistory.filter((s) => s.format === "writing").length,
+    [grammarStore.sessionHistory]
+  );
+  const writingEligible = vocabStats.learned >= WRITING_MIN_WORDS && grammarStats.learned >= WRITING_MIN_RULES;
+
   const active = MODES.find((m) => m.val === mode)!;
   const progressPct = stats.total ? Math.round((stats.learned / stats.total) * 100) : 0;
 
@@ -198,7 +216,7 @@ export default function HomeScreen({
       </h1>
       <p className="text-ink-soft text-[14px] mb-5 leading-snug">English ↔ German · Grammar</p>
 
-      <div className="grid grid-cols-3 gap-2.5 mb-5">
+      <div className="grid grid-cols-4 gap-2 mb-5">
         {MODES.map((m) => {
           const Icon = m.icon;
           const isActive = mode === m.val;
@@ -207,7 +225,7 @@ export default function HomeScreen({
               key={m.val}
               onClick={() => setMode(m.val)}
               className={
-                "flex flex-col items-center gap-2 rounded-2xl px-2 py-4 text-center transition-all duration-200 " +
+                "flex flex-col items-center gap-1.5 rounded-2xl px-1.5 py-3.5 text-center transition-all duration-200 " +
                 (isActive
                   ? `bg-gradient-to-br ${m.grad} text-white ${m.glow} scale-[1.02]`
                   : "bg-card border border-line-soft text-ink-soft hover:border-line hover:-translate-y-0.5 hover:shadow-md")
@@ -215,28 +233,48 @@ export default function HomeScreen({
             >
               <span
                 className={
-                  "w-9 h-9 rounded-full flex items-center justify-center transition-colors " + (isActive ? "bg-white/20" : m.tint)
+                  "w-8 h-8 rounded-full flex items-center justify-center transition-colors " + (isActive ? "bg-white/20" : m.tint)
                 }
               >
-                <Icon size={17} />
+                <Icon size={16} />
               </span>
-              <span className="text-[13px] font-semibold">{m.label}</span>
+              <span className="text-[12px] font-semibold">{m.label}</span>
             </button>
           );
         })}
       </div>
 
-      <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm flex items-center gap-4">
-        <ProgressRing pct={progressPct} from={active.ring[0]} to={active.ring[1]}>
-          <span className="text-[19px] font-bold tracking-tight leading-none">{stats.learned}</span>
-          <span className="text-[10px] text-ink-faint mt-0.5">/ {stats.total}</span>
-        </ProgressRing>
-        <div className="flex-1 flex flex-col gap-2.5 min-w-0">
-          <StatRow icon={<Repeat size={14} />} value={stats.sessions} label="Sessions" tint="bg-blue-light text-blue" />
-          <StatRow icon={<Target size={14} />} value={`${stats.accuracy}%`} label="Genauigkeit" tint="bg-amber-light text-amber" />
-          <StatRow icon={<Flame size={14} />} value={streak} label={streak === 1 ? "Tag Streak" : "Tage Streak"} tint="bg-red-light text-red" />
+      {mode === "writing" ? (
+        <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm">
+          <div className="flex items-center gap-4 mb-1">
+            <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 bg-amber-light text-amber">
+              <PenLine size={22} />
+            </span>
+            <div className="flex-1 flex flex-col gap-2.5 min-w-0">
+              <StatRow icon={<Repeat size={14} />} value={writingSessionsCount} label="Texte geschrieben" tint="bg-blue-light text-blue" />
+              <StatRow icon={<Flame size={14} />} value={streak} label={streak === 1 ? "Tag Streak" : "Tage Streak"} tint="bg-red-light text-red" />
+            </div>
+          </div>
+          {!writingEligible && (
+            <div className="mt-3 pt-3 border-t border-line-soft text-[12.5px] text-ink-soft leading-relaxed">
+              Lerne zuerst mindestens {WRITING_MIN_WORDS} Wörter und {WRITING_MIN_RULES} Grammatikregeln, um schreiben zu können ({vocabStats.learned}
+              /{WRITING_MIN_WORDS} Wörter, {grammarStats.learned}/{WRITING_MIN_RULES} Regeln gelernt).
+            </div>
+          )}
         </div>
-      </div>
+      ) : (
+        <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm flex items-center gap-4">
+          <ProgressRing pct={progressPct} from={active.ring[0]} to={active.ring[1]}>
+            <span className="text-[19px] font-bold tracking-tight leading-none">{stats.learned}</span>
+            <span className="text-[10px] text-ink-faint mt-0.5">/ {stats.total}</span>
+          </ProgressRing>
+          <div className="flex-1 flex flex-col gap-2.5 min-w-0">
+            <StatRow icon={<Repeat size={14} />} value={stats.sessions} label="Sessions" tint="bg-blue-light text-blue" />
+            <StatRow icon={<Target size={14} />} value={`${stats.accuracy}%`} label="Genauigkeit" tint="bg-amber-light text-amber" />
+            <StatRow icon={<Flame size={14} />} value={streak} label={streak === 1 ? "Tag Streak" : "Tage Streak"} tint="bg-red-light text-red" />
+          </div>
+        </div>
+      )}
 
       {mode === "mixed" && (
         <div className="flex flex-col gap-2.5 mt-3">
@@ -286,9 +324,16 @@ export default function HomeScreen({
             {recentSessions.map((s, i) => (
               <div key={i} className="flex items-center justify-between py-2.5 border-b border-line-soft last:border-0">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <span className={"w-2 h-2 rounded-full shrink-0 " + (s.domain === "vocab" ? "bg-blue" : "bg-purple")} />
+                  <span
+                    className={
+                      "w-2 h-2 rounded-full shrink-0 " +
+                      (s.format === "writing" ? "bg-amber" : s.domain === "vocab" ? "bg-blue" : "bg-purple")
+                    }
+                  />
                   <div className="min-w-0">
-                    <div className="text-[13px] font-semibold text-ink">{s.domain === "vocab" ? "Vocabulary" : "Grammar"}</div>
+                    <div className="text-[13px] font-semibold text-ink">
+                      {s.format === "writing" ? "Writing" : s.domain === "vocab" ? "Vocabulary" : "Grammar"}
+                    </div>
                     <div className="text-[11px] text-ink-faint">{formatRelativeDate(s.date)}</div>
                   </div>
                 </div>
@@ -305,7 +350,7 @@ export default function HomeScreen({
       )}
 
       <div className="sticky bottom-0 pt-4 pb-2 -mx-5 px-5 bg-gradient-to-t from-bg from-65% to-transparent flex flex-col gap-2">
-        {stats.learned > 0 && (
+        {mode !== "writing" && stats.learned > 0 && (
           <button
             onClick={() => onReview(mode)}
             className="w-full rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:-translate-y-0.5 text-ink font-semibold py-3 text-[14px] transition-all active:scale-[0.97]"
@@ -315,8 +360,9 @@ export default function HomeScreen({
         )}
         <button
           onClick={() => onStart(mode)}
+          disabled={mode === "writing" && !writingEligible}
           className={
-            "w-full rounded-full bg-gradient-to-r text-white font-semibold py-4 text-[16px] transition-all duration-200 active:scale-[0.97] hover:brightness-110 shadow-[0_14px_30px_-10px_rgba(15,23,42,0.4)] " +
+            "w-full rounded-full bg-gradient-to-r text-white font-semibold py-4 text-[16px] transition-all duration-200 active:scale-[0.97] hover:brightness-110 shadow-[0_14px_30px_-10px_rgba(15,23,42,0.4)] disabled:opacity-40 disabled:pointer-events-none disabled:shadow-none " +
             active.grad
           }
         >

@@ -1,12 +1,14 @@
 # Vocabulary Trainer — EN/DE B2→C1
 
 Next.js rebuild of the vocabulary trainer: 1,948 English↔German verbs and
-adjectives, clean light "Apple" design, mobile-first (Home and the exercise
-screen are built to fit a phone viewport without scrolling). Progress is
-tied to a real account (email + password via Supabase Auth) — you have to
-sign up before the app lets you in, and everything you do is saved against
-that account instead of just a browser. Sessions run on a 4-stage
-spaced-repetition engine (see below) rather than a fixed exercise mix.
+adjectives, clean light "Apple" design, mobile-first. Home scrolls freely
+(it's grown a full stats dashboard); the exercise/session view never scrolls
+at the page level — only the exercise card itself scrolls internally if its
+content needs more room. Progress is tied to a real account (email +
+password via Supabase Auth) — you have to sign up before the app lets you
+in, and everything you do is saved against that account instead of just a
+browser. Sessions run on a 4-stage spaced-repetition engine (see below)
+rather than a fixed exercise mix.
 
 Alongside vocabulary there's a second, independent learning track:
 **Grammar** — ~25 curated B2→C1 rules (tenses, conditionals, passive,
@@ -14,8 +16,19 @@ reported speech, relative clauses, modals, verb patterns, word order,
 articles/nouns, prepositions, comparisons), covering sentence structure and
 logic rather than single words. Vocabulary and Grammar run on the same
 stage-based engine but keep entirely separate progress, and can be
-practiced alone or interleaved in a **Mixed** session — pick the mode on
-the Home screen.
+practiced alone or interleaved in a **Mixed** session. Individual grammar
+rules can be permanently blocked from Settings ("I don't care about
+adjective order") — a blocked rule disappears app-wide: from normal
+learning, from "review everything learned", and from Writing's required
+grammar picks.
+
+A fourth mode, **Writing**, is a free-writing exercise: pick a topic, write
+a short English text that must use a handful of your already-learned words
+and try to work in a couple of already-learned grammar constructs, then run
+it through a real grammar/spelling check (the public LanguageTool API) —
+errors are highlighted right in your text with correction suggestions
+below. Unlocks once you've learned at least 5 words and 2 (unblocked)
+grammar rules.
 
 ## Setup
 
@@ -31,6 +44,9 @@ the Home screen.
      `grammar_format_stats`, `grammar_session_history`, `grammar_meta`,
      the fully separate tables backing the Grammar track (same RLS pattern,
      scoped to `auth.uid()`).
+   - `supabase/migrations/0004_grammar_blocking.sql` — adds a
+     `blocked_rule_ids text[]` column to `grammar_meta` for the
+     per-rule blocking feature (Settings screen). Purely additive.
 2. In **Authentication → Sign In / Providers**, make sure the **Email**
    provider is enabled (it is by default). Decide whether you want **Confirm
    email** on: if it's on, `signUp` won't return a session immediately and
@@ -156,6 +172,56 @@ Mixed session records a session entry in each track independently (only if
 that track actually had results), so Vocabulary and Grammar stats, streaks,
 and review schedules never bleed into each other.
 
+**Blocking rules:** `grammar_meta.blocked_rule_ids` (a plain `text[]`,
+loaded into `grammarStore.blockedRuleIds` as a `Set<string>`) is checked
+everywhere a rule pool is built — `activeGrammarRules()` in
+`grammarLearning.ts` is the single source of truth, used by
+`buildGrammarBatch`, the "review everything learned" seed, and Home/Stats'
+totals and category breakdowns. Toggled from the new Settings screen
+(`SettingsScreen.tsx`, gear icon in the TopBar) — one switch per rule,
+grouped by category for browsability, no bulk "block whole category"
+action (blocking is per-rule by design).
+
+## Writing
+
+A fourth mode alongside Vocabulary/Grammar/Mixed, architecturally separate
+from the stage engine — it's a single free-text submission checked once at
+the end, not a queue of graded exercises.
+
+- `src/lib/writingTopics.ts` — 10 base topic templates ("Grundgerüste");
+  `AppShell.startWritingSession()` picks one at random each time, plus a
+  fresh random sample of `WRITING_MIN_WORDS` (5) already-mastered
+  (stage-4) words and `WRITING_MIN_RULES` (2) already-mastered, unblocked
+  grammar rules — so the concrete task differs on every attempt even
+  though the topic pool itself is fixed. The mode tile is disabled on Home
+  with an explanatory hint until both minimums are met.
+- `src/components/screens/WritingScreen.tsx` — shows the topic, the
+  required words/rules as live-updating chips (checked off as soon as the
+  writer's current text plausibly uses them), a textarea, and a "Prüfen"
+  button.
+- **Required words** are checked with a real (if lenient) stem match
+  (`textUsesWord` in `src/lib/grammarUsageCheck.ts`) — inflected forms like
+  "traveled" count for "travel". This is exact and does gate the flow (the
+  chip only turns green once genuinely found in the text).
+- **Required grammar** has no reliable way to verify actual construct usage
+  without an LLM, so `textLikelyUsesGrammar` is an intentionally-labeled
+  best-effort heuristic (checks for the rule's own gap-fill answer word,
+  falling back to a per-category marker-word list) — shown as an advisory
+  checklist, never a hard gate.
+- **Grammar/spelling checking** is real: `src/lib/languageTool.ts` calls
+  the public LanguageTool API (`api.languagetool.org/v2/check`, no key
+  needed) directly from the browser. Matches are rendered as inline
+  `<mark>` highlights in the submitted text (built as React text-node
+  segments from the match offsets, not `dangerouslySetInnerHTML` — safe
+  against both the API response and the writer's own input) plus a list
+  below with each issue's category, message, and suggested replacements.
+- Finishing a check records one entry to the existing
+  `grammar_session_history` table with `format: "writing"` (no new table
+  needed) — graded `correct` (all required words used, zero LanguageTool
+  issues) / `almost` (words used, issues found) / `incorrect` (required
+  words missing) — so Writing attempts show up in Home's streak, activity
+  heatmap, and "Letzte Sessions" list (labeled "Writing", not "Grammar").
+
 ## Structure
 
 - `src/lib/auth.tsx` — React context around Supabase email/password auth
@@ -181,13 +247,37 @@ and review schedules never bleed into each other.
 - `src/components/grammar-exercises/*` — the 5 Grammar exercise types
   (learn, multiple choice, gap fill, sentence build, error-tap) plus
   `GrammarExerciseRouter` and the shared `CategoryBadge`
-- `src/components/screens/*` — Home (now with the Vocabulary/Grammar/Mixed
-  mode switcher), Session, Summary, Word List, Word Detail, Stats (now with
-  a separate Grammar section)
+- `src/components/screens/*` — Home (Vocabulary/Grammar/Mixed/Writing mode
+  switcher + stats dashboard), Session, Summary, Word List, Word Detail,
+  Stats, Settings (grammar rule blocking), Writing
+- `src/lib/writingTopics.ts`, `src/lib/languageTool.ts`,
+  `src/lib/grammarUsageCheck.ts` — the Writing feature (see below)
+- `src/lib/sound.ts` — synthesized Web Audio feedback tones (correct/
+  almost/incorrect) with a mute toggle persisted in `localStorage`,
+  wired into the shared `FeedbackPanel` so every exercise type gets it
+  for free; `TopBar` has the mute button
 
 ## Status
 
 **Working / done:**
+- Writing mode (topic + required learned words/grammar + real LanguageTool
+  grammar/spelling check), per-rule grammar blocking (new Settings screen),
+  and Duolingo-style feedback sounds with a mute toggle — see the Writing
+  and Grammar-engine sections above. Verified with Playwright against a
+  mocked Supabase backend and a mocked LanguageTool endpoint: the Writing
+  tile is correctly disabled with an explanatory hint below the learned-word
+  threshold, the required-word chips turn green live as matching text is
+  typed, a submitted spelling mistake is highlighted inline with the right
+  suggestion rendered below, finishing a check logs a `format: "writing"`
+  entry that shows up in Home's "Letzte Sessions" list, and toggling a rule
+  off in Settings persists to `blocked_rule_ids` — zero console errors
+  throughout. (One dev-only artifact ruled out during testing: React Strict
+  Mode double-invokes the state-updater functions in `store.tsx`/
+  `grammarStore.tsx` that call Supabase directly inside `setState(prev =>
+  ...)`, so session-recording network calls appear to double-fire in `npm
+  run dev` — confirmed via a production build that this never happens
+  outside dev mode, so it's not a real bug, just how Strict Mode's
+  purity-checking works.)
 - English-only typing + Word Matching brought back (see Learning engine
   above for the research rationale and how pooling works) — verified with
   Playwright: Home has no Direction picker anymore, a match round reliably
@@ -263,11 +353,11 @@ Playwright script and inspecting the queue growth directly.
 
 **Needs a one-time manual step (couldn't be automated — no SQL/DDL or Auth
 config access from this session's tools):**
-- Run `supabase/migrations/0001_init.sql`, `0002_learning_stages.sql`, and
-  `0003_grammar.sql` (in that order) once in the Supabase SQL Editor. If
-  you already ran the first two, you only need `0003_grammar.sql` now — it
-  only creates the new, additional Grammar tables and doesn't touch
-  anything vocab-related.
+- Run `supabase/migrations/0001_init.sql`, `0002_learning_stages.sql`,
+  `0003_grammar.sql`, and `0004_grammar_blocking.sql` (in that order) once
+  in the Supabase SQL Editor. If you already ran the first three, you only
+  need `0004_grammar_blocking.sql` now — it's a single additive column on
+  `grammar_meta`, nothing else changes.
 - Confirm the **Email** auth provider is on (default) and decide on the
   **Confirm email** setting — see step 2 above. No action needed if you're
   happy with the default.
