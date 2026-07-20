@@ -55,7 +55,7 @@ export default function SessionScreen({
       </div>
       <div
         key={renderKey}
-        className="flex-1 min-h-0 overflow-y-auto bg-card border border-line-soft rounded-[22px] p-5 shadow-[0_2px_8px_rgba(15,23,42,0.05),0_24px_48px_-18px_rgba(15,23,42,0.18)] flex flex-col animate-fade-in"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] bg-card border border-line-soft rounded-[22px] p-5 shadow-[0_2px_8px_rgba(15,23,42,0.05),0_24px_48px_-18px_rgba(15,23,42,0.18)] flex flex-col animate-fade-in"
       >
         {children}
       </div>

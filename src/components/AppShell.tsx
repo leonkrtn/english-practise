@@ -408,7 +408,8 @@ export default function AppShell() {
       <TopBar screen={screen} goHome={goHome} goList={goList} goStats={goStats} onLogout={() => signOut()} />
       <main
         className={
-          "flex-1 min-h-0 py-3 flex flex-col overscroll-x-none " + (screen === "session" ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden")
+          "flex-1 min-h-0 py-3 flex flex-col overscroll-x-none [-webkit-overflow-scrolling:touch] " +
+          (screen === "session" ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden")
         }
       >
         {screen === "home" && <HomeScreen onStart={startLearningSession} />}
