@@ -406,7 +406,11 @@ export default function AppShell() {
       style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <TopBar screen={screen} goHome={goHome} goList={goList} goStats={goStats} onLogout={() => signOut()} />
-      <main className={"flex-1 min-h-0 py-3 flex flex-col " + (screen === "session" ? "overflow-hidden" : "overflow-y-auto")}>
+      <main
+        className={
+          "flex-1 min-h-0 py-3 flex flex-col overscroll-x-none " + (screen === "session" ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden")
+        }
+      >
         {screen === "home" && <HomeScreen onStart={startLearningSession} />}
 
         {screen === "session" && activeMode === "learning" && learningSession && currentItem && (
