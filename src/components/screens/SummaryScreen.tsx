@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { PartyPopper } from "lucide-react";
 import { VOCAB_BY_ID } from "@/lib/vocab";
 import { useStore } from "@/lib/store";
 import type { ResultEntry } from "@/lib/types";
@@ -83,7 +84,10 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
       <div className="mb-7">
         <h2 className="text-xl font-semibold tracking-tight mb-3.5">Personal Review</h2>
         {wrongWordIds.length === 0 ? (
-          <div className="text-center py-16 px-5 text-ink-faint text-sm">Perfect session — no mistakes to review! 🎉</div>
+          <div className="flex flex-col items-center gap-2 py-16 px-5 text-ink-faint text-sm">
+            <PartyPopper size={22} className="text-blue" />
+            Perfect session — no mistakes to review!
+          </div>
         ) : (
           <>
             <div className="flex flex-col gap-2">

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { classifyAnswer } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
-import { Badge, ContextNote, FeedbackPanel, AnswerInput, ExerciseFooter, HintButton, PrimaryButton, useHints, DetailRow } from "./shared";
+import { Badge, ContextNote, FeedbackPanel, AnswerInput, ExerciseFooter, HintButton, HintIcon, PrimaryButton, useHints, DetailRow } from "./shared";
 import type { ExerciseProps } from "./types";
 
 export default function TranslateExercise({ item, onAnswered, onNext }: ExerciseProps) {
@@ -29,8 +29,8 @@ export default function TranslateExercise({ item, onAnswered, onNext }: Exercise
   return (
     <>
       <Badge word={word} />
-      <div className="text-[28px] font-bold tracking-tight mb-1 leading-tight">{promptStr}</div>
-      <div className="text-[14.5px] text-ink-faint mb-5">Translate to {toGerman ? "German" : "English"}</div>
+      <div className="text-[24px] font-bold tracking-tight mb-1 leading-tight">{promptStr}</div>
+      <div className="text-[13.5px] text-ink-faint mb-3">Translate to {toGerman ? "German" : "English"}</div>
       <AnswerInput
         value={value}
         onChange={setValue}
@@ -39,11 +39,13 @@ export default function TranslateExercise({ item, onAnswered, onNext }: Exercise
         placeholder="Type your answer…"
         onEnter={() => check(false)}
       />
-      {reveal && <div className="text-[13px] text-blue-dark bg-blue-light rounded-lg px-3 py-2 mt-2.5">{reveal}</div>}
+      {reveal && <div className="text-[13px] text-blue-dark bg-blue-light rounded-lg px-3 py-2 mt-2">{reveal}</div>}
       {!result && (
         <ExerciseFooter>
           <div className="flex gap-2">
-            <HintButton onClick={showHint}>💡 Hint</HintButton>
+            <HintButton onClick={showHint}>
+              <HintIcon /> Hint
+            </HintButton>
             <HintButton onClick={() => check(true)}>Skip</HintButton>
           </div>
           <PrimaryButton onClick={() => check(false)}>

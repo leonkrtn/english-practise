@@ -255,9 +255,9 @@ export default function AppShell() {
   const isLearnCard = currentLearningItem?.kind === "learn";
 
   return (
-    <div className="max-w-[720px] mx-auto min-h-screen flex flex-col px-5 w-full">
+    <div className="h-[100dvh] max-w-[720px] mx-auto flex flex-col px-5 w-full overflow-hidden">
       <TopBar screen={screen} goHome={goHome} goList={goList} goStats={goStats} onLogout={() => signOut()} />
-      <main className="flex-1 py-6 pb-16">
+      <main className="flex-1 min-h-0 overflow-y-auto py-3 flex flex-col">
         {screen === "home" && <HomeScreen onStart={startLearningSession} />}
 
         {screen === "session" && activeMode === "learning" && learningSession && currentLearningItem && (

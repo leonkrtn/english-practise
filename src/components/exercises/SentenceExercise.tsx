@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { normalize } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
-import { Badge, ContextNote, FeedbackPanel, AnswerInput, ExerciseFooter, HintButton, PrimaryButton, useHints, DetailRow } from "./shared";
+import { Badge, ContextNote, FeedbackPanel, AnswerInput, ExerciseFooter, HintButton, HintIcon, PrimaryButton, useHints, DetailRow } from "./shared";
 import type { ExerciseProps } from "./types";
 
 export default function SentenceExercise({ item, onAnswered, onNext }: ExerciseProps) {
@@ -45,11 +45,11 @@ export default function SentenceExercise({ item, onAnswered, onNext }: ExerciseP
   return (
     <>
       <Badge word={word} />
-      <div className="text-[14.5px] text-ink-faint mb-5">
+      <div className="text-[13.5px] text-ink-faint mb-3">
         Translate this sentence to {toGerman ? "German" : "English"} — use the word{" "}
         <b className="text-ink font-semibold">{toGerman ? word.en : word.de[0]}</b>
       </div>
-      <div className="text-[17px] leading-relaxed mb-4.5">{sourceSentence}</div>
+      <div className="text-[16px] leading-relaxed mb-3">{sourceSentence}</div>
       <AnswerInput
         value={value}
         onChange={setValue}
@@ -59,11 +59,13 @@ export default function SentenceExercise({ item, onAnswered, onNext }: ExerciseP
         onEnter={() => check(false)}
         textarea
       />
-      {reveal && <div className="text-[13px] text-blue-dark bg-blue-light rounded-lg px-3 py-2 mt-2.5">{reveal}</div>}
+      {reveal && <div className="text-[13px] text-blue-dark bg-blue-light rounded-lg px-3 py-2 mt-2">{reveal}</div>}
       {!result && (
         <ExerciseFooter>
           <div className="flex gap-2">
-            <HintButton onClick={showHint}>💡 Hint</HintButton>
+            <HintButton onClick={showHint}>
+              <HintIcon /> Hint
+            </HintButton>
             <HintButton onClick={() => check(true)}>Skip</HintButton>
           </div>
           <PrimaryButton onClick={() => check(false)}>Check</PrimaryButton>

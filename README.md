@@ -1,11 +1,12 @@
 # Vocabulary Trainer — EN/DE B2→C1
 
 Next.js rebuild of the vocabulary trainer: 1,948 English↔German verbs and
-adjectives, clean light "Apple" design. Progress is tied to a real account
-(email + password via Supabase Auth) — you have to sign up before the app
-lets you in, and everything you do is saved against that account instead of
-just a browser. Sessions run on a 4-stage spaced-repetition engine (see
-below) rather than a fixed exercise mix.
+adjectives, clean light "Apple" design, mobile-first (Home and the exercise
+screen are built to fit a phone viewport without scrolling). Progress is
+tied to a real account (email + password via Supabase Auth) — you have to
+sign up before the app lets you in, and everything you do is saved against
+that account instead of just a browser. Sessions run on a 4-stage
+spaced-repetition engine (see below) rather than a fixed exercise mix.
 
 ## Setup
 
@@ -95,6 +96,20 @@ Rules (`src/lib/learning.ts`):
 ## Status
 
 **Working / done:**
+- Mobile-first layout: the app shell is `100dvh` with no page-level scroll —
+  only `<main>` scrolls, and only screens whose content genuinely exceeds
+  one viewport (Word List, Stats) actually need to. Home and the exercise
+  screen are sized to fit a standard phone (390×844) in one screen: the
+  old "how sessions work" explainer card is gone from Home, replaced with
+  three compact stat tiles (learned / sessions / accuracy) and the primary
+  CTA pinned to the bottom of the screen; exercise cards use tighter
+  spacing throughout and the card itself is a scroll container as a safety
+  valve, not the page. Verified at 390×844 with Playwright — Home, the
+  learn card, and an MC question with its feedback panel all render with
+  zero page scroll.
+- Icons instead of emoji everywhere (`lucide-react`): TopBar nav, favorite
+  star, search, hints, feedback status (check/minus/x), back/continue
+  arrows, stat tiles.
 - Real accounts: sign up / sign in / sign out with email + password
   (`src/lib/auth.tsx`, `AuthScreen`). The app is gated behind auth — no
   account, no access, no anonymous fallback. Progress is scoped to

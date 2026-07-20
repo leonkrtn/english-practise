@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Search, Star } from "lucide-react";
 import { VOCAB } from "@/lib/vocab";
 import { normalize } from "@/lib/utils";
 import { useStore } from "@/lib/store";
@@ -40,9 +41,9 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
 
   return (
     <section className="animate-fade-in">
-      <h1 className="text-[30px] font-bold tracking-tight mt-1 mb-1.5">Words</h1>
-      <div className="flex items-center gap-2.5 bg-card border-[1.5px] border-line rounded-xl px-3.5 py-2.5 mb-4 mt-6">
-        <span>🔍</span>
+      <h1 className="text-[24px] font-bold tracking-tight mt-1 mb-3">Words</h1>
+      <div className="flex items-center gap-2.5 bg-card border-[1.5px] border-line rounded-xl px-3.5 py-2.5 mb-3">
+        <Search size={16} className="text-ink-faint shrink-0" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -95,9 +96,9 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
                     e.stopPropagation();
                     store.toggleFavorite(w.id);
                   }}
-                  className={"bg-transparent border-none text-base shrink-0 " + (s.favorite ? "text-amber" : "text-line")}
+                  className={"bg-transparent border-none shrink-0 flex items-center " + (s.favorite ? "text-amber" : "text-line")}
                 >
-                  {s.favorite ? "★" : "☆"}
+                  <Star size={16} fill={s.favorite ? "currentColor" : "none"} />
                 </button>
               </div>
             );

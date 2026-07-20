@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { BarChart3, LogOut, ScrollText } from "lucide-react";
 import type { Screen } from "./AppShell";
 
 export default function TopBar({
@@ -16,45 +16,49 @@ export default function TopBar({
   goStats: () => void;
   onLogout: () => void;
 }) {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 4);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
-    <div
-      className={
-        "sticky top-0 z-20 flex items-center justify-between py-4 backdrop-blur-md bg-[rgba(250,250,250,0.85)] border-b transition-colors " +
-        (scrolled ? "border-line" : "border-transparent")
-      }
-    >
-      <button onClick={goHome} className="flex items-center gap-2.5 font-semibold text-[16px] tracking-tight">
-        <span className="w-[9px] h-[9px] rounded-full bg-blue" />
+    <div className="shrink-0 flex items-center justify-between py-2.5 border-b border-line-soft">
+      <button onClick={goHome} className="flex items-center gap-2 font-semibold text-[15px] tracking-tight">
+        <span className="w-2 h-2 rounded-full bg-blue" />
         Vocab Trainer
       </button>
       <div className="flex items-center gap-1">
-        <button
-          onClick={goList}
-          className={"text-[14px] font-medium px-3 py-2 rounded-full transition-colors " + (screen === "list" || screen === "detail" ? "bg-ink text-white" : "text-ink-soft hover:bg-line-soft hover:text-ink")}
-        >
-          Words
-        </button>
-        <button
-          onClick={goStats}
-          className={"text-[14px] font-medium px-3 py-2 rounded-full transition-colors " + (screen === "stats" ? "bg-ink text-white" : "text-ink-soft hover:bg-line-soft hover:text-ink")}
-        >
-          Stats
-        </button>
-        <button
-          onClick={onLogout}
-          title="Abmelden"
-          className="text-[14px] font-medium px-3 py-2 rounded-full text-ink-soft hover:bg-line-soft hover:text-ink transition-colors"
-        >
-          Logout
-        </button>
+        <IconButton active={screen === "list" || screen === "detail"} onClick={goList} title="Words">
+          <ScrollText size={18} />
+        </IconButton>
+        <IconButton active={screen === "stats"} onClick={goStats} title="Stats">
+          <BarChart3 size={18} />
+        </IconButton>
+        <IconButton onClick={onLogout} title="Abmelden">
+          <LogOut size={18} />
+        </IconButton>
       </div>
     </div>
+  );
+}
+
+function IconButton({
+  onClick,
+  title,
+  active,
+  children,
+}: {
+  onClick: () => void;
+  title: string;
+  active?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className={
+        "w-8 h-8 rounded-full flex items-center justify-center transition-colors " +
+        (active ? "bg-ink text-white" : "text-ink-soft hover:bg-line-soft hover:text-ink")
+      }
+    >
+      {children}
+    </button>
   );
 }

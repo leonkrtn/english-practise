@@ -49,10 +49,10 @@ export default function BuildExercise({ item, onAnswered, onNext }: ExerciseProp
   return (
     <>
       <Badge word={word} />
-      <div className="text-[14.5px] text-ink-faint mb-5">
+      <div className="text-[13.5px] text-ink-faint mb-3">
         Reorder the words to build the sentence (word: <b className="text-ink font-semibold">{word.en}</b>)
       </div>
-      <div className="flex flex-wrap gap-2 min-h-[44px] mb-4 p-3 bg-bg rounded-xl border-[1.5px] border-dashed border-line">
+      <div className="flex flex-wrap gap-2 min-h-[44px] mb-3 p-3 bg-bg rounded-xl border-[1.5px] border-dashed border-line">
         {placed.length === 0 && <span className="text-ink-faint text-[13px]">Tap words below to build the sentence…</span>}
         {placed.map((p) => (
           <button

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check, Lightbulb, Minus, X } from "lucide-react";
 import type { Word } from "@/lib/vocab";
 import type { AnswerResultKind } from "@/lib/types";
 
@@ -9,7 +10,7 @@ export function Badge({ word }: { word: Word }) {
   return (
     <span
       className={
-        "inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-4 " +
+        "inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-3 " +
         (isAdj ? "text-purple bg-purple-light" : "text-blue bg-blue-light")
       }
     >
@@ -38,7 +39,7 @@ export function ContextNote({ word }: { word: Word }) {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="mb-2 last:mb-0">
+    <div className="mb-1.5 last:mb-0">
       <div className="text-[11.5px] uppercase tracking-wide font-bold text-ink-faint mb-0.5">{label}</div>
       {children}
     </div>
@@ -46,15 +47,10 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 export { Row as DetailRow };
 
-const STATUS_MAP: Record<AnswerResultKind, { cls: string; icon: string; label: string }> = {
-  correct: { cls: "text-[#0d7a4f]", icon: "✓", label: "Correct" },
-  almost: { cls: "text-[#96690f]", icon: "~", label: "Almost — close, but not quite" },
-  incorrect: { cls: "text-[#b8271b]", icon: "✕", label: "Not quite" },
-};
-const ICON_BG: Record<AnswerResultKind, string> = {
-  correct: "bg-green",
-  almost: "bg-amber",
-  incorrect: "bg-red",
+const STATUS_MAP: Record<AnswerResultKind, { cls: string; icon: React.ReactNode; label: string; bg: string }> = {
+  correct: { cls: "text-[#0d7a4f]", icon: <Check size={14} />, label: "Correct", bg: "bg-green" },
+  almost: { cls: "text-[#96690f]", icon: <Minus size={14} />, label: "Almost — close, but not quite", bg: "bg-amber" },
+  incorrect: { cls: "text-[#b8271b]", icon: <X size={14} />, label: "Not quite", bg: "bg-red" },
 };
 
 export function FeedbackPanel({
@@ -68,23 +64,16 @@ export function FeedbackPanel({
 }) {
   const m = STATUS_MAP[result];
   return (
-    <div className="mt-5 pt-5 border-t border-line-soft animate-fade-in">
-      <div className={"flex items-center gap-2.5 text-[16px] font-semibold mb-3.5 " + m.cls}>
-        <span
-          className={
-            "w-[26px] h-[26px] rounded-full flex items-center justify-center text-white text-sm shrink-0 " +
-            ICON_BG[result]
-          }
-        >
-          {m.icon}
-        </span>
+    <div className="mt-4 pt-4 border-t border-line-soft animate-fade-in">
+      <div className={"flex items-center gap-2 text-[15px] font-semibold mb-2.5 " + m.cls}>
+        <span className={"w-6 h-6 rounded-full flex items-center justify-center text-white shrink-0 " + m.bg}>{m.icon}</span>
         {m.label}
       </div>
-      <div className="bg-bg rounded-xl p-4 text-sm leading-relaxed text-ink-soft">{children}</div>
+      <div className="bg-bg rounded-xl p-3.5 text-sm leading-relaxed text-ink-soft">{children}</div>
       <button
         autoFocus
         onClick={onContinue}
-        className="mt-4 w-full rounded-full bg-blue hover:bg-blue-dark text-white font-semibold py-3.5 text-[15px] transition-colors active:scale-[0.97]"
+        className="mt-3 w-full rounded-full bg-blue hover:bg-blue-dark text-white font-semibold py-3 text-[15px] transition-colors active:scale-[0.97]"
       >
         Continue
       </button>
@@ -119,7 +108,7 @@ export function AnswerInput({
       : "border-red bg-red-light"
     : "border-line bg-bg focus:bg-white focus:border-blue";
   const common =
-    "w-full text-[17px] px-4 py-3.5 rounded-xl border-[1.5px] outline-none transition-colors font-sans " + statusClasses;
+    "w-full text-[16px] px-3.5 py-3 rounded-xl border-[1.5px] outline-none transition-colors font-sans " + statusClasses;
   const props = {
     value,
     disabled,
@@ -136,7 +125,7 @@ export function AnswerInput({
     },
   };
   if (textarea) {
-    return <textarea rows={3} className={common + " resize-y"} {...props} />;
+    return <textarea rows={2} className={common + " resize-y"} {...props} />;
   }
   return <input type="text" autoCapitalize="off" className={common} {...props} />;
 }
@@ -165,7 +154,7 @@ export function useHints(word: Word, targetIsGerman: boolean) {
 }
 
 export function ExerciseFooter({ children }: { children: React.ReactNode }) {
-  return <div className="flex justify-between items-center gap-2.5 mt-6">{children}</div>;
+  return <div className="flex justify-between items-center gap-2.5 mt-4">{children}</div>;
 }
 
 export function HintButton({ onClick, children, id }: { onClick: () => void; children: React.ReactNode; id?: string }) {
@@ -173,11 +162,15 @@ export function HintButton({ onClick, children, id }: { onClick: () => void; chi
     <button
       id={id}
       onClick={onClick}
-      className="text-[13px] text-ink-faint bg-transparent border border-line rounded-full px-3.5 py-1.5 hover:bg-line-soft hover:text-ink transition-colors"
+      className="inline-flex items-center gap-1 text-[13px] text-ink-faint bg-transparent border border-line rounded-full px-3 py-1.5 hover:bg-line-soft hover:text-ink transition-colors"
     >
       {children}
     </button>
   );
+}
+
+export function HintIcon() {
+  return <Lightbulb size={13} />;
 }
 
 export function PrimaryButton({
@@ -196,7 +189,7 @@ export function PrimaryButton({
       id={id}
       onClick={onClick}
       disabled={disabled}
-      className="rounded-full bg-blue hover:bg-blue-dark disabled:bg-[#d1d1d6] disabled:cursor-not-allowed text-white font-semibold px-6 py-3.5 text-[15px] transition-colors active:scale-[0.97] inline-flex items-center gap-2"
+      className="rounded-full bg-blue hover:bg-blue-dark disabled:bg-[#d1d1d6] disabled:cursor-not-allowed text-white font-semibold px-5 py-3 text-[15px] transition-colors active:scale-[0.97] inline-flex items-center gap-2"
     >
       {children}
     </button>

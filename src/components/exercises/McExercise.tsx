@@ -56,24 +56,24 @@ export default function McExercise({ item, onAnswered, onNext }: ExerciseProps) 
     promptNode = (
       <>
         <Badge word={word} />
-        <div className="text-[28px] font-bold tracking-tight mb-1 leading-tight">{word.en}</div>
-        <div className="text-[14.5px] text-ink-faint mb-5">Choose the correct German translation</div>
+        <div className="text-[24px] font-bold tracking-tight mb-1 leading-tight">{word.en}</div>
+        <div className="text-[13.5px] text-ink-faint mb-3">Choose the correct German translation</div>
       </>
     );
   } else if (built.variant === "de2word") {
     promptNode = (
       <>
         <Badge word={word} />
-        <div className="text-[28px] font-bold tracking-tight mb-1 leading-tight">{word.de[0]}</div>
-        <div className="text-[14.5px] text-ink-faint mb-5">Choose the correct English word</div>
+        <div className="text-[24px] font-bold tracking-tight mb-1 leading-tight">{word.de[0]}</div>
+        <div className="text-[13.5px] text-ink-faint mb-3">Choose the correct English word</div>
       </>
     );
   } else {
     promptNode = (
       <>
         <Badge word={word} />
-        <div className="text-[14.5px] text-ink-faint mb-5">Choose the word that fits the sentence</div>
-        <div className="text-[17px] leading-relaxed mb-1.5">
+        <div className="text-[13.5px] text-ink-faint mb-3">Choose the word that fits the sentence</div>
+        <div className="text-[16px] leading-relaxed mb-1.5">
           {built.gapInfo!.before}
           <span className="inline-block min-w-[90px] border-b-2 border-blue text-blue font-semibold text-center">____</span>
           {built.gapInfo!.after}
@@ -87,7 +87,7 @@ export default function McExercise({ item, onAnswered, onNext }: ExerciseProps) 
   return (
     <>
       {promptNode}
-      <div className="flex flex-col gap-2.5 mt-2">
+      <div className="flex flex-col gap-2 mt-1">
         {built.options.map((o, i) => {
           let cls = "border-line bg-card hover:border-[#c7c7cc] hover:bg-blue-lighter";
           let keyCls = "border-line text-ink-faint";
@@ -107,7 +107,7 @@ export default function McExercise({ item, onAnswered, onNext }: ExerciseProps) 
               key={i}
               onClick={() => select(i)}
               disabled={chosen !== null}
-              className={"text-left border-[1.5px] rounded-xl px-4 py-3.5 text-[15.5px] font-medium text-ink flex items-center gap-3 transition-colors " + cls}
+              className={"text-left border-[1.5px] rounded-xl px-3.5 py-3 text-[15px] font-medium text-ink flex items-center gap-3 transition-colors " + cls}
             >
               <span className={"w-[22px] h-[22px] rounded-full border-[1.5px] flex items-center justify-center text-[11px] font-bold shrink-0 " + keyCls}>
                 {String.fromCharCode(65 + i)}
