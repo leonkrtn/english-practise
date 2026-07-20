@@ -196,7 +196,7 @@ export default function HomeScreen({
       <h1 className="text-[27px] font-bold tracking-tight mt-1 mb-1">
         <span className="bg-gradient-to-r from-blue via-blue-dark to-purple bg-clip-text text-transparent">Vocabulary</span> Trainer
       </h1>
-      <p className="text-ink-soft text-[14px] mb-5 leading-snug">English ↔ German · Grammar · B2 → C1</p>
+      <p className="text-ink-soft text-[14px] mb-5 leading-snug">English ↔ German · Grammar</p>
 
       <div className="grid grid-cols-3 gap-2.5 mb-5">
         {MODES.map((m) => {

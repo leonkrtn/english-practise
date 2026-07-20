@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Vocab Trainer — EN/DE B2→C1",
+    name: "Vocab Trainer — EN/DE",
     short_name: "Vocab Trainer",
-    description: "English ↔ German vocabulary & grammar trainer, B2 → C1",
+    description: "English ↔ German vocabulary & grammar trainer",
     start_url: "/",
     display: "standalone",
     background_color: "#f6f7fb",
