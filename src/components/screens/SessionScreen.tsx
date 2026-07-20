@@ -11,6 +11,7 @@ export default function SessionScreen({
   progressLabel,
   item,
   favorite,
+  showFavorite = true,
   onExit,
   onToggleFav,
   onAnswered,
@@ -21,6 +22,7 @@ export default function SessionScreen({
   progressLabel: string;
   item: QueueItem;
   favorite: boolean;
+  showFavorite?: boolean;
   onExit: () => void;
   onToggleFav: () => void;
   onAnswered: (entries: ResultEntry[]) => void;
@@ -40,16 +42,18 @@ export default function SessionScreen({
           <div className="h-full bg-blue rounded-full transition-[width] duration-300" style={{ width: progressPct + "%" }} />
         </div>
         <div className="text-[12.5px] text-ink-faint font-semibold whitespace-nowrap tabular-nums">{progressLabel}</div>
-        <button
-          onClick={onToggleFav}
-          title="Favorite"
-          className={
-            "w-8 h-8 rounded-full border flex items-center justify-center shrink-0 transition-colors " +
-            (favorite ? "bg-amber-light border-amber text-amber" : "border-line bg-card text-ink-soft hover:bg-line-soft")
-          }
-        >
-          <Star size={16} fill={favorite ? "currentColor" : "none"} />
-        </button>
+        {showFavorite && (
+          <button
+            onClick={onToggleFav}
+            title="Favorite"
+            className={
+              "w-8 h-8 rounded-full border flex items-center justify-center shrink-0 transition-colors " +
+              (favorite ? "bg-amber-light border-amber text-amber" : "border-line bg-card text-ink-soft hover:bg-line-soft")
+            }
+          >
+            <Star size={16} fill={favorite ? "currentColor" : "none"} />
+          </button>
+        )}
       </div>
       <div
         key={renderKey}

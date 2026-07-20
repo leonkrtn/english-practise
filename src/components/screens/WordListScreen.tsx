@@ -1,18 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, Star } from "lucide-react";
+import { CircleCheck, Search, Star } from "lucide-react";
 import { VOCAB } from "@/lib/vocab";
 import { normalize } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 
 const FILTERS = [
   { val: "all", label: "All" },
+  { val: "known", label: "Known" },
   { val: "verb", label: "Verbs" },
   { val: "adjective", label: "Adjectives" },
   { val: "favorites", label: "Favorites" },
   { val: "mistakes", label: "Mistakes" },
-  { val: "mastered", label: "Mastered" },
   { val: "unpracticed", label: "Unpracticed" },
 ];
 
@@ -29,7 +29,7 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
     if (filter === "adjective") l = l.filter((w) => w.type === "adjective");
     if (filter === "favorites") l = l.filter((w) => store.wordState(w.id).favorite);
     if (filter === "mistakes") l = l.filter((w) => store.wordState(w.id).recentMistake);
-    if (filter === "mastered") l = l.filter((w) => store.wordState(w.id).score >= 5);
+    if (filter === "known") l = l.filter((w) => store.wordState(w.id).stage === 4);
     if (filter === "unpracticed") l = l.filter((w) => store.wordState(w.id).timesSeen === 0);
     const q = normalize(query);
     if (q) l = l.filter((w) => normalize(w.en).includes(q) || w.de.some((d) => normalize(d).includes(q)));
@@ -90,6 +90,7 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
                   <div className="text-[14.5px] font-semibold">{w.en}</div>
                   <div className="text-[12.5px] text-ink-faint">{w.de.join(" / ")}</div>
                 </div>
+                {s.stage === 4 && <CircleCheck size={14} className="text-green shrink-0" />}
                 <div className="text-[11px] text-ink-faint whitespace-nowrap">{s.timesSeen ? Math.round(s.score * 20) + "%" : "new"}</div>
                 <button
                   onClick={(e) => {

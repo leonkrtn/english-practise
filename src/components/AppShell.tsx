@@ -4,17 +4,20 @@ import { useCallback, useState } from "react";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { VOCAB_BY_ID, type Word } from "@/lib/vocab";
-import { pickDirection, type QueueItem } from "@/lib/sessionLogic";
+import type { QueueItem } from "@/lib/sessionLogic";
 import {
   buildLearningBatch,
   buildInitialQueue,
   nextAfterAnswer,
   insertionIndex,
   toQueueItem,
+  directionForKind,
+  popMatchGroups,
+  flushMatchPool,
   MAX_ATTEMPTS_PER_WORD,
   type LearningQueueItem,
 } from "@/lib/learning";
-import type { Direction, ResultEntry } from "@/lib/types";
+import type { ResultEntry } from "@/lib/types";
 import TopBar from "./TopBar";
 import Modal from "./Modal";
 import HomeScreen from "./screens/HomeScreen";
@@ -42,6 +45,8 @@ interface LearningSessionState {
   totalWordIds: string[];
   finishedWordIds: Set<string>;
   masteredWordIds: Set<string>;
+  /** Words waiting for enough siblings to fill a Word Matching round (see popMatchGroups). */
+  matchPool: Word[];
 }
 
 const SIMPLE_FORMATS: QueueItem["format"][] = ["translate", "gap", "mc", "sentence", "build"];
@@ -60,10 +65,18 @@ export default function AppShell() {
   // ---------- Primary flow: the adaptive learning-stage engine ----------
 
   const startLearningSession = useCallback(
-    (direction: Direction) => {
+    () => {
       const batch = buildLearningBatch(store.wordState, store.totalPracticeSessions);
-      const queue = buildInitialQueue(batch, store.wordState, direction);
-      const totalWordIds = [...new Set(queue.map((i) => i.word.id))];
+      const built = buildInitialQueue(batch, store.wordState);
+      let queue = built.queue;
+      let matchPool = built.matchPool;
+      // Guarantee at least one playable item even if the whole batch was a handful of
+      // already-in-progress words that didn't fill a match group on their own.
+      if (queue.length === 0 && matchPool.length > 0) {
+        queue = flushMatchPool(matchPool);
+        matchPool = [];
+      }
+      const totalWordIds = [...new Set(queue.flatMap((i) => i.words.map((w) => w.id)).concat(matchPool.map((w) => w.id)))];
       setLearningSession({
         queue,
         index: 0,
@@ -72,6 +85,7 @@ export default function AppShell() {
         totalWordIds,
         finishedWordIds: new Set(),
         masteredWordIds: new Set(),
+        matchPool,
       });
       setScreen("session");
     },
@@ -108,34 +122,56 @@ export default function AppShell() {
 
   const currentLearningItem = learningSession ? learningSession.queue[learningSession.index] : null;
 
-  /** Computes the queue/attempts/results after one answer, from a known-fresh session snapshot — pure, no state reads. */
+  /**
+   * Computes the queue/attempts/results after one answer, from a known-fresh session snapshot —
+   * pure, no state reads. `entries` usually has one item, but a Word Matching round answers
+   * several words at once, each with its own result, so every entry is processed independently.
+   */
   const advanceLearning = useCallback(
     (session: LearningSessionState, item: LearningQueueItem, entries: ResultEntry[]) => {
-      const entry = entries[0];
-      const priorReviewStreak = store.wordState(entry.wordId).reviewStreak;
-      const outcome = nextAfterAnswer(item.kind, priorReviewStreak, entry.result, store.totalPracticeSessions);
-
-      store.setLearningStage(entry.wordId, outcome.stage, outcome.reviewStreak, outcome.dueAtSession);
-      store.updateWord(entry.wordId, entry.result, entry.hintsUsed);
-      store.recordFormatStat(entry.format, entry.result);
-
-      const attempts = { ...session.attempts };
-      attempts[entry.wordId] = (attempts[entry.wordId] || 0) + 1;
-
       let queue = session.queue;
+      let matchPool = session.matchPool;
+      const attempts = { ...session.attempts };
       const finishedWordIds = new Set(session.finishedWordIds);
       const masteredWordIds = new Set(session.masteredWordIds);
 
-      if (outcome.nextKind && attempts[entry.wordId] < MAX_ATTEMPTS_PER_WORD) {
-        const nextItem: LearningQueueItem = { kind: outcome.nextKind, word: item.word, direction: item.direction };
+      entries.forEach((entry) => {
+        const word = item.words.find((w) => w.id === entry.wordId);
+        if (!word) return;
+        const priorReviewStreak = store.wordState(entry.wordId).reviewStreak;
+        const outcome = nextAfterAnswer(item.kind, priorReviewStreak, entry.result, store.totalPracticeSessions);
+
+        store.setLearningStage(entry.wordId, outcome.stage, outcome.reviewStreak, outcome.dueAtSession);
+        store.updateWord(entry.wordId, entry.result, entry.hintsUsed);
+        store.recordFormatStat(entry.format, entry.result);
+
+        attempts[entry.wordId] = (attempts[entry.wordId] || 0) + 1;
+
+        if (outcome.nextKind && attempts[entry.wordId] < MAX_ATTEMPTS_PER_WORD) {
+          if (outcome.nextKind === "quiz") {
+            // Don't queue an individual MC right away — wait to see if enough siblings pool up
+            // for a Word Matching round instead (flushed below, or at session end otherwise).
+            matchPool = [...matchPool, word];
+          } else {
+            const nextItem: LearningQueueItem = { kind: outcome.nextKind, words: [word], direction: directionForKind(outcome.nextKind) };
+            const insertAt = insertionIndex(session.index, queue.length);
+            queue = [...queue.slice(0, insertAt), nextItem, ...queue.slice(insertAt)];
+          }
+        } else {
+          finishedWordIds.add(entry.wordId);
+          if (outcome.stage === 4) masteredWordIds.add(entry.wordId);
+        }
+      });
+
+      const { groups, remaining } = popMatchGroups(matchPool);
+      groups.forEach((group) => {
+        const nextItem: LearningQueueItem = { kind: "match", words: group, direction: directionForKind("match") };
         const insertAt = insertionIndex(session.index, queue.length);
         queue = [...queue.slice(0, insertAt), nextItem, ...queue.slice(insertAt)];
-      } else {
-        finishedWordIds.add(entry.wordId);
-        if (outcome.stage === 4) masteredWordIds.add(entry.wordId);
-      }
+      });
+      matchPool = remaining;
 
-      return { ...session, results: [...session.results, ...entries], attempts, queue, finishedWordIds, masteredWordIds };
+      return { ...session, results: [...session.results, ...entries], attempts, queue, matchPool, finishedWordIds, masteredWordIds };
     },
     [store]
   );
@@ -156,11 +192,16 @@ export default function AppShell() {
   // previous question — so `learningSession` here is always the freshly committed state.
   const nextLearningQuestion = useCallback(() => {
     if (!learningSession) return;
-    const nextIndex = learningSession.index + 1;
-    if (nextIndex >= learningSession.queue.length) {
-      endLearningSession(learningSession);
+    let session = learningSession;
+    let nextIndex = session.index + 1;
+    if (nextIndex >= session.queue.length && session.matchPool.length > 0) {
+      session = { ...session, queue: [...session.queue, ...flushMatchPool(session.matchPool)], matchPool: [] };
+      nextIndex = session.index + 1;
+    }
+    if (nextIndex >= session.queue.length) {
+      endLearningSession(session);
     } else {
-      setLearningSession({ ...learningSession, index: nextIndex });
+      setLearningSession({ ...session, index: nextIndex });
     }
   }, [learningSession, endLearningSession]);
 
@@ -170,8 +211,12 @@ export default function AppShell() {
   const onLearnAcknowledged = useCallback(
     (entries: ResultEntry[]) => {
       if (!learningSession || !currentLearningItem) return;
-      const advanced = advanceLearning(learningSession, currentLearningItem, entries);
-      const nextIndex = advanced.index + 1;
+      let advanced = advanceLearning(learningSession, currentLearningItem, entries);
+      let nextIndex = advanced.index + 1;
+      if (nextIndex >= advanced.queue.length && advanced.matchPool.length > 0) {
+        advanced = { ...advanced, queue: [...advanced.queue, ...flushMatchPool(advanced.matchPool)], matchPool: [] };
+        nextIndex = advanced.index + 1;
+      }
       if (nextIndex >= advanced.queue.length) {
         endLearningSession(advanced);
       } else {
@@ -184,10 +229,11 @@ export default function AppShell() {
   // ---------- Secondary flow: quick single-pass drills (repeat mistakes / practice a word) ----------
 
   const startWithWords = useCallback((words: Word[]) => {
+    // Always German-shown/English-typed here too — same "only type English" rule as the main engine.
     const queue: QueueItem[] = words.map((w) => ({
       format: SIMPLE_FORMATS[Math.floor(Math.random() * SIMPLE_FORMATS.length)],
       words: [w],
-      direction: pickDirection("mixed"),
+      direction: "de-en",
     }));
     setQuickSession({ queue, index: 0, results: [] });
     setScreen("session");
@@ -247,12 +293,13 @@ export default function AppShell() {
   const activeMode: "learning" | "quick" | null = learningSession ? "learning" : quickSession ? "quick" : null;
   const currentWordId =
     activeMode === "learning"
-      ? currentLearningItem?.word.id ?? null
+      ? currentLearningItem?.words[0]?.id ?? null
       : activeMode === "quick" && quickSession
       ? quickSession.queue[quickSession.index]?.words[0]?.id ?? null
       : null;
   const favorite = currentWordId ? store.wordState(currentWordId).favorite : false;
   const isLearnCard = currentLearningItem?.kind === "learn";
+  const showFavorite = currentLearningItem?.kind !== "match";
 
   return (
     <div className="h-[100dvh] max-w-[720px] mx-auto flex flex-col px-5 w-full overflow-hidden">
@@ -262,11 +309,12 @@ export default function AppShell() {
 
         {screen === "session" && activeMode === "learning" && learningSession && currentLearningItem && (
           <SessionScreen
-            renderKey={`${learningSession.index}-${currentLearningItem.word.id}-${currentLearningItem.kind}`}
+            renderKey={`${learningSession.index}-${currentLearningItem.words[0].id}-${currentLearningItem.kind}`}
             progressPct={Math.round((learningSession.finishedWordIds.size / learningSession.totalWordIds.length) * 100)}
             progressLabel={`${learningSession.finishedWordIds.size} / ${learningSession.totalWordIds.length} Wörter`}
             item={toQueueItem(currentLearningItem)}
             favorite={favorite}
+            showFavorite={showFavorite}
             onExit={() => setModalOpen(true)}
             onToggleFav={() => currentWordId && store.toggleFavorite(currentWordId)}
             onAnswered={isLearnCard ? onLearnAcknowledged : onLearningAnswered}

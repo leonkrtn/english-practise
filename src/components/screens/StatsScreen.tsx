@@ -22,7 +22,7 @@ export default function StatsScreen() {
   const stats = useMemo(() => {
     const words = Object.entries(store.words);
     const practiced = words.filter(([, s]) => s.timesSeen > 0);
-    const mastered = words.filter(([, s]) => s.score >= 5);
+    const mastered = words.filter(([, s]) => s.stage === 4);
     const difficult = words.filter(([, s]) => s.timesSeen > 0 && s.score <= 2.5);
     const favorites = words.filter(([, s]) => s.favorite);
     let totalCorrect = 0,
@@ -46,7 +46,7 @@ export default function StatsScreen() {
       <h1 className="text-[30px] font-bold tracking-tight mt-1 mb-6">Statistics</h1>
       <div className="grid grid-cols-2 gap-3 mb-7">
         <StatCard value={`${stats.practiced.length} / ${VOCAB.length}`} label="Words practiced" />
-        <StatCard value={stats.mastered.length} label="Mastered" />
+        <StatCard value={stats.mastered.length} label="Known" />
         <StatCard value={stats.difficult.length} label="Difficult" />
         <StatCard value={stats.favorites.length} label="Favorites" />
         <StatCard value={`${stats.overallAcc}%`} label="Overall accuracy" />

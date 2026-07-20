@@ -38,21 +38,47 @@ spaced-repetition engine (see below) rather than a fixed exercise mix.
 
 ## Learning engine
 
-Each word moves through 5 stages, tracked per-word in `word_progress.stage`:
+Each word moves through 5 stages, tracked per-word in `word_progress.stage`.
+The method follows well-supported memory research rather than one specific
+named system: retrieval practice / the testing effect (you're always being
+asked to produce the answer, not just re-read it), increasing retrieval
+difficulty (recognition → cued recall → free production), spaced repetition
+(the Ebbinghaus forgetting curve — reviews get further apart the more times
+you get a word right), and interleaving (repeats are spread through the
+session, never back-to-back, which research shows beats blocked practice).
 
 | Stage | Task | Exercise used |
 |---|---|---|
 | 0 → 1 | **Kennenlernen** — plain info card (word, translation, example, collocations) | `LearnExercise` |
-| 1 → 2 | **Abfragen** — quick recall test | `McExercise` |
-| 2 → 3 | **Einbauen** — use the word in a sentence context | `GapExercise` |
-| 3 → 4 | **Schreiben** — free written production | `SentenceExercise` |
+| 1 → 2 | **Abfragen** — recognition: multiple choice, or a Word Matching round (see below) | `McExercise` / `MatchExercise` |
+| 2 → 3 | **Einbauen** — cued recall: use the word in a sentence context | `GapExercise` |
+| 3 → 4 | **Schreiben** — free recall: type a full translated sentence | `SentenceExercise` |
 | 4 (mastered-active) | **Wiederholung** — periodic long-term review | `TranslateExercise` |
+
+**You only ever type English, never German.** German is always the
+*meaning cue* (shown as the prompt, a hint, or a "German meaning:" label) —
+you're never asked to produce German spelling. `directionForKind()` forces
+`de-en` (German shown → English typed) for every typing-based stage
+(Schreiben, Wiederholung); the fill-in-the-blank stage (Einbauen) fills an
+English word into an English sentence regardless of direction. Only
+Multiple Choice, which requires no typing, still tests recognition in both
+directions for well-rounded comprehension.
+
+**Word Matching is back** as the default way to clear the Abfragen stage.
+Rather than testing each word individually, words due for their first
+recognition test are pooled (`matchPool` in session state) until 4 are
+ready, then presented together as a match-the-pairs round
+(`MATCH_GROUP_SIZE = 4`, `popMatchGroups()`); leftovers get flushed as a
+smaller round (or an individual MC question, if only one word remains) at
+the end of the session so nothing goes untested. This typically kicks in
+partway through your very first session, once a handful of new words have
+been introduced.
 
 Rules (`src/lib/learning.ts`):
 - A session (`AppShell.startLearningSession`) pulls ~10 "active" words
   (in-progress words first, then new ones) plus a few long-term reviews that
   are due, and builds a shuffled starting queue — one task per word at its
-  current stage.
+  current stage (or in the shared match pool, for stage-1 words).
 - **Correct answer** → word advances one stage; a follow-up task for the
   *next* stage is inserted 2–4 items further into the (growing) queue, so it
   resurfaces later in the same session rather than immediately (spacing
@@ -68,11 +94,14 @@ Rules (`src/lib/learning.ts`):
   session terminates even if a word is answered wrong repeatedly — it's
   simply picked up again next session instead of looping forever.
 - This stage system runs entirely in the background (no per-word stage
-  badges in the UI) and is independent of the pre-existing score/mastery
-  tracking still shown in Word List / Word Detail / Stats.
+  badges in Word List / Word Detail) except for one visible signal: the
+  **Known** filter in Word List and the **Known** stat on Home/Stats both
+  mean "reached stage 4" — that's your dictionary of words you actually
+  know, distinct from the older score-based practice stats.
 - "Repeat mistakes" (from the summary) and "Practice this word" (from word
   detail) are simple one-off drills and intentionally bypass the stage
-  engine — see `AppShell`'s `startWithWords`.
+  engine — see `AppShell`'s `startWithWords`. They also only ever ask for
+  English input, same rule as the main engine.
 
 ## Structure
 
@@ -96,6 +125,14 @@ Rules (`src/lib/learning.ts`):
 ## Status
 
 **Working / done:**
+- English-only typing + Word Matching brought back (see Learning engine
+  above for the research rationale and how pooling works) — verified with
+  Playwright: Home has no Direction picker anymore, a match round reliably
+  appears after ~4 new words in a first session and is fully solvable, and
+  a typed prompt was confirmed to show German with "Translate to English"
+  (never the reverse). Word List's "Mastered" filter was renamed **Known**
+  and now means stage 4 (consistent with Home's "Gelernt" tile and Stats),
+  not the old score threshold — that's the "dictionary of words I know".
 - Mobile-first layout: the app shell is `100dvh` with no page-level scroll —
   only `<main>` scrolls, and only screens whose content genuinely exceeds
   one viewport (Word List, Stats) actually need to. Home and the exercise

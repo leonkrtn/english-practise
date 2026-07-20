@@ -1,26 +1,28 @@
 import { VOCAB, type Word } from "./vocab";
 import { sample, shuffle } from "./utils";
-import type { AnswerResultKind, Direction, LearningStage, WordState } from "./types";
+import type { AnswerResultKind, LearningStage, WordState } from "./types";
 import { pickDirection, type QueueItem } from "./sessionLogic";
 
-export type StageKind = "learn" | "quiz" | "apply" | "produce" | "review";
+export type StageKind = "learn" | "quiz" | "match" | "apply" | "produce" | "review";
 
 export interface LearningQueueItem {
   kind: StageKind;
-  word: Word;
+  words: Word[];
   direction: "en-de" | "de-en";
 }
 
 const KIND_TO_FORMAT: Record<StageKind, QueueItem["format"]> = {
   learn: "learn",
   quiz: "mc",
+  match: "match",
   apply: "gap",
   produce: "sentence",
   review: "translate",
 };
 
 export function toQueueItem(item: LearningQueueItem): QueueItem {
-  return { format: KIND_TO_FORMAT[item.kind], words: [item.word], direction: item.direction };
+  const words = item.kind === "match" ? item.words : [item.words[0]];
+  return { format: KIND_TO_FORMAT[item.kind], words, direction: item.direction };
 }
 
 /** Sessions until a word resurfaces, indexed by consecutive successful long-term reviews. */
@@ -30,7 +32,7 @@ export function reviewInterval(streak: number): number {
   return REVIEW_INTERVALS[Math.min(Math.max(streak, 0), REVIEW_INTERVALS.length - 1)];
 }
 
-export function kindForStage(stage: LearningStage): StageKind {
+export function kindForStage(stage: LearningStage): Exclude<StageKind, "match" | "review"> {
   switch (stage) {
     case 0:
       return "learn";
@@ -43,9 +45,30 @@ export function kindForStage(stage: LearningStage): StageKind {
   }
 }
 
+/**
+ * Typed production (Schreiben / long-term review) always shows German and asks for English —
+ * you never have to type German, only recognize it. Recognition tasks (MC) have no typing, so
+ * they keep testing both directions for well-rounded comprehension.
+ */
+export function directionForKind(kind: StageKind): "en-de" | "de-en" {
+  if (kind === "produce" || kind === "review") return "de-en";
+  return pickDirection("mixed");
+}
+
 const ACTIVE_BATCH_SIZE = 10;
 const REVIEW_SAMPLE_SIZE = 3;
+export const MATCH_GROUP_SIZE = 4;
 export const LEARNING_BATCH_SIZE = ACTIVE_BATCH_SIZE;
+
+/** Pulls as many full groups of MATCH_GROUP_SIZE off the front of the pool as possible. */
+export function popMatchGroups(pool: Word[]): { groups: Word[][]; remaining: Word[] } {
+  const remaining = [...pool];
+  const groups: Word[][] = [];
+  while (remaining.length >= MATCH_GROUP_SIZE) {
+    groups.push(remaining.splice(0, MATCH_GROUP_SIZE));
+  }
+  return { groups, remaining };
+}
 
 export interface LearningBatch {
   activeWords: Word[];
@@ -75,23 +98,36 @@ export function buildLearningBatch(getState: (id: string) => WordState, totalPra
   return { activeWords: inProgressWords.concat(newWords), reviewWords };
 }
 
-/** Builds the shuffled starting queue for a batch: one task per active word at its current stage, plus due reviews, interleaved. */
-export function buildInitialQueue(
-  batch: LearningBatch,
-  getState: (id: string) => WordState,
-  direction: Direction
-): LearningQueueItem[] {
-  const active: LearningQueueItem[] = batch.activeWords.map((word) => ({
-    kind: kindForStage(getState(word.id).stage),
-    word,
-    direction: pickDirection(direction),
-  }));
-  const review: LearningQueueItem[] = batch.reviewWords.map((word) => ({
-    kind: "review",
-    word,
-    direction: pickDirection(direction),
-  }));
-  return shuffle(active.concat(review));
+export interface InitialQueue {
+  queue: LearningQueueItem[];
+  /** Words already due for their first "quiz" test that didn't (yet) fill a full match group — carried in session state and merged with words that reach this point mid-session. */
+  matchPool: Word[];
+}
+
+/**
+ * Builds the shuffled starting queue for a batch. Words due for their first "quiz" test are
+ * grouped into Word Matching rounds (recognition practice, lower cognitive load) whenever
+ * there are enough of them at once — any that don't fill a group go into `matchPool` instead
+ * of the queue, to be combined with words that reach the same point later in the session.
+ * Everything else gets one task per word at its current stage; due long-term reviews are mixed
+ * in too, all interleaved together.
+ */
+export function buildInitialQueue(batch: LearningBatch, getState: (id: string) => WordState): InitialQueue {
+  const quizWords: Word[] = [];
+  const items: LearningQueueItem[] = [];
+
+  batch.activeWords.forEach((word) => {
+    const kind = kindForStage(getState(word.id).stage);
+    if (kind === "quiz") quizWords.push(word);
+    else items.push({ kind, words: [word], direction: directionForKind(kind) });
+  });
+
+  const { groups, remaining } = popMatchGroups(shuffle(quizWords));
+  groups.forEach((group) => items.push({ kind: "match", words: group, direction: directionForKind("match") }));
+
+  batch.reviewWords.forEach((word) => items.push({ kind: "review", words: [word], direction: directionForKind("review") }));
+
+  return { queue: shuffle(items), matchPool: remaining };
 }
 
 export interface StageOutcome {
@@ -101,7 +137,7 @@ export interface StageOutcome {
   nextKind: StageKind | null;
 }
 
-/** Computes the word's next learning stage after an answer, and which task (if any) should follow up later in the same session. */
+/** Computes a word's next learning stage after an answer, and which task (if any) should follow up later in the same session. */
 export function nextAfterAnswer(
   kind: StageKind,
   reviewStreak: number,
@@ -119,7 +155,8 @@ export function nextAfterAnswer(
     return { stage: 3, reviewStreak: 0, dueAtSession: null, nextKind: "produce" };
   }
 
-  const taskStage: Record<Exclude<StageKind, "learn" | "review">, LearningStage> = { quiz: 1, apply: 2, produce: 3 };
+  // "match" is a group-testing variant of "quiz" — same stage-transition rules apply.
+  const taskStage: Record<"quiz" | "match" | "apply" | "produce", LearningStage> = { quiz: 1, match: 1, apply: 2, produce: 3 };
   const current = taskStage[kind];
 
   if (result === "correct") {
@@ -140,6 +177,13 @@ export function insertionIndex(currentIndex: number, queueLength: number): numbe
   return Math.min(currentIndex + offset, queueLength);
 }
 
+/** End-of-session (or empty-queue) cleanup: turns whatever's left in the match pool into one last task instead of leaving it untested. */
+export function flushMatchPool(pool: Word[]): LearningQueueItem[] {
+  if (pool.length === 0) return [];
+  if (pool.length === 1) return [{ kind: "quiz", words: [pool[0]], direction: directionForKind("quiz") }];
+  return [{ kind: "match", words: pool, direction: directionForKind("match") }];
+}
+
 export const MAX_ATTEMPTS_PER_WORD = 5;
 
 export function stageKindLabel(kind: StageKind): string {
@@ -148,6 +192,8 @@ export function stageKindLabel(kind: StageKind): string {
       return "Kennenlernen";
     case "quiz":
       return "Abfragen";
+    case "match":
+      return "Wörter verbinden";
     case "apply":
       return "Einbauen";
     case "produce":

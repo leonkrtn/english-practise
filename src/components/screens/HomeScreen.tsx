@@ -1,23 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { GraduationCap, Repeat, Target } from "lucide-react";
 import { useStore } from "@/lib/store";
-import type { Direction } from "@/lib/types";
 
-const DIR_OPTIONS: { val: Direction; label: string }[] = [
-  { val: "en-de", label: "EN → DE" },
-  { val: "de-en", label: "DE → EN" },
-  { val: "mixed", label: "Mixed" },
-];
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div className="text-xs font-bold uppercase tracking-wide text-ink-faint mb-2">{children}</div>;
-}
-
-export default function HomeScreen({ onStart }: { onStart: (direction: Direction) => void }) {
+export default function HomeScreen({ onStart }: { onStart: () => void }) {
   const store = useStore();
-  const [direction, setDirection] = useState<Direction>("mixed");
 
   const stats = useMemo(() => {
     const words = Object.values(store.words);
@@ -38,35 +26,17 @@ export default function HomeScreen({ onStart }: { onStart: (direction: Direction
         <h1 className="text-[26px] font-bold tracking-tight mt-1 mb-1">Vocabulary Trainer</h1>
         <p className="text-ink-soft text-[14px] mb-5 leading-snug">English ↔ German · Verbs &amp; Adjectives · B2 → C1</p>
 
-        <div className="grid grid-cols-3 gap-2 mb-6">
+        <div className="grid grid-cols-3 gap-2">
           <StatTile icon={<GraduationCap size={16} />} value={stats.learned} label="Gelernt" />
           <StatTile icon={<Repeat size={16} />} value={stats.sessions} label="Sessions" />
           <StatTile icon={<Target size={16} />} value={`${stats.accuracy}%`} label="Genauigkeit" />
-        </div>
-
-        <div>
-          <SectionLabel>Direction</SectionLabel>
-          <div className="grid grid-cols-3 gap-2">
-            {DIR_OPTIONS.map((o) => (
-              <button
-                key={o.val}
-                onClick={() => setDirection(o.val)}
-                className={
-                  "border-[1.5px] rounded-[10px] px-2 py-3 text-center text-sm font-semibold transition-colors " +
-                  (direction === o.val ? "border-blue bg-blue-light text-blue-dark" : "border-line bg-card text-ink-soft hover:border-[#c7c7cc] hover:bg-blue-lighter")
-                }
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
       <div className="flex-1" />
 
       <button
-        onClick={() => onStart(direction)}
+        onClick={onStart}
         className="w-full rounded-full bg-blue hover:bg-blue-dark text-white font-semibold py-4 text-[16px] transition-colors active:scale-[0.97] mb-2"
       >
         Start Session

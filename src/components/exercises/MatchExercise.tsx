@@ -65,25 +65,25 @@ export default function MatchExercise({ item, onAnswered, onNext }: ExerciseProp
 
   return (
     <>
-      <div className="text-[14.5px] text-ink-faint mb-5">Match each English word with its German translation</div>
-      <div className="grid grid-cols-2 gap-6">
-        <div className="flex flex-col gap-2">
+      <div className="text-[13.5px] text-ink-faint mb-3">Match each English word with its German translation</div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5">
           {left.map((x) => (
             <button
               key={x.id}
               onClick={() => clickSide("left", x.id)}
-              className={"border-[1.5px] rounded-[10px] px-3.5 py-3 text-[14.5px] font-medium text-center transition-colors " + itemClasses(x.id, selLeft === x.id)}
+              className={"border-[1.5px] rounded-[10px] px-3 py-2.5 text-[14px] font-medium text-center transition-colors " + itemClasses(x.id, selLeft === x.id)}
             >
               {x.text}
             </button>
           ))}
         </div>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1.5">
           {right.map((x) => (
             <button
               key={x.id}
               onClick={() => clickSide("right", x.id)}
-              className={"border-[1.5px] rounded-[10px] px-3.5 py-3 text-[14.5px] font-medium text-center transition-colors " + itemClasses(x.id, selRight === x.id)}
+              className={"border-[1.5px] rounded-[10px] px-3 py-2.5 text-[14px] font-medium text-center transition-colors " + itemClasses(x.id, selRight === x.id)}
             >
               {x.text}
             </button>
