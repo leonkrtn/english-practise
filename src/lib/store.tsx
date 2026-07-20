@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { supabase } from "./supabase";
+import { isAuthError, supabase } from "./supabase";
 import { blankWordState, type FormatStat, type SessionRecord, type WordState, type AnswerResultKind, type LearningStage } from "./types";
 
 interface StoreShape {
@@ -44,6 +44,10 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     (async () => {
       setReady(false);
       try {
+        // Ensures the access token is refreshed before the burst of queries below —
+        // avoids a race where a token that's expired-but-not-yet-refreshed (e.g. after
+        // the tab was suspended in the background) causes the very first requests to 401.
+        await supabase.auth.getSession();
         const [wp, fs, sh, meta] = await Promise.all([
           supabase.from("word_progress").select("*").eq("user_id", userId),
           supabase.from("format_stats").select("*").eq("user_id", userId),
@@ -104,7 +108,18 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
         setReady(true);
       } catch (e) {
         console.error("Supabase init failed", e);
-        if (!cancelled) setError(e instanceof Error ? e.message : "Could not connect to Supabase.");
+        if (cancelled) return;
+        if (isAuthError(e)) {
+          // Stale/invalid session — sign out so the user lands back on a working
+          // login screen instead of a dead "could not connect" error.
+          try {
+            await supabase.auth.signOut();
+          } catch (signOutErr) {
+            console.error("Sign-out after auth error failed", signOutErr);
+          }
+          return;
+        }
+        setError(e instanceof Error ? e.message : "Could not connect to Supabase.");
       }
     })();
     return () => {

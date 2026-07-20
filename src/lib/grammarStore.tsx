@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { supabase } from "./supabase";
+import { isAuthError, supabase } from "./supabase";
 import { blankGrammarRuleState, type GrammarFormatStat, type GrammarRuleState, type GrammarSessionRecord } from "./grammarTypes";
 import type { AnswerResultKind, LearningStage } from "./types";
 
@@ -38,6 +38,10 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
     (async () => {
       setReady(false);
       try {
+        // Ensures the access token is refreshed before the burst of queries below —
+        // avoids a race where a token that's expired-but-not-yet-refreshed (e.g. after
+        // the tab was suspended in the background) causes the very first requests to 401.
+        await supabase.auth.getSession();
         const [rp, fs, sh, meta] = await Promise.all([
           supabase.from("grammar_progress").select("*").eq("user_id", userId),
           supabase.from("grammar_format_stats").select("*").eq("user_id", userId),
@@ -85,7 +89,18 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
         setReady(true);
       } catch (e) {
         console.error("Grammar store init failed", e);
-        if (!cancelled) setError(e instanceof Error ? e.message : "Could not load grammar progress.");
+        if (cancelled) return;
+        if (isAuthError(e)) {
+          // Stale/invalid session — sign out so the user lands back on a working
+          // login screen instead of a dead "could not connect" error.
+          try {
+            await supabase.auth.signOut();
+          } catch (signOutErr) {
+            console.error("Sign-out after auth error failed", signOutErr);
+          }
+          return;
+        }
+        setError(e instanceof Error ? e.message : "Could not load grammar progress.");
       }
     })();
     return () => {
