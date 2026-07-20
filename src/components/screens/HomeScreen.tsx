@@ -92,7 +92,13 @@ function formatRelativeDate(ts: number): string {
   return new Date(ts).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
 }
 
-export default function HomeScreen({ onStart }: { onStart: (mode: SessionMode) => void }) {
+export default function HomeScreen({
+  onStart,
+  onReview,
+}: {
+  onStart: (mode: SessionMode) => void;
+  onReview: (mode: SessionMode) => void;
+}) {
   const store = useStore();
   const grammarStore = useGrammarStore();
   const [mode, setMode] = useState<SessionMode>("vocab");
@@ -298,7 +304,15 @@ export default function HomeScreen({ onStart }: { onStart: (mode: SessionMode) =
         </div>
       )}
 
-      <div className="sticky bottom-0 pt-4 pb-2 -mx-5 px-5 bg-gradient-to-t from-bg from-65% to-transparent">
+      <div className="sticky bottom-0 pt-4 pb-2 -mx-5 px-5 bg-gradient-to-t from-bg from-65% to-transparent flex flex-col gap-2">
+        {stats.learned > 0 && (
+          <button
+            onClick={() => onReview(mode)}
+            className="w-full rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:-translate-y-0.5 text-ink font-semibold py-3 text-[14px] transition-all active:scale-[0.97]"
+          >
+            Gelerntes wiederholen ({stats.learned})
+          </button>
+        )}
         <button
           onClick={() => onStart(mode)}
           className={

@@ -4,7 +4,8 @@ import { useCallback, useState } from "react";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { useAuth } from "@/lib/auth";
-import { VOCAB_BY_ID, type Word } from "@/lib/vocab";
+import { VOCAB, VOCAB_BY_ID, type Word } from "@/lib/vocab";
+import { GRAMMAR_RULES } from "@/lib/grammar-data";
 import type { QueueItem } from "@/lib/sessionLogic";
 import {
   buildLearningBatch,
@@ -131,6 +132,49 @@ export default function AppShell() {
       setScreen("session");
     },
     [store.wordState, store.totalPracticeSessions, grammarStore.ruleState, grammarStore.totalPracticeSessions]
+  );
+
+  // Drills exclusively every word/rule that has already reached stage 4 ("gelernt"), using the
+  // same "review" kind + stage engine as the normal long-term review — a correct answer extends
+  // the interval, a wrong one demotes the item back into active learning. Reuses the exact same
+  // growing/interleaved session machinery as startLearningSession, just seeded differently: every
+  // already-mastered item at once instead of an adaptive ~10-word batch.
+  const startReviewSession = useCallback(
+    (mode: SessionMode) => {
+      const vocabQueue: LearningQueueItem[] =
+        mode === "vocab" || mode === "mixed"
+          ? VOCAB.filter((w) => store.wordState(w.id).stage === 4).map((w) => ({
+              kind: "review" as const,
+              words: [w],
+              direction: directionForKind("review"),
+            }))
+          : [];
+      const grammarQueueItems: GrammarQueueItem[] =
+        mode === "grammar" || mode === "mixed"
+          ? GRAMMAR_RULES.filter((r) => grammarStore.ruleState(r.id).stage === 4).map((rule) => ({ kind: "review" as const, rule }))
+          : [];
+
+      const queue: UnifiedItem[] = shuffle([
+        ...vocabQueue.map((item) => ({ domain: "vocab" as const, item })),
+        ...grammarQueueItems.map((item) => ({ domain: "grammar" as const, item })),
+      ]);
+      if (queue.length === 0) return;
+
+      const totalItemIds = [...new Set(queue.map((u) => (u.domain === "vocab" ? "v:" + u.item.words[0].id : "g:" + u.item.rule.id)))];
+      setLearningSession({
+        queue,
+        index: 0,
+        vocabResults: [],
+        grammarResults: [],
+        attempts: {},
+        totalItemIds,
+        finishedItemIds: new Set(),
+        masteredItemIds: new Set(),
+        matchPool: [],
+      });
+      setScreen("session");
+    },
+    [store, grammarStore]
   );
 
   const endLearningSession = useCallback(
@@ -412,7 +456,7 @@ export default function AppShell() {
           (screen === "session" ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden")
         }
       >
-        {screen === "home" && <HomeScreen onStart={startLearningSession} />}
+        {screen === "home" && <HomeScreen onStart={startLearningSession} onReview={startReviewSession} />}
 
         {screen === "session" && activeMode === "learning" && learningSession && currentItem && (
           <SessionScreen
