@@ -76,9 +76,15 @@ been introduced.
 
 Rules (`src/lib/learning.ts`):
 - A session (`AppShell.startLearningSession`) pulls ~10 "active" words
-  (in-progress words first, then new ones) plus a few long-term reviews that
-  are due, and builds a shuffled starting queue — one task per word at its
-  current stage (or in the shared match pool, for stage-1 words).
+  (in-progress words first, then new ones) plus up to 4 due long-term
+  reviews, and builds a shuffled starting queue — one task per word at its
+  current stage (or in the shared match pool, for stage-1 words). Due
+  reviews are picked **most-overdue-first**, not randomly — with a growing
+  pool of stage-4 ("Known") words, a fixed sample per session only clears
+  the backlog if the longest-waiting words go first; random sampling could
+  otherwise skip some indefinitely while always re-picking fresher ones.
+  This is the "ab und zu abgefragt" confirmation that a mastered word is
+  actually still remembered, not just marked done and forgotten about.
 - **Correct answer** → word advances one stage; a follow-up task for the
   *next* stage is inserted 2–4 items further into the (growing) queue, so it
   resurfaces later in the same session rather than immediately (spacing

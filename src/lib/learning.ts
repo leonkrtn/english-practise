@@ -56,7 +56,7 @@ export function directionForKind(kind: StageKind): "en-de" | "de-en" {
 }
 
 const ACTIVE_BATCH_SIZE = 10;
-const REVIEW_SAMPLE_SIZE = 3;
+const REVIEW_SAMPLE_SIZE = 4;
 export const MATCH_GROUP_SIZE = 4;
 export const LEARNING_BATCH_SIZE = ACTIVE_BATCH_SIZE;
 
@@ -75,13 +75,20 @@ export interface LearningBatch {
   reviewWords: Word[];
 }
 
-/** Picks the ~10 words this session works on (in-progress words first, then new ones) plus a few due long-term reviews. */
+/**
+ * Picks the ~10 words this session works on (in-progress words first, then new ones) plus a
+ * few due long-term reviews — the "ab und zu abgefragt" confirmation for stage-4 words. Reviews
+ * are picked most-overdue-first (not randomly): with a growing pool of known words, a fixed
+ * sample size per session means the backlog only clears if the words waiting longest go first,
+ * otherwise some could get skipped indefinitely in favor of always-fresher due words.
+ */
 export function buildLearningBatch(getState: (id: string) => WordState, totalPracticeSessions: number): LearningBatch {
   const duePool = VOCAB.filter((w) => {
     const s = getState(w.id);
     return s.stage === 4 && s.dueAtSession !== null && s.dueAtSession <= totalPracticeSessions;
   });
-  const reviewWords = sample(duePool, Math.min(REVIEW_SAMPLE_SIZE, duePool.length));
+  duePool.sort((a, b) => (getState(a.id).dueAtSession ?? 0) - (getState(b.id).dueAtSession ?? 0));
+  const reviewWords = duePool.slice(0, REVIEW_SAMPLE_SIZE);
 
   const inProgressPool = shuffle(
     VOCAB.filter((w) => {
