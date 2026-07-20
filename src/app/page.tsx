@@ -2,22 +2,25 @@
 
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { StoreProvider, useStore } from "@/lib/store";
+import { GrammarStoreProvider, useGrammarStore } from "@/lib/grammarStore";
 import AppShell from "@/components/AppShell";
 import AuthScreen from "@/components/screens/AuthScreen";
 
 function StoreBoot() {
   const store = useStore();
+  const grammarStore = useGrammarStore();
 
-  if (store.error) {
+  const error = store.error || grammarStore.error;
+  if (error) {
     return (
       <div className="fixed inset-0 flex items-center justify-center flex-col gap-3 bg-bg px-6 text-center">
         <div className="text-ink font-semibold">Could not connect to Supabase</div>
-        <div className="text-ink-faint text-sm max-w-sm">{store.error}</div>
+        <div className="text-ink-faint text-sm max-w-sm">{error}</div>
       </div>
     );
   }
 
-  if (!store.ready) {
+  if (!store.ready || !grammarStore.ready) {
     return (
       <div className="fixed inset-0 flex items-center justify-center flex-col gap-3 bg-bg">
         <div className="w-7 h-7 rounded-full border-[3px] border-line border-t-blue animate-spin-slow" />
@@ -55,7 +58,9 @@ function AuthGate() {
 
   return (
     <StoreProvider userId={auth.user.id}>
-      <StoreBoot />
+      <GrammarStoreProvider userId={auth.user.id}>
+        <StoreBoot />
+      </GrammarStoreProvider>
     </StoreProvider>
   );
 }

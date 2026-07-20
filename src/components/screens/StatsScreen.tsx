@@ -2,7 +2,9 @@
 
 import { useMemo } from "react";
 import { VOCAB, VOCAB_BY_ID } from "@/lib/vocab";
+import { GRAMMAR_RULES } from "@/lib/grammar-data";
 import { useStore } from "@/lib/store";
+import { useGrammarStore } from "@/lib/grammarStore";
 
 const FMT_LABELS: Record<string, string> = {
   learn: "Kennenlernen",
@@ -14,10 +16,16 @@ const FMT_LABELS: Record<string, string> = {
   build: "Sentence Building",
   multigap: "Fill Multiple Gaps",
   confusable: "Similar Words",
+  "g-learn": "Kennenlernen",
+  "g-mc": "Multiple Choice",
+  "g-gap": "Lückentext",
+  "g-build": "Satz umbauen",
+  "g-error": "Fehler finden",
 };
 
 export default function StatsScreen() {
   const store = useStore();
+  const grammarStore = useGrammarStore();
 
   const stats = useMemo(() => {
     const words = Object.entries(store.words);
@@ -41,9 +49,25 @@ export default function StatsScreen() {
     return { practiced, mastered, difficult, favorites, overallAcc, verbsTotal, adjTotal, verbsPracticed, adjPracticed };
   }, [store.words]);
 
+  const grammarStats = useMemo(() => {
+    const rules = Object.entries(grammarStore.rules);
+    const practiced = rules.filter(([, s]) => s.timesSeen > 0);
+    const known = rules.filter(([, s]) => s.stage === 4);
+    let totalCorrect = 0,
+      totalAll = 0;
+    practiced.forEach(([, s]) => {
+      totalCorrect += s.timesCorrect;
+      totalAll += s.timesCorrect + s.timesAlmost + s.timesIncorrect;
+    });
+    const overallAcc = totalAll ? Math.round((totalCorrect / totalAll) * 100) : 0;
+    return { practiced, known, overallAcc };
+  }, [grammarStore.rules]);
+
   return (
     <section className="animate-fade-in">
-      <h1 className="text-[30px] font-bold tracking-tight mt-1 mb-6">Statistics</h1>
+      <h1 className="text-[26px] font-bold tracking-tight mt-1 mb-5">Statistics</h1>
+
+      <h2 className="text-lg font-semibold tracking-tight mb-3">Vocabulary</h2>
       <div className="grid grid-cols-2 gap-3 mb-7">
         <StatCard value={`${stats.practiced.length} / ${VOCAB.length}`} label="Words practiced" />
         <StatCard value={stats.mastered.length} label="Known" />
@@ -53,16 +77,31 @@ export default function StatsScreen() {
         <StatCard value={store.totalPracticeSessions || 0} label="Sessions completed" />
       </div>
 
+      <h2 className="text-lg font-semibold tracking-tight mb-3">Grammar</h2>
+      <div className="grid grid-cols-2 gap-3 mb-7">
+        <StatCard value={`${grammarStats.practiced.length} / ${GRAMMAR_RULES.length}`} label="Rules practiced" />
+        <StatCard value={grammarStats.known.length} label="Known" />
+        <StatCard value={`${grammarStats.overallAcc}%`} label="Overall accuracy" />
+        <StatCard value={grammarStore.totalPracticeSessions || 0} label="Sessions completed" />
+      </div>
+
       <div className="mb-7">
         <h2 className="text-xl font-semibold tracking-tight mb-3.5">Accuracy by format</h2>
-        {Object.keys(store.formatStats).length === 0 ? (
+        {Object.keys(store.formatStats).length === 0 && Object.keys(grammarStore.formatStats).length === 0 ? (
           <p className="text-ink-soft text-[15px]">No sessions completed yet.</p>
         ) : (
-          Object.entries(store.formatStats).map(([f, v]) => {
-            const total = v.correct + v.almost + v.incorrect;
-            const acc = total ? Math.round((v.correct / total) * 100) : 0;
-            return <BarRow key={f} label={FMT_LABELS[f] || f} value={acc + "%"} pct={acc} />;
-          })
+          <>
+            {Object.entries(store.formatStats).map(([f, v]) => {
+              const total = v.correct + v.almost + v.incorrect;
+              const acc = total ? Math.round((v.correct / total) * 100) : 0;
+              return <BarRow key={f} label={FMT_LABELS[f] || f} value={acc + "%"} pct={acc} />;
+            })}
+            {Object.entries(grammarStore.formatStats).map(([f, v]) => {
+              const total = v.correct + v.almost + v.incorrect;
+              const acc = total ? Math.round((v.correct / total) * 100) : 0;
+              return <BarRow key={f} label={(FMT_LABELS[f] || f) + " (Grammar)"} value={acc + "%"} pct={acc} />;
+            })}
+          </>
         )}
       </div>
 
@@ -70,6 +109,11 @@ export default function StatsScreen() {
         <h2 className="text-xl font-semibold tracking-tight mb-3.5">Progress</h2>
         <BarRow label="Verbs" value={`${stats.verbsPracticed}/${stats.verbsTotal}`} pct={Math.round((stats.verbsPracticed / stats.verbsTotal) * 100)} />
         <BarRow label="Adjectives" value={`${stats.adjPracticed}/${stats.adjTotal}`} pct={Math.round((stats.adjPracticed / stats.adjTotal) * 100)} />
+        <BarRow
+          label="Grammar"
+          value={`${grammarStats.practiced.length}/${GRAMMAR_RULES.length}`}
+          pct={Math.round((grammarStats.practiced.length / GRAMMAR_RULES.length) * 100)}
+        />
       </div>
     </section>
   );

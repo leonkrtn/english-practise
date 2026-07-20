@@ -3,8 +3,10 @@
 import { useMemo } from "react";
 import { PartyPopper } from "lucide-react";
 import { VOCAB_BY_ID } from "@/lib/vocab";
+import { GRAMMAR_RULES_BY_ID } from "@/lib/grammar-data";
 import { useStore } from "@/lib/store";
 import type { ResultEntry } from "@/lib/types";
+import type { GrammarResultEntry } from "@/lib/grammarTypes";
 
 export interface SummaryStats {
   correct: number;
@@ -14,10 +16,14 @@ export interface SummaryStats {
   accuracy: number;
   newWordsCount: number;
   results: ResultEntry[];
+  /** Only present for a session that included grammar. */
+  grammarResults?: GrammarResultEntry[];
   /** Learning-session only: words that reached the final "schreiben" stage and now enter long-term review. */
   wordsMastered?: number;
   /** Learning-session only: words still in progress, picked up again in a future session. */
   wordsInProgress?: number;
+  rulesMastered?: number;
+  rulesInProgress?: number;
 }
 
 export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: SummaryStats; onHome: () => void; onRepeat: (wordIds: string[]) => void }) {
@@ -49,12 +55,17 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
     return { wrongWordIds, topError, weakestFormat, weakestAcc };
   }, [stats.results]);
 
+  const wrongRuleIds = useMemo(
+    () => [...new Set((stats.grammarResults || []).filter((r) => r.result !== "correct").map((r) => r.ruleId))],
+    [stats.grammarResults]
+  );
+
   return (
     <section className="animate-fade-in">
       <div className="text-center py-9 px-5">
         <div className="text-[52px] font-extrabold tracking-tight text-blue">{stats.accuracy}%</div>
         <div className="text-[15px] text-ink-faint mt-1">
-          {stats.total} questions · {stats.newWordsCount} new words practiced
+          {stats.total} questions · {stats.newWordsCount} new
         </div>
       </div>
       <div className="grid grid-cols-3 gap-2.5 my-6">
@@ -63,27 +74,40 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
         <SStat value={stats.incorrect} label="Incorrect" color="text-red" />
       </div>
 
-      {(stats.wordsMastered !== undefined || stats.wordsInProgress !== undefined) && (
-        <div className="flex gap-2.5 mb-7">
-          {stats.wordsMastered !== undefined && stats.wordsMastered > 0 && (
-            <div className="flex-1 bg-green-light border border-green/20 rounded-xl px-4 py-3.5 text-center">
+      {(stats.wordsMastered !== undefined ||
+        stats.wordsInProgress !== undefined ||
+        stats.rulesMastered !== undefined ||
+        stats.rulesInProgress !== undefined) && (
+        <div className="flex flex-wrap gap-2.5 mb-7">
+          {!!stats.wordsMastered && (
+            <div className="flex-1 min-w-[45%] bg-green-light border border-green/20 rounded-xl px-4 py-3.5 text-center">
               <div className="text-[19px] font-bold text-green">{stats.wordsMastered}</div>
-              <div className="text-[12px] text-[#0d7a4f] mt-0.5">
-                {stats.wordsMastered === 1 ? "Wort gelernt — kommt bald zur Wiederholung" : "Wörter gelernt — kommen bald zur Wiederholung"}
-              </div>
+              <div className="text-[12px] text-[#0d7a4f] mt-0.5">{stats.wordsMastered === 1 ? "Wort gelernt" : "Wörter gelernt"}</div>
             </div>
           )}
-          {stats.wordsInProgress !== undefined && stats.wordsInProgress > 0 && (
-            <div className="flex-1 bg-blue-light border border-blue/20 rounded-xl px-4 py-3.5 text-center">
+          {!!stats.wordsInProgress && (
+            <div className="flex-1 min-w-[45%] bg-blue-light border border-blue/20 rounded-xl px-4 py-3.5 text-center">
               <div className="text-[19px] font-bold text-blue-dark">{stats.wordsInProgress}</div>
-              <div className="text-[12px] text-blue-dark mt-0.5">weiter in Arbeit — nächstes Mal geht&apos;s weiter</div>
+              <div className="text-[12px] text-blue-dark mt-0.5">Wörter in Arbeit</div>
+            </div>
+          )}
+          {!!stats.rulesMastered && (
+            <div className="flex-1 min-w-[45%] bg-green-light border border-green/20 rounded-xl px-4 py-3.5 text-center">
+              <div className="text-[19px] font-bold text-green">{stats.rulesMastered}</div>
+              <div className="text-[12px] text-[#0d7a4f] mt-0.5">{stats.rulesMastered === 1 ? "Regel gelernt" : "Regeln gelernt"}</div>
+            </div>
+          )}
+          {!!stats.rulesInProgress && (
+            <div className="flex-1 min-w-[45%] bg-purple-light border border-purple/20 rounded-xl px-4 py-3.5 text-center">
+              <div className="text-[19px] font-bold text-purple">{stats.rulesInProgress}</div>
+              <div className="text-[12px] text-purple mt-0.5">Regeln in Arbeit</div>
             </div>
           )}
         </div>
       )}
       <div className="mb-7">
         <h2 className="text-xl font-semibold tracking-tight mb-3.5">Personal Review</h2>
-        {wrongWordIds.length === 0 ? (
+        {wrongWordIds.length === 0 && wrongRuleIds.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16 px-5 text-ink-faint text-sm">
             <PartyPopper size={22} className="text-blue" />
             Perfect session — no mistakes to review!
@@ -100,6 +124,18 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
                       {w.en} — {w.de[0]}
                     </span>
                     <span className="text-[11.5px] font-semibold px-2 py-0.5 rounded-full bg-red-light text-[#b8271b]">{mistake ? "review" : "ok"}</span>
+                  </div>
+                );
+              })}
+              {wrongRuleIds.slice(0, 12).map((id) => {
+                const rule = GRAMMAR_RULES_BY_ID[id];
+                if (!rule) return null;
+                return (
+                  <div key={id} className="flex justify-between items-center px-3.5 py-2.5 bg-card border border-line-soft rounded-[10px] text-sm">
+                    <span>
+                      {rule.title} <span className="text-ink-faint">— {rule.category}</span>
+                    </span>
+                    <span className="text-[11.5px] font-semibold px-2 py-0.5 rounded-full bg-purple-light text-purple">review</span>
                   </div>
                 );
               })}

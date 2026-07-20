@@ -1,32 +1,25 @@
 "use client";
 
 import { Star, X } from "lucide-react";
-import ExerciseRouter from "@/components/exercises/ExerciseRouter";
-import type { QueueItem } from "@/lib/sessionLogic";
-import type { ResultEntry } from "@/lib/types";
 
 export default function SessionScreen({
   renderKey,
   progressPct,
   progressLabel,
-  item,
   favorite,
   showFavorite = true,
   onExit,
   onToggleFav,
-  onAnswered,
-  onNext,
+  children,
 }: {
   renderKey: string | number;
   progressPct: number;
   progressLabel: string;
-  item: QueueItem;
   favorite: boolean;
   showFavorite?: boolean;
   onExit: () => void;
   onToggleFav: () => void;
-  onAnswered: (entries: ResultEntry[]) => void;
-  onNext: () => void;
+  children: React.ReactNode;
 }) {
   return (
     <section className="h-full flex flex-col">
@@ -59,7 +52,7 @@ export default function SessionScreen({
         key={renderKey}
         className="flex-1 min-h-0 overflow-y-auto bg-card border border-line-soft rounded-[20px] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.06)] flex flex-col animate-fade-in"
       >
-        <ExerciseRouter item={item} onAnswered={onAnswered} onNext={onNext} />
+        {children}
       </div>
     </section>
   );

@@ -8,6 +8,15 @@ sign up before the app lets you in, and everything you do is saved against
 that account instead of just a browser. Sessions run on a 4-stage
 spaced-repetition engine (see below) rather than a fixed exercise mix.
 
+Alongside vocabulary there's a second, independent learning track:
+**Grammar** — ~25 curated B2→C1 rules (tenses, conditionals, passive,
+reported speech, relative clauses, modals, verb patterns, word order,
+articles/nouns, prepositions, comparisons), covering sentence structure and
+logic rather than single words. Vocabulary and Grammar run on the same
+stage-based engine but keep entirely separate progress, and can be
+practiced alone or interleaved in a **Mixed** session — pick the mode on
+the Home screen.
+
 ## Setup
 
 1. In the Supabase project **English-practise**, open the SQL Editor and run,
@@ -18,6 +27,10 @@ spaced-repetition engine (see below) rather than a fixed exercise mix.
    - `supabase/migrations/0002_learning_stages.sql` — adds the `stage`,
      `review_streak`, `due_at_session` columns that drive the learning
      engine below.
+   - `supabase/migrations/0003_grammar.sql` — creates `grammar_progress`,
+     `grammar_format_stats`, `grammar_session_history`, `grammar_meta`,
+     the fully separate tables backing the Grammar track (same RLS pattern,
+     scoped to `auth.uid()`).
 2. In **Authentication → Sign In / Providers**, make sure the **Email**
    provider is enabled (it is by default). Decide whether you want **Confirm
    email** on: if it's on, `signUp` won't return a session immediately and
@@ -109,6 +122,40 @@ Rules (`src/lib/learning.ts`):
   engine — see `AppShell`'s `startWithWords`. They also only ever ask for
   English input, same rule as the main engine.
 
+## Grammar engine
+
+A second, parallel track (`src/lib/grammarLearning.ts`, `grammarStore.tsx`)
+mirrors the vocabulary stage engine's shape exactly — same 5 stages, same
+most-overdue-first review scheduling, same per-item attempt cap — but runs
+on `GrammarRule` instead of `Word`, has its own Supabase tables and its own
+`total_practice_sessions` clock, and has no Word Matching equivalent (no
+grouping stage; grammar rules are always tested one at a time).
+
+| Stage | Task | Exercise used |
+|---|---|---|
+| 0 → 1 | **Kennenlernen** — rule explanation + several example sentences | `GrammarLearnExercise` |
+| 1 → 2 | **Abfragen** — multiple choice: which sentence is correct | `GrammarMcExercise` |
+| 2 → 3 | **Einbauen** — fill in the gap with the correct form | `GrammarGapExercise` |
+| 3 → 4 | **Schreiben** — rebuild a scrambled sentence in the right order | `GrammarBuildExercise` |
+| 4 (mastered-active) | **Wiederholung** — tap the wrong word in a broken sentence | `GrammarErrorExercise` |
+
+Rule data lives in `src/lib/grammar-data.ts` (`GRAMMAR_RULES`, ~25 entries),
+each with a category badge (e.g. "Konditionalsätze", "Zeiten",
+"Wortstellung") shown on every exercise card.
+
+**Mode selector & Mixed sessions:** `AppShell`'s `SessionMode` is
+`"vocab" | "grammar" | "mixed"`, chosen via the 3-way switcher on Home. A
+Mixed session builds one growing, interleaved queue over a `UnifiedItem`
+discriminated union (`{domain: "vocab", item}` | `{domain: "grammar",
+item}`) — both domains' due items, retries, and stage progressions share the
+same in-session growth/interleaving logic as the vocab-only engine, just
+routed to the right exercise component (`ExerciseRouter` vs.
+`GrammarExerciseRouter`) and the right store (`updateWord`/`recordSession`
+vs. `updateRule`/`recordSession` on `useGrammarStore()`) per item. Ending a
+Mixed session records a session entry in each track independently (only if
+that track actually had results), so Vocabulary and Grammar stats, streaks,
+and review schedules never bleed into each other.
+
 ## Structure
 
 - `src/lib/auth.tsx` — React context around Supabase email/password auth
@@ -125,8 +172,18 @@ Rules (`src/lib/learning.ts`):
 - `src/components/exercises/*` — `LearnExercise` plus the original 8
   exercise types (translate, gap fill, multiple choice, sentence
   translation, matching, sentence building, multi-gap, confusable pairs)
-- `src/components/screens/*` — Home, Session, Summary, Word List, Word
-  Detail, Stats
+- `src/lib/grammar-data.ts` — the ~25-rule Grammar dataset and typed model
+  (`GrammarRule`)
+- `src/lib/grammarLearning.ts` — the Grammar stage engine, parallel to
+  `learning.ts`
+- `src/lib/grammarStore.tsx` — React context wrapping Supabase reads/writes
+  for the signed-in user's Grammar progress (separate tables from vocab)
+- `src/components/grammar-exercises/*` — the 5 Grammar exercise types
+  (learn, multiple choice, gap fill, sentence build, error-tap) plus
+  `GrammarExerciseRouter` and the shared `CategoryBadge`
+- `src/components/screens/*` — Home (now with the Vocabulary/Grammar/Mixed
+  mode switcher), Session, Summary, Word List, Word Detail, Stats (now with
+  a separate Grammar section)
 
 ## Status
 
@@ -178,6 +235,18 @@ Rules (`src/lib/learning.ts`):
 - Build no longer crashes if Supabase env vars are missing at build time —
   it now fails softly at runtime with a visible error screen instead.
 
+- Grammar track (see Grammar engine above): ~25 rules across 5 stages, its
+  own Supabase tables, mode selector on Home (Vocabulary / Grammar / Mixed),
+  Mixed sessions interleaving both domains in one queue, combined Summary
+  and Stats views. Verified with Playwright against a mocked Supabase
+  backend: a pure Grammar session runs learn → MC → gap → build → error
+  through to the Summary screen with zero console errors; a Mixed session
+  was driven through 25 steps and confirmed to genuinely interleave vocab
+  items ("Neues Verb"/"Neues Adjektiv" badges) with grammar rule categories
+  ("Konditionalsätze", "Zeiten", "Wortstellung", …) in one growing queue,
+  also zero console errors; `tsc --noEmit`, `eslint`, and a clean
+  `next build` all pass.
+
 **Bug found & fixed during Playwright testing:** the learn card is the only
 exercise that answers and advances in one click (every other exercise shows
 a feedback panel and waits for a separate "Continue" click). Wiring it
@@ -194,10 +263,11 @@ Playwright script and inspecting the queue growth directly.
 
 **Needs a one-time manual step (couldn't be automated — no SQL/DDL or Auth
 config access from this session's tools):**
-- Run `supabase/migrations/0001_init.sql` **and** `0002_learning_stages.sql`
-  (in that order) once in the Supabase SQL Editor. If you already ran
-  `0001_init.sql` before, you only need `0002_learning_stages.sql` now —
-  it's additive (`alter table ... add column if not exists`).
+- Run `supabase/migrations/0001_init.sql`, `0002_learning_stages.sql`, and
+  `0003_grammar.sql` (in that order) once in the Supabase SQL Editor. If
+  you already ran the first two, you only need `0003_grammar.sql` now — it
+  only creates the new, additional Grammar tables and doesn't touch
+  anything vocab-related.
 - Confirm the **Email** auth provider is on (default) and decide on the
   **Confirm email** setting — see step 2 above. No action needed if you're
   happy with the default.
