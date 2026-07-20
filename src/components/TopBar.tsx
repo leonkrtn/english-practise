@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { BarChart3, LogOut, ScrollText, Volume2, VolumeX } from "lucide-react";
 import type { Screen } from "./AppShell";
 import { useSoundMuted } from "@/lib/sound";
@@ -20,9 +21,8 @@ export default function TopBar({
   const [muted, toggleMuted] = useSoundMuted();
   return (
     <div className="shrink-0 flex items-center justify-between py-2.5 border-b border-line-soft">
-      <button onClick={goHome} className="flex items-center gap-2 font-semibold text-[15px] tracking-tight">
-        <span className="w-2 h-2 rounded-full bg-gradient-to-br from-blue to-purple shadow-[0_0_6px_rgba(0,113,227,0.5)]" />
-        Vocab Trainer
+      <button onClick={goHome} aria-label="Home" className="flex items-center">
+        <Image src="/icons/icon-192.png" alt="" width={34} height={34} priority />
       </button>
       <div className="flex items-center gap-1">
         <IconButton onClick={toggleMuted} title={muted ? "Sound aktivieren" : "Sound stummschalten"}>
