@@ -401,9 +401,12 @@ export default function AppShell() {
   const showFavorite = currentItem?.domain === "vocab" && currentItem.item.kind !== "match";
 
   return (
-    <div className="h-[100dvh] max-w-[720px] mx-auto flex flex-col px-5 w-full overflow-hidden">
+    <div
+      className="h-[100dvh] max-w-[720px] mx-auto flex flex-col px-5 w-full overflow-hidden"
+      style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
       <TopBar screen={screen} goHome={goHome} goList={goList} goStats={goStats} onLogout={() => signOut()} />
-      <main className="flex-1 min-h-0 overflow-y-auto py-3 flex flex-col">
+      <main className={"flex-1 min-h-0 py-3 flex flex-col " + (screen === "session" ? "overflow-hidden" : "overflow-y-auto")}>
         {screen === "home" && <HomeScreen onStart={startLearningSession} />}
 
         {screen === "session" && activeMode === "learning" && learningSession && currentItem && (
