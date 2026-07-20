@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Lightbulb, Minus, X } from "lucide-react";
 import type { Word } from "@/lib/vocab";
 import type { AnswerResultKind } from "@/lib/types";
+import { playFeedbackSound } from "@/lib/sound";
 
 export function Badge({ word }: { word: Word }) {
   const isAdj = word.type === "adjective";
@@ -87,6 +88,10 @@ export function FeedbackPanel({
   onContinue: () => void;
 }) {
   const m = STATUS_MAP[result];
+  useEffect(() => {
+    playFeedbackSound(result);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <div className="mt-4 pt-4 border-t border-line-soft animate-fade-in">
       <div className={"flex items-center gap-2 text-[15px] font-semibold mb-2.5 " + m.cls}>

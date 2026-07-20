@@ -5,6 +5,7 @@ import { shuffle } from "@/lib/utils";
 import { FeedbackPanel } from "./shared";
 import type { ExerciseProps } from "./types";
 import type { ResultEntry } from "@/lib/types";
+import { playCorrect, playIncorrect } from "@/lib/sound";
 
 export default function MatchExercise({ item, onAnswered, onNext }: ExerciseProps) {
   const words = item.words;
@@ -37,6 +38,7 @@ export default function MatchExercise({ item, onAnswered, onNext }: ExerciseProp
     if (otherSel === null) return;
 
     if (otherSel === id) {
+      playCorrect();
       const next = new Set(matched);
       next.add(id);
       setMatched(next);
@@ -44,6 +46,7 @@ export default function MatchExercise({ item, onAnswered, onNext }: ExerciseProp
       setSelRight(null);
       if (next.size === words.length) finish();
     } else {
+      playIncorrect();
       wrongRef.current.add(id);
       wrongRef.current.add(otherSel);
       setWrongIds(new Set(wrongRef.current));

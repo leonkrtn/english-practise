@@ -1,7 +1,8 @@
 "use client";
 
-import { BarChart3, LogOut, ScrollText } from "lucide-react";
+import { BarChart3, LogOut, ScrollText, Volume2, VolumeX } from "lucide-react";
 import type { Screen } from "./AppShell";
+import { useSoundMuted } from "@/lib/sound";
 
 export default function TopBar({
   screen,
@@ -16,6 +17,7 @@ export default function TopBar({
   goStats: () => void;
   onLogout: () => void;
 }) {
+  const [muted, toggleMuted] = useSoundMuted();
   return (
     <div className="shrink-0 flex items-center justify-between py-2.5 border-b border-line-soft">
       <button onClick={goHome} className="flex items-center gap-2 font-semibold text-[15px] tracking-tight">
@@ -23,6 +25,9 @@ export default function TopBar({
         Vocab Trainer
       </button>
       <div className="flex items-center gap-1">
+        <IconButton onClick={toggleMuted} title={muted ? "Sound aktivieren" : "Sound stummschalten"}>
+          {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+        </IconButton>
         <IconButton active={screen === "list" || screen === "detail"} onClick={goList} title="Words">
           <ScrollText size={18} />
         </IconButton>
