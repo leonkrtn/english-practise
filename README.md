@@ -42,3 +42,39 @@ browser via Supabase (anonymous auth, no login screen).
   multi-gap, confusable pairs)
 - `src/components/screens/*` — Home, Session, Summary, Word List, Word
   Detail, Stats
+
+## Status
+
+**Working / done:**
+- All 8 exercise formats, weighted word selection (new/difficult/mistakes/
+  favorites/all), direction mixing (EN→DE / DE→EN / mixed), hints, skip,
+  session summary with "repeat mistakes", word list with search + filters,
+  word detail, stats screen — full parity with the original prototype.
+- Supabase persistence (`word_progress`, `format_stats`, `session_history`,
+  `app_meta`), scoped per anonymous browser user via RLS.
+- Production build verified locally (`npm run build`, clean `tsc`/`eslint`)
+  and confirmed working on Vercel.
+- Build no longer crashes if Supabase env vars are missing at build time —
+  it now fails softly at runtime with a visible error screen instead.
+
+**Needs a one-time manual step (couldn't be automated — no SQL/DDL or Auth
+config access from this session's tools):**
+- Run `supabase/migrations/0001_init.sql` once in the Supabase SQL Editor.
+- Enable **Anonymous Sign-ins**: Supabase Dashboard → Authentication →
+  Sign In / Providers → toggle on. Without this, the app shows "Could not
+  connect to Supabase — Anonymous sign-ins are disabled".
+- Set `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the
+  Vercel project's Environment Variables (values in `.env.example`), then
+  redeploy.
+
+**Known limitations vs. a "real" app:**
+- No login/account system — identity is one anonymous Supabase user per
+  browser (via cookie/localStorage token). Clearing site data, using a
+  different browser, or incognito mode all start a fresh, empty profile;
+  there's no way to log back into an existing one or sync across devices.
+- No keyboard shortcuts (Enter-to-submit still works per input, but the
+  original's global F/S/H/1-4 shortcuts were dropped in the Next.js
+  rewrite to keep state management simple).
+- Light theme only, by design — no dark mode toggle.
+- No automated tests; correctness so far is verified by local build +
+  manual click-through (Playwright) in this session, not a test suite.
