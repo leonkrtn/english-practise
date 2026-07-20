@@ -22,17 +22,17 @@ export default function GrammarMcExercise({ rule, onAnswered, onNext }: GrammarE
       <div className="text-[15px] text-ink mb-3 font-medium">{rule.mc.prompt}</div>
       <div className="flex flex-col gap-2 mt-1">
         {rule.mc.options.map((o, i) => {
-          let cls = "border-line bg-card hover:border-[#c7c7cc] hover:bg-blue-lighter";
-          let keyCls = "border-line text-ink-faint";
+          let cls = "border-line bg-card hover:border-purple/40 hover:bg-purple-light hover:-translate-y-0.5 hover:shadow-md";
+          let keyCls = "border-line text-ink-faint bg-bg";
           if (chosen !== null) {
             if (i === rule.mc.correctIndex) {
-              cls = "border-green bg-green-light";
-              keyCls = "bg-green border-green text-white";
+              cls = "border-green bg-green-light shadow-[0_4px_14px_-4px_rgba(30,182,118,0.35)]";
+              keyCls = "bg-gradient-to-br from-green to-green-dark border-green text-white shadow-sm";
             } else if (i === chosen) {
-              cls = "border-red bg-red-light";
-              keyCls = "bg-red border-red text-white";
+              cls = "border-red bg-red-light shadow-[0_4px_14px_-4px_rgba(232,72,58,0.3)]";
+              keyCls = "bg-gradient-to-br from-red to-red-dark border-red text-white shadow-sm";
             } else {
-              cls = "border-line bg-card opacity-50";
+              cls = "border-line bg-card opacity-40";
             }
           }
           return (
@@ -40,9 +40,9 @@ export default function GrammarMcExercise({ rule, onAnswered, onNext }: GrammarE
               key={i}
               onClick={() => select(i)}
               disabled={chosen !== null}
-              className={"text-left border-[1.5px] rounded-xl px-3.5 py-3 text-[14.5px] font-medium text-ink flex items-center gap-3 transition-colors " + cls}
+              className={"text-left border-[1.5px] rounded-xl px-3.5 py-3 text-[14.5px] font-medium text-ink flex items-center gap-3 transition-all " + cls}
             >
-              <span className={"w-[22px] h-[22px] rounded-full border-[1.5px] flex items-center justify-center text-[11px] font-bold shrink-0 " + keyCls}>
+              <span className={"w-[22px] h-[22px] rounded-full border-[1.5px] flex items-center justify-center text-[11px] font-bold shrink-0 transition-colors " + keyCls}>
                 {String.fromCharCode(65 + i)}
               </span>
               {o}

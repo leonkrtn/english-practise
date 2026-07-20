@@ -7,19 +7,23 @@
   --blue-light: #eaf3ff;
   --blue-lighter: #f4f9ff;
   --green: #1eb676;
+  --green-dark: #0e9464;
   --green-light: #e7f9f1;
   --red: #e8483a;
+  --red-dark: #c23325;
   --red-light: #fdecea;
   --amber: #e8a12e;
+  --amber-dark: #c9860f;
   --amber-light: #fdf3e2;
   --ink: #1d1d1f;
   --ink-soft: #48484f;
   --ink-faint: #86868b;
   --line: #e4e4e7;
   --line-soft: #eeeef0;
-  --bg: #fafafa;
+  --bg: #f6f7fb;
   --card: #ffffff;
   --purple: #8b5cf6;
+  --purple-dark: #6d3fd4;
   --purple-light: #f2ecfd;
 }
 
@@ -29,10 +33,13 @@
   --color-blue-light: var(--blue-light);
   --color-blue-lighter: var(--blue-lighter);
   --color-green: var(--green);
+  --color-green-dark: var(--green-dark);
   --color-green-light: var(--green-light);
   --color-red: var(--red);
+  --color-red-dark: var(--red-dark);
   --color-red-light: var(--red-light);
   --color-amber: var(--amber);
+  --color-amber-dark: var(--amber-dark);
   --color-amber-light: var(--amber-light);
   --color-ink: var(--ink);
   --color-ink-soft: var(--ink-soft);
@@ -42,6 +49,7 @@
   --color-bg: var(--bg);
   --color-card: var(--card);
   --color-purple: var(--purple);
+  --color-purple-dark: var(--purple-dark);
   --color-purple-light: var(--purple-light);
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
     "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -59,6 +67,11 @@ body {
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  background:
+    radial-gradient(1100px 620px at 12% -12%, rgba(0, 113, 227, 0.09), transparent 60%),
+    radial-gradient(900px 520px at 105% 0%, rgba(139, 92, 246, 0.08), transparent 55%),
+    var(--bg);
+  background-attachment: fixed;
 }
 
 ::selection {

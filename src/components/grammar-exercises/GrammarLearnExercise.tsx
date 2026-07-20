@@ -15,7 +15,7 @@ export default function GrammarLearnExercise({ rule, onAnswered, onNext }: Gramm
       <CategoryBadge category={rule.category} />
       <div className="text-[20px] font-bold tracking-tight mb-2 leading-tight">{rule.title}</div>
       <div className="text-[14px] text-ink-soft leading-relaxed mb-3">{rule.explanation}</div>
-      <div className="bg-bg rounded-xl p-3.5 text-sm leading-relaxed text-ink-soft flex flex-col gap-2">
+      <div className="bg-gradient-to-br from-purple-light/60 to-blue-lighter rounded-xl p-3.5 text-sm leading-relaxed text-ink-soft flex flex-col gap-2">
         {rule.examples.map((ex, i) => (
           <div key={i}>
             {ex.en}

@@ -31,13 +31,13 @@ export default function GrammarErrorExercise({ rule, onAnswered, onNext }: Gramm
       <div className="text-[13.5px] text-ink-faint mb-3">Tap the word that&apos;s wrong in this sentence</div>
       <div className="flex flex-wrap gap-1.5 text-[16px] leading-relaxed">
         {tokens.map((t, i) => {
-          let cls = "hover:bg-blue-lighter";
+          let cls = "hover:bg-purple-light hover:-translate-y-0.5";
           if (chosen !== null) {
-            if (i === correctIdx) cls = "bg-green-light text-[#0d7a4f]";
-            else if (i === chosen) cls = "bg-red-light text-[#b8271b]";
+            if (i === correctIdx) cls = "bg-green-light text-[#0d7a4f] shadow-sm";
+            else if (i === chosen) cls = "bg-red-light text-[#b8271b] shadow-sm";
           }
           return (
-            <button key={i} onClick={() => select(i)} disabled={chosen !== null} className={"rounded-md px-1 py-0.5 transition-colors " + cls}>
+            <button key={i} onClick={() => select(i)} disabled={chosen !== null} className={"rounded-md px-1 py-0.5 transition-all " + cls}>
               {t}
             </button>
           );

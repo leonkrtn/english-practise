@@ -10,8 +10,8 @@ export function Badge({ word }: { word: Word }) {
   return (
     <span
       className={
-        "inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-3 " +
-        (isAdj ? "text-purple bg-purple-light" : "text-blue bg-blue-light")
+        "inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-3 text-white shadow-sm bg-gradient-to-r " +
+        (isAdj ? "from-purple to-purple-dark" : "from-blue to-blue-dark")
       }
     >
       {isAdj ? "Adjective" : "Verb"}
@@ -47,10 +47,34 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 export { Row as DetailRow };
 
-const STATUS_MAP: Record<AnswerResultKind, { cls: string; icon: React.ReactNode; label: string; bg: string }> = {
-  correct: { cls: "text-[#0d7a4f]", icon: <Check size={14} />, label: "Correct", bg: "bg-green" },
-  almost: { cls: "text-[#96690f]", icon: <Minus size={14} />, label: "Almost — close, but not quite", bg: "bg-amber" },
-  incorrect: { cls: "text-[#b8271b]", icon: <X size={14} />, label: "Not quite", bg: "bg-red" },
+const STATUS_MAP: Record<
+  AnswerResultKind,
+  { cls: string; icon: React.ReactNode; label: string; bg: string; panelBg: string; btnGrad: string }
+> = {
+  correct: {
+    cls: "text-[#0d7a4f]",
+    icon: <Check size={14} />,
+    label: "Correct",
+    bg: "bg-gradient-to-br from-green to-green-dark",
+    panelBg: "bg-green-light/50",
+    btnGrad: "from-green to-green-dark",
+  },
+  almost: {
+    cls: "text-[#96690f]",
+    icon: <Minus size={14} />,
+    label: "Almost — close, but not quite",
+    bg: "bg-gradient-to-br from-amber to-amber-dark",
+    panelBg: "bg-amber-light/50",
+    btnGrad: "from-amber to-amber-dark",
+  },
+  incorrect: {
+    cls: "text-[#b8271b]",
+    icon: <X size={14} />,
+    label: "Not quite",
+    bg: "bg-gradient-to-br from-red to-red-dark",
+    panelBg: "bg-red-light/40",
+    btnGrad: "from-blue to-blue-dark",
+  },
 };
 
 export function FeedbackPanel({
@@ -66,14 +90,17 @@ export function FeedbackPanel({
   return (
     <div className="mt-4 pt-4 border-t border-line-soft animate-fade-in">
       <div className={"flex items-center gap-2 text-[15px] font-semibold mb-2.5 " + m.cls}>
-        <span className={"w-6 h-6 rounded-full flex items-center justify-center text-white shrink-0 " + m.bg}>{m.icon}</span>
+        <span className={"w-6 h-6 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm " + m.bg}>{m.icon}</span>
         {m.label}
       </div>
-      <div className="bg-bg rounded-xl p-3.5 text-sm leading-relaxed text-ink-soft">{children}</div>
+      <div className={"rounded-xl p-3.5 text-sm leading-relaxed text-ink-soft " + m.panelBg}>{children}</div>
       <button
         autoFocus
         onClick={onContinue}
-        className="mt-3 w-full rounded-full bg-blue hover:bg-blue-dark text-white font-semibold py-3 text-[15px] transition-colors active:scale-[0.97]"
+        className={
+          "mt-3 w-full rounded-full text-white font-semibold py-3 text-[15px] transition-all active:scale-[0.97] hover:brightness-110 shadow-[0_10px_22px_-8px_rgba(15,23,42,0.35)] bg-gradient-to-r " +
+          m.btnGrad
+        }
       >
         Continue
       </button>
@@ -106,9 +133,9 @@ export function AnswerInput({
       : status === "almost"
       ? "border-amber bg-amber-light"
       : "border-red bg-red-light"
-    : "border-line bg-bg focus:bg-white focus:border-blue";
+    : "border-line bg-bg focus:bg-white focus:border-blue focus:shadow-[0_0_0_4px_rgba(0,113,227,0.12)]";
   const common =
-    "w-full text-[16px] px-3.5 py-3 rounded-xl border-[1.5px] outline-none transition-colors font-sans " + statusClasses;
+    "w-full text-[16px] px-3.5 py-3 rounded-xl border-[1.5px] outline-none transition-all font-sans " + statusClasses;
   const props = {
     value,
     disabled,
@@ -162,7 +189,7 @@ export function HintButton({ onClick, children, id }: { onClick: () => void; chi
     <button
       id={id}
       onClick={onClick}
-      className="inline-flex items-center gap-1 text-[13px] text-ink-faint bg-transparent border border-line rounded-full px-3 py-1.5 hover:bg-line-soft hover:text-ink transition-colors"
+      className="inline-flex items-center gap-1 text-[13px] text-ink-faint bg-transparent border border-line rounded-full px-3 py-1.5 hover:bg-blue-lighter hover:border-blue/30 hover:text-blue-dark transition-colors"
     >
       {children}
     </button>
@@ -189,7 +216,7 @@ export function PrimaryButton({
       id={id}
       onClick={onClick}
       disabled={disabled}
-      className="rounded-full bg-blue hover:bg-blue-dark disabled:bg-[#d1d1d6] disabled:cursor-not-allowed text-white font-semibold px-5 py-3 text-[15px] transition-colors active:scale-[0.97] inline-flex items-center gap-2"
+      className="rounded-full bg-gradient-to-r from-blue to-blue-dark hover:brightness-110 disabled:bg-[#d1d1d6] disabled:from-[#d1d1d6] disabled:to-[#d1d1d6] disabled:shadow-none disabled:cursor-not-allowed text-white font-semibold px-5 py-3 text-[15px] transition-all active:scale-[0.97] shadow-[0_10px_22px_-8px_rgba(0,113,227,0.5)] inline-flex items-center gap-2"
     >
       {children}
     </button>

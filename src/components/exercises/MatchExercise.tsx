@@ -59,8 +59,8 @@ export default function MatchExercise({ item, onAnswered, onNext }: ExerciseProp
   function itemClasses(id: string, selected: boolean) {
     if (matched.has(id)) return "border-green bg-green-light text-[#0d7a4f] opacity-70 cursor-default";
     if (shaking.has(id)) return "border-red bg-red-light animate-shake";
-    if (selected) return "border-blue bg-blue-light text-blue-dark";
-    return "border-line bg-card hover:border-[#c7c7cc]";
+    if (selected) return "border-blue bg-gradient-to-br from-blue to-blue-dark text-white shadow-[0_4px_14px_-4px_rgba(0,113,227,0.45)]";
+    return "border-line bg-card hover:border-blue/40 hover:bg-blue-lighter hover:-translate-y-0.5 hover:shadow-sm";
   }
 
   return (
@@ -72,7 +72,7 @@ export default function MatchExercise({ item, onAnswered, onNext }: ExerciseProp
             <button
               key={x.id}
               onClick={() => clickSide("left", x.id)}
-              className={"border-[1.5px] rounded-[10px] px-3 py-2.5 text-[14px] font-medium text-center transition-colors " + itemClasses(x.id, selLeft === x.id)}
+              className={"border-[1.5px] rounded-[10px] px-3 py-2.5 text-[14px] font-medium text-center transition-all " + itemClasses(x.id, selLeft === x.id)}
             >
               {x.text}
             </button>
@@ -83,7 +83,7 @@ export default function MatchExercise({ item, onAnswered, onNext }: ExerciseProp
             <button
               key={x.id}
               onClick={() => clickSide("right", x.id)}
-              className={"border-[1.5px] rounded-[10px] px-3 py-2.5 text-[14px] font-medium text-center transition-colors " + itemClasses(x.id, selRight === x.id)}
+              className={"border-[1.5px] rounded-[10px] px-3 py-2.5 text-[14px] font-medium text-center transition-all " + itemClasses(x.id, selRight === x.id)}
             >
               {x.text}
             </button>
