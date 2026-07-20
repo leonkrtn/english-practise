@@ -17,6 +17,7 @@ interface GrammarStoreApi {
   error: string | null;
   rules: Record<string, GrammarRuleState>;
   formatStats: Record<string, GrammarFormatStat>;
+  sessionHistory: GrammarSessionRecord[];
   totalPracticeSessions: number;
   ruleState: (id: string) => GrammarRuleState;
   updateRule: (id: string, result: AnswerResultKind, hintsUsed?: number) => void;
@@ -237,6 +238,7 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
     error,
     rules: state.rules,
     formatStats: state.formatStats,
+    sessionHistory: state.sessionHistory,
     totalPracticeSessions: state.totalPracticeSessions,
     ruleState,
     updateRule,
