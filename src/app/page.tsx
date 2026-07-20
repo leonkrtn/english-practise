@@ -1,9 +1,11 @@
 "use client";
 
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { StoreProvider, useStore } from "@/lib/store";
 import AppShell from "@/components/AppShell";
+import AuthScreen from "@/components/screens/AuthScreen";
 
-function Boot() {
+function StoreBoot() {
   const store = useStore();
 
   if (store.error) {
@@ -27,10 +29,41 @@ function Boot() {
   return <AppShell />;
 }
 
+function AuthGate() {
+  const auth = useAuth();
+
+  if (auth.error) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center flex-col gap-3 bg-bg px-6 text-center">
+        <div className="text-ink font-semibold">Could not connect to Supabase</div>
+        <div className="text-ink-faint text-sm max-w-sm">{auth.error}</div>
+      </div>
+    );
+  }
+
+  if (!auth.ready) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center flex-col gap-3 bg-bg">
+        <div className="w-7 h-7 rounded-full border-[3px] border-line border-t-blue animate-spin-slow" />
+      </div>
+    );
+  }
+
+  if (!auth.user) {
+    return <AuthScreen />;
+  }
+
+  return (
+    <StoreProvider userId={auth.user.id}>
+      <StoreBoot />
+    </StoreProvider>
+  );
+}
+
 export default function Home() {
   return (
-    <StoreProvider>
-      <Boot />
-    </StoreProvider>
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
   );
 }

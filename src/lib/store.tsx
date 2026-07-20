@@ -1,7 +1,7 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { supabase, supabaseConfigError } from "./supabase";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { supabase } from "./supabase";
 import { blankWordState, type FormatStat, type SessionRecord, type WordState, type AnswerResultKind, type LearningStage } from "./types";
 
 interface StoreShape {
@@ -28,7 +28,8 @@ interface StoreApi {
 
 const StoreContext = createContext<StoreApi | null>(null);
 
-export function StoreProvider({ children }: { children: React.ReactNode }) {
+/** Loads and persists this signed-in user's progress. Mount only once `userId` (a real account, not anonymous) is known. */
+export function StoreProvider({ userId, children }: { userId: string; children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [state, setState] = useState<StoreShape>({
@@ -37,33 +38,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     sessionHistory: [],
     totalPracticeSessions: 0,
   });
-  const userId = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setReady(false);
       try {
-        if (supabaseConfigError) throw new Error(supabaseConfigError);
-        const { data: sessionData } = await supabase.auth.getSession();
-        let session = sessionData.session;
-        if (!session) {
-          const { data, error: signErr } = await supabase.auth.signInAnonymously();
-          if (signErr) throw signErr;
-          session = data.session;
-        }
-        if (!session) throw new Error("Could not create a Supabase session.");
-        userId.current = session.user.id;
-
         const [wp, fs, sh, meta] = await Promise.all([
-          supabase.from("word_progress").select("*").eq("user_id", session.user.id),
-          supabase.from("format_stats").select("*").eq("user_id", session.user.id),
+          supabase.from("word_progress").select("*").eq("user_id", userId),
+          supabase.from("format_stats").select("*").eq("user_id", userId),
           supabase
             .from("session_history")
             .select("*")
-            .eq("user_id", session.user.id)
+            .eq("user_id", userId)
             .order("occurred_at", { ascending: true })
             .limit(200),
-          supabase.from("app_meta").select("*").eq("user_id", session.user.id).maybeSingle(),
+          supabase.from("app_meta").select("*").eq("user_id", userId).maybeSingle(),
         ]);
         if (wp.error) throw wp.error;
         if (fs.error) throw fs.error;
@@ -120,43 +110,45 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [userId]);
 
   const wordState = useCallback(
     (id: string): WordState => state.words[id] || blankWordState(),
     [state.words]
   );
 
-  const persistWord = useCallback((id: string, w: WordState) => {
-    if (!userId.current) return;
-    supabase
-      .from("word_progress")
-      .upsert(
-        {
-          user_id: userId.current,
-          word_id: id,
-          score: w.score,
-          times_seen: w.timesSeen,
-          times_correct: w.timesCorrect,
-          times_incorrect: w.timesIncorrect,
-          times_almost: w.timesAlmost,
-          favorite: w.favorite,
-          spelling_errors: w.spellingErrors,
-          confusions: w.confusions,
-          last_seen: w.lastSeen ? new Date(w.lastSeen).toISOString() : null,
-          recent_mistake: w.recentMistake,
-          streak: w.streak,
-          stage: w.stage,
-          review_streak: w.reviewStreak,
-          due_at_session: w.dueAtSession,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,word_id" }
-      )
-      .then(({ error: err }) => {
-        if (err) console.error("persistWord", err);
-      });
-  }, []);
+  const persistWord = useCallback(
+    (id: string, w: WordState) => {
+      supabase
+        .from("word_progress")
+        .upsert(
+          {
+            user_id: userId,
+            word_id: id,
+            score: w.score,
+            times_seen: w.timesSeen,
+            times_correct: w.timesCorrect,
+            times_incorrect: w.timesIncorrect,
+            times_almost: w.timesAlmost,
+            favorite: w.favorite,
+            spelling_errors: w.spellingErrors,
+            confusions: w.confusions,
+            last_seen: w.lastSeen ? new Date(w.lastSeen).toISOString() : null,
+            recent_mistake: w.recentMistake,
+            streak: w.streak,
+            stage: w.stage,
+            review_streak: w.reviewStreak,
+            due_at_session: w.dueAtSession,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,word_id" }
+        )
+        .then(({ error: err }) => {
+          if (err) console.error("persistWord", err);
+        });
+    },
+    [userId]
+  );
 
   const updateWord = useCallback(
     (id: string, result: AnswerResultKind, hintsUsed = 0) => {
@@ -188,24 +180,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [persistWord]
   );
 
-  const recordFormatStat = useCallback((format: string, result: AnswerResultKind) => {
-    setState((prev) => {
-      const s = { ...(prev.formatStats[format] || { correct: 0, almost: 0, incorrect: 0 }) };
-      s[result]++;
-      if (userId.current) {
+  const recordFormatStat = useCallback(
+    (format: string, result: AnswerResultKind) => {
+      setState((prev) => {
+        const s = { ...(prev.formatStats[format] || { correct: 0, almost: 0, incorrect: 0 }) };
+        s[result]++;
         supabase
           .from("format_stats")
           .upsert(
-            { user_id: userId.current, format, correct: s.correct, almost: s.almost, incorrect: s.incorrect },
+            { user_id: userId, format, correct: s.correct, almost: s.almost, incorrect: s.incorrect },
             { onConflict: "user_id,format" }
           )
           .then(({ error: err }) => {
             if (err) console.error("recordFormatStat", err);
           });
-      }
-      return { ...prev, formatStats: { ...prev.formatStats, [format]: s } };
-    });
-  }, []);
+        return { ...prev, formatStats: { ...prev.formatStats, [format]: s } };
+      });
+    },
+    [userId]
+  );
 
   const toggleFavorite = useCallback(
     (id: string): boolean => {
@@ -236,14 +229,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [persistWord]
   );
 
-  const recordSession = useCallback((session: SessionRecord) => {
-    setState((prev) => {
-      const total = (prev.totalPracticeSessions || 0) + 1;
-      if (userId.current) {
+  const recordSession = useCallback(
+    (session: SessionRecord) => {
+      setState((prev) => {
+        const total = (prev.totalPracticeSessions || 0) + 1;
         supabase
           .from("session_history")
           .insert({
-            user_id: userId.current,
+            user_id: userId,
             occurred_at: new Date(session.date).toISOString(),
             total: session.total,
             correct: session.correct,
@@ -257,14 +250,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           });
         supabase
           .from("app_meta")
-          .upsert({ user_id: userId.current, total_practice_sessions: total }, { onConflict: "user_id" })
+          .upsert({ user_id: userId, total_practice_sessions: total }, { onConflict: "user_id" })
           .then(({ error: err }) => {
             if (err) console.error("app_meta", err);
           });
-      }
-      return { ...prev, sessionHistory: [...prev.sessionHistory, session], totalPracticeSessions: total };
-    });
-  }, []);
+        return { ...prev, sessionHistory: [...prev.sessionHistory, session], totalPracticeSessions: total };
+      });
+    },
+    [userId]
+  );
 
   const api: StoreApi = {
     ready,

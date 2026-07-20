@@ -1,9 +1,11 @@
 # Vocabulary Trainer — EN/DE B2→C1
 
 Next.js rebuild of the vocabulary trainer: 1,948 English↔German verbs and
-adjectives, clean light "Apple" design, persisted per browser via Supabase
-(anonymous auth, no login screen). Sessions run on a 4-stage spaced-repetition
-engine (see below) rather than a fixed exercise mix.
+adjectives, clean light "Apple" design. Progress is tied to a real account
+(email + password via Supabase Auth) — you have to sign up before the app
+lets you in, and everything you do is saved against that account instead of
+just a browser. Sessions run on a 4-stage spaced-repetition engine (see
+below) rather than a fixed exercise mix.
 
 ## Setup
 
@@ -15,20 +17,22 @@ engine (see below) rather than a fixed exercise mix.
    - `supabase/migrations/0002_learning_stages.sql` — adds the `stage`,
      `review_streak`, `due_at_session` columns that drive the learning
      engine below.
-2. In **Authentication → Sign In / Providers**, make sure **Anonymous
-   Sign-ins** is enabled. The app signs each browser in anonymously
-   (`supabase.auth.signInAnonymously()`) on first load to get a stable user
-   id — progress persists across visits on the same browser without any
-   login UI.
+2. In **Authentication → Sign In / Providers**, make sure the **Email**
+   provider is enabled (it is by default). Decide whether you want **Confirm
+   email** on: if it's on, `signUp` won't return a session immediately and
+   the app shows a "check your inbox" message instead of logging the user
+   straight in; if it's off, sign-up logs you in immediately. Either works
+   out of the box — pick whichever fits how you'll actually use this.
 3. Copy `.env.example` to `.env.local` and fill in your Supabase project URL
    and publishable key (already pre-filled for the English-practise
    project if you're using the same one).
-4. `npm install && npm run dev` — open http://localhost:3000.
+4. `npm install && npm run dev` — open http://localhost:3000, then create an
+   account on the sign-up screen.
 
 ## Stack
 
 - Next.js App Router, TypeScript, Tailwind CSS v4
-- `@supabase/supabase-js` for auth + persistence
+- `@supabase/supabase-js` for auth (email/password) + persistence
 - No backend routes — the client talks to Supabase directly, gated by RLS
 
 ## Learning engine
@@ -71,9 +75,14 @@ Rules (`src/lib/learning.ts`):
 
 ## Structure
 
+- `src/lib/auth.tsx` — React context around Supabase email/password auth
+  (`signUp`, `signIn`, `signOut`, current `user`); `src/app/page.tsx` renders
+  `AuthScreen` until there's a signed-in user, then mounts `StoreProvider`
+  with that user's id
+- `src/components/screens/AuthScreen.tsx` — the sign in / sign up form
 - `src/lib/vocab*.ts` — the vocabulary dataset and typed model
-- `src/lib/store.tsx` — React context wrapping Supabase reads/writes,
-  replacing what used to be a `localStorage` blob
+- `src/lib/store.tsx` — React context wrapping Supabase reads/writes for the
+  signed-in user (`userId` prop, no auth logic of its own anymore)
 - `src/lib/learning.ts` — the spaced-repetition stage engine described above
 - `src/lib/sessionLogic.ts` — pure helpers (direction mixing) plus the
   legacy queue builder still used by the one-off drill flow
@@ -86,6 +95,14 @@ Rules (`src/lib/learning.ts`):
 ## Status
 
 **Working / done:**
+- Real accounts: sign up / sign in / sign out with email + password
+  (`src/lib/auth.tsx`, `AuthScreen`). The app is gated behind auth — no
+  account, no access, no anonymous fallback. Progress is scoped to
+  `auth.uid()` via the same RLS policies as before, so this needed no
+  schema changes, only removing the old `signInAnonymously()` call and
+  gating the UI on a real session. Handles both possible Supabase project
+  configs (email confirmation required or not) — shows a "check your
+  inbox" message in the first case, logs straight in in the second.
 - Full 4-stage learning engine (see above) driving the primary "Start
   Session" flow: adaptive ~10-word batches, in-session interleaved
   repetition, stage regression on mistakes, long-term spaced review with
@@ -95,12 +112,11 @@ Rules (`src/lib/learning.ts`):
   parity with the original prototype, plus "repeat mistakes" / "practice
   this word" as simple one-off drills alongside the new engine.
 - Supabase persistence (`word_progress` incl. stage columns, `format_stats`,
-  `session_history`, `app_meta`), scoped per anonymous browser user via RLS.
+  `session_history`, `app_meta`), scoped per signed-in account via RLS.
 - Production build verified locally (`npm run build`, clean `tsc`/`eslint`)
   and confirmed working on Vercel; also click-tested end-to-end locally
-  with Playwright against a mocked Supabase backend (learn → quiz → apply
-  → produce interleaving, attempt cap, session-end transition all verified,
-  zero console errors).
+  with Playwright against a mocked Supabase backend — including the full
+  sign-up → app → logout → sign-in-screen round trip — zero console errors.
 - Build no longer crashes if Supabase env vars are missing at build time —
   it now fails softly at runtime with a visible error screen instead.
 
@@ -124,18 +140,18 @@ config access from this session's tools):**
   (in that order) once in the Supabase SQL Editor. If you already ran
   `0001_init.sql` before, you only need `0002_learning_stages.sql` now —
   it's additive (`alter table ... add column if not exists`).
-- Enable **Anonymous Sign-ins**: Supabase Dashboard → Authentication →
-  Sign In / Providers → toggle on. Without this, the app shows "Could not
-  connect to Supabase — Anonymous sign-ins are disabled".
+- Confirm the **Email** auth provider is on (default) and decide on the
+  **Confirm email** setting — see step 2 above. No action needed if you're
+  happy with the default.
 - Set `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the
   Vercel project's Environment Variables (values in `.env.example`), then
   redeploy.
 
 **Known limitations vs. a "real" app:**
-- No login/account system — identity is one anonymous Supabase user per
-  browser (via cookie/localStorage token). Clearing site data, using a
-  different browser, or incognito mode all start a fresh, empty profile;
-  there's no way to log back into an existing one or sync across devices.
+- Any progress made while the app still used anonymous auth (before this
+  change) is orphaned — it lived under a random anonymous user id with no
+  way to claim it from a real account. Not a concern for a fresh setup.
+- No "forgot password" flow yet — only sign up / sign in / sign out.
 - No keyboard shortcuts (Enter-to-submit still works per input, but the
   original's global F/S/H/1-4 shortcuts were dropped in the Next.js
   rewrite to keep state management simple).

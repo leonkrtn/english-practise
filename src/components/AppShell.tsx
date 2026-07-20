@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useStore } from "@/lib/store";
+import { useAuth } from "@/lib/auth";
 import { VOCAB_BY_ID, type Word } from "@/lib/vocab";
 import { pickDirection, type QueueItem } from "@/lib/sessionLogic";
 import {
@@ -48,6 +49,7 @@ const NOOP = () => {};
 
 export default function AppShell() {
   const store = useStore();
+  const { signOut } = useAuth();
   const [screen, setScreen] = useState<Screen>("home");
   const [detailWordId, setDetailWordId] = useState<string | null>(null);
   const [quickSession, setQuickSession] = useState<QuickSessionState | null>(null);
@@ -254,7 +256,7 @@ export default function AppShell() {
 
   return (
     <div className="max-w-[720px] mx-auto min-h-screen flex flex-col px-5 w-full">
-      <TopBar screen={screen} goHome={goHome} goList={goList} goStats={goStats} />
+      <TopBar screen={screen} goHome={goHome} goList={goList} goStats={goStats} onLogout={() => signOut()} />
       <main className="flex-1 py-6 pb-16">
         {screen === "home" && <HomeScreen onStart={startLearningSession} />}
 

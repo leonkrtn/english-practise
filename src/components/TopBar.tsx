@@ -3,7 +3,19 @@
 import { useEffect, useState } from "react";
 import type { Screen } from "./AppShell";
 
-export default function TopBar({ screen, goHome, goList, goStats }: { screen: Screen; goHome: () => void; goList: () => void; goStats: () => void }) {
+export default function TopBar({
+  screen,
+  goHome,
+  goList,
+  goStats,
+  onLogout,
+}: {
+  screen: Screen;
+  goHome: () => void;
+  goList: () => void;
+  goStats: () => void;
+  onLogout: () => void;
+}) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4);
@@ -22,7 +34,7 @@ export default function TopBar({ screen, goHome, goList, goStats }: { screen: Sc
         <span className="w-[9px] h-[9px] rounded-full bg-blue" />
         Vocab Trainer
       </button>
-      <div className="flex gap-1">
+      <div className="flex items-center gap-1">
         <button
           onClick={goList}
           className={"text-[14px] font-medium px-3 py-2 rounded-full transition-colors " + (screen === "list" || screen === "detail" ? "bg-ink text-white" : "text-ink-soft hover:bg-line-soft hover:text-ink")}
@@ -34,6 +46,13 @@ export default function TopBar({ screen, goHome, goList, goStats }: { screen: Sc
           className={"text-[14px] font-medium px-3 py-2 rounded-full transition-colors " + (screen === "stats" ? "bg-ink text-white" : "text-ink-soft hover:bg-line-soft hover:text-ink")}
         >
           Stats
+        </button>
+        <button
+          onClick={onLogout}
+          title="Abmelden"
+          className="text-[14px] font-medium px-3 py-2 rounded-full text-ink-soft hover:bg-line-soft hover:text-ink transition-colors"
+        >
+          Logout
         </button>
       </div>
     </div>
