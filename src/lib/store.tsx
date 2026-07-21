@@ -9,6 +9,8 @@ interface StoreShape {
   formatStats: Record<string, FormatStat>;
   sessionHistory: SessionRecord[];
   totalPracticeSessions: number;
+  goalStartedAt: number | null;
+  goalBaselineTotal: number | null;
 }
 
 interface StoreApi {
@@ -18,12 +20,15 @@ interface StoreApi {
   formatStats: Record<string, FormatStat>;
   sessionHistory: SessionRecord[];
   totalPracticeSessions: number;
+  goalStartedAt: number | null;
+  goalBaselineTotal: number | null;
   wordState: (id: string) => WordState;
   updateWord: (id: string, result: AnswerResultKind, hintsUsed?: number) => void;
   recordFormatStat: (format: string, result: AnswerResultKind) => void;
   toggleFavorite: (id: string) => boolean;
   recordSession: (session: SessionRecord) => void;
   setLearningStage: (id: string, stage: LearningStage, reviewStreak: number, dueAtSession: number | null) => void;
+  startGoalIfNeeded: (baselineTotal: number) => void;
 }
 
 const StoreContext = createContext<StoreApi | null>(null);
@@ -37,6 +42,8 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     formatStats: {},
     sessionHistory: [],
     totalPracticeSessions: 0,
+    goalStartedAt: null,
+    goalBaselineTotal: null,
   });
 
   useEffect(() => {
@@ -104,6 +111,8 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
           formatStats,
           sessionHistory,
           totalPracticeSessions: meta.data ? meta.data.total_practice_sessions : 0,
+          goalStartedAt: meta.data?.goal_started_at ? new Date(meta.data.goal_started_at).getTime() : null,
+          goalBaselineTotal: meta.data?.goal_baseline_total ?? null,
         });
         setReady(true);
       } catch (e) {
@@ -275,6 +284,26 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     [userId]
   );
 
+  const startGoalIfNeeded = useCallback(
+    (baselineTotal: number) => {
+      setState((prev) => {
+        if (prev.goalStartedAt !== null) return prev;
+        const startedAt = Date.now();
+        supabase
+          .from("app_meta")
+          .upsert(
+            { user_id: userId, goal_started_at: new Date(startedAt).toISOString(), goal_baseline_total: baselineTotal },
+            { onConflict: "user_id" }
+          )
+          .then(({ error: err }) => {
+            if (err) console.error("startGoalIfNeeded", err);
+          });
+        return { ...prev, goalStartedAt: startedAt, goalBaselineTotal: baselineTotal };
+      });
+    },
+    [userId]
+  );
+
   const api: StoreApi = {
     ready,
     error,
@@ -282,12 +311,15 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     formatStats: state.formatStats,
     sessionHistory: state.sessionHistory,
     totalPracticeSessions: state.totalPracticeSessions,
+    goalStartedAt: state.goalStartedAt,
+    goalBaselineTotal: state.goalBaselineTotal,
     wordState,
     updateWord,
     recordFormatStat,
     toggleFavorite,
     recordSession,
     setLearningStage,
+    startGoalIfNeeded,
   };
 
   return <StoreContext.Provider value={api}>{children}</StoreContext.Provider>;

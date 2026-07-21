@@ -36,9 +36,29 @@ studies since the 1970s). Each round shows two short, plain clauses and a
 target logical relationship (contrast, cause, result, condition, time,
 purpose, addition, example); you combine them into one natural sentence
 using an appropriate connector, checked deterministically for the connector
-plus a real LanguageTool grammar/spelling pass. No unlock requirement — it
-doesn't depend on learned vocabulary/grammar, so it's available from the
-start.
+plus a real LanguageTool grammar/spelling pass. A missing curated connector
+no longer fails a grammatically clean sentence outright — it downgrades to
+"almost" instead of "incorrect", since a correct sentence that just phrases
+the relationship differently shouldn't be marked wrong. No unlock
+requirement — it doesn't depend on learned vocabulary/grammar, so it's
+available from the start.
+
+Writing now draws from **35** topic templates (up from 10), each combined
+with a fresh random pick of required words/grammar per attempt.
+
+A **Goal** screen (flag icon in the top bar, plus a teaser banner on Home)
+tracks a personal, honestly-calculated 5-week target: all active Grammar
+rules plus a 600-word vocabulary milestone (chosen — not the full ~1,900-word
+catalog — because a few hundred core words are what general language-
+acquisition research says covers most everyday conversation; that's the
+realistic definition of "English feels natural" at this stage). The clock
+starts automatically the first time the app loads after this feature ships,
+snapshotting current combined progress as a baseline so pace is computed
+honestly as `(progress since start) / days elapsed`, compared against the
+pace still required to hit the target on time. The Goal screen shows overall
+progress, a Vocabulary/Grammar breakdown, current vs. required daily pace,
+an on-track/behind-schedule badge, and a projected completion estimate if
+the current pace would miss the 5-week window.
 
 ## Setup
 
@@ -57,6 +77,9 @@ start.
    - `supabase/migrations/0004_grammar_blocking.sql` — adds a
      `blocked_rule_ids text[]` column to `grammar_meta` for the
      per-rule blocking feature (Settings screen). Purely additive.
+   - `supabase/migrations/0005_goal.sql` — adds `goal_started_at` and
+     `goal_baseline_total` columns to `app_meta` for the 5-week goal
+     feature (Goal screen). Purely additive.
 2. In **Authentication → Sign In / Providers**, make sure the **Email**
    provider is enabled (it is by default). Decide whether you want **Confirm
    email** on: if it's on, `signUp` won't return a session immediately and
@@ -243,8 +266,10 @@ research surveyed before building this — see the git history for sources).
 
 - `src/lib/connectors-data.ts` — 8 connector categories (Addition,
   Contrast, Cause, Result, Condition, Time, Purpose, Example), each with
-  its own accepted-connector word list, plus a curated bank of ~45 short
-  clause pairs tagged by category with a model combined sentence.
+  its own accepted-connector word list (expanded with more synonyms per
+  category — e.g. Contrast now also accepts "nevertheless", "nonetheless",
+  "on the contrary"), plus a curated bank of ~45 short clause pairs tagged
+  by category with a model combined sentence.
 - `AppShell.startLinkingSession()` samples one clause pair per category
   (up to `LINKING_BATCH_SIZE` = 6), shuffled — so a session always spans
   several different relationship types rather than drilling one repeatedly.
@@ -255,15 +280,16 @@ research surveyed before building this — see the git history for sources).
   Shows both clauses, a "Bindewörter zeigen" hint revealing that
   category's connector bank, a text field (Enter confirms), and a
   "Prüfen" button.
-- **Connector usage is a hard, deterministic check**
+- **Connector usage is a deterministic check**
   (`findUsedConnector` in `src/lib/connectorCheck.ts`) — whole-word/phrase
-  matching against that category's accepted list. No connector found →
-  `incorrect`, regardless of grammar quality, since using the connector
-  is the entire point of the drill.
-- **Grammar/spelling** reuses the same LanguageTool client and the shared
-  `renderHighlighted` helper (extracted to `src/lib/textHighlight.tsx` so
-  both Writing and Linking use one implementation) — connector found +
-  zero issues → `correct`; connector found + issues → `almost`.
+  matching against that category's accepted list — combined with a real
+  LanguageTool grammar/spelling pass (same client + the shared
+  `renderHighlighted` helper from `src/lib/textHighlight.tsx`, used by both
+  Writing and Linking). Grading: connector found + clean → `correct`;
+  connector found + issues → `almost`; no connector but otherwise clean →
+  `almost` (a grammatically correct sentence that just phrases the
+  relationship differently isn't wrong, it just missed the drill's specific
+  focus); no connector + real issues → `incorrect`.
 - The model sentence for that pair is always shown after checking
   ("So könnte es auch klingen") as a reference, never presented as the
   only right answer.
@@ -272,6 +298,41 @@ research surveyed before building this — see the git history for sources).
   Writing, no new table), and each item also logs to
   `grammar_format_stats` for the per-format accuracy breakdown on Stats.
   No unlock gate — always available from Home.
+
+## Goal (5-week basics target)
+
+A personal, honestly-calculated target rather than a marketing number:
+"all basics" is defined as all active Grammar rules (finite, ~25) plus a
+600-word Vocabulary milestone. 600 is a deliberate, realistic pick — not
+the full ~1,900-word catalog, which at a 5-week pace would require ~56
+newly-mastered words/day and isn't achievable — chosen because general
+language-acquisition research holds that a few hundred core words cover
+most everyday conversation, which is what "English feels natural" actually
+means at this stage.
+
+- `src/lib/goal.ts` — `computeGoalStatus()`: pure calculation taking a
+  start date, a baseline snapshot, and current vocab/grammar counts, and
+  returning progress %, days elapsed/remaining, current vs. required daily
+  pace, on-track/behind-schedule, and a projected-completion estimate.
+  Pace is computed as `(current combined progress - baseline) / days
+  elapsed` — the baseline is a one-time snapshot of combined progress taken
+  when the goal starts, so pace reflects progress made *since* starting the
+  goal, not lifetime progress. The first day is always treated as on-track
+  (no penalizing "behind schedule" before there's any measurable pace yet).
+- `supabase/migrations/0005_goal.sql` adds `goal_started_at` and
+  `goal_baseline_total` to `app_meta`; `src/lib/store.tsx` loads them and
+  exposes `startGoalIfNeeded(baselineTotal)`, an idempotent upsert guarded
+  inside the `setState` updater against double-starting.
+- `AppShell.tsx` has a one-time `useEffect` that calls
+  `startGoalIfNeeded` with today's combined vocab+grammar progress the
+  first time the app loads after this feature ships (a no-op on every
+  later load, since `goal_started_at` is already set).
+- `src/components/screens/GoalScreen.tsx` — the dedicated Goal screen:
+  overall progress ring/bar, a Vocabulary/Grammar breakdown, and a "Dein
+  Tempo" panel with current vs. required daily pace and a projected
+  completion estimate if the current pace would miss the 5-week window.
+  Reachable via a new Flag icon in `TopBar` and a compact teaser banner at
+  the top of Home that shows live progress % and days remaining.
 
 ## Structure
 
@@ -299,8 +360,9 @@ research surveyed before building this — see the git history for sources).
   (learn, multiple choice, gap fill, sentence build, error-tap) plus
   `GrammarExerciseRouter` and the shared `CategoryBadge`
 - `src/components/screens/*` — Home (Vocabulary/Grammar/Mixed/Writing/
-  Linking mode switcher + stats dashboard), Session, Summary, Word List,
-  Word Detail, Stats, Settings (grammar rule blocking), Writing
+  Linking mode switcher + stats dashboard + Goal teaser banner), Session,
+  Summary, Word List, Word Detail, Stats, Settings (grammar rule blocking),
+  Writing, Goal (5-week basics target, see below)
 - `src/lib/writingTopics.ts`, `src/lib/languageTool.ts`,
   `src/lib/grammarUsageCheck.ts` — the Writing feature (see below)
 - `src/lib/connectors-data.ts`, `src/lib/connectorCheck.ts`,
@@ -311,6 +373,8 @@ research surveyed before building this — see the git history for sources).
   almost/incorrect) with a mute toggle persisted in `localStorage`,
   wired into the shared `FeedbackPanel` so every exercise type gets it
   for free; `TopBar` has the mute button
+- `src/lib/goal.ts`, `src/components/screens/GoalScreen.tsx` — the 5-week
+  basics goal feature (see above)
 
 ## Status
 
@@ -406,13 +470,29 @@ exercises still use the two-callback path safely, since a real render
 happens between their two clicks. Confirmed fixed by re-running the same
 Playwright script and inspecting the queue growth directly.
 
+- 35 Writing topics (up from 10) and a softer Linking grading rule (a
+  grammatically clean sentence without a curated connector now scores
+  "almost" instead of a hard "incorrect"), plus expanded per-category
+  connector synonym lists — see the Writing and Linking sections above.
+- The 5-week basics Goal feature (see Goal section above): migration
+  `0005_goal.sql`, `src/lib/goal.ts`'s pace calculation, `GoalScreen`, the
+  Home teaser banner, and the `TopBar` flag icon. Verified with Playwright
+  against a mocked Supabase backend: the goal auto-starts on first load and
+  persists a baseline snapshot via an `app_meta` upsert, the Home banner
+  renders live progress and days remaining and navigates to the Goal
+  screen on click, the Goal screen renders its progress bar, Vocabulary/
+  Grammar breakdown, and pace panel correctly, and the flag icon in
+  `TopBar` shows the active state on the Goal screen — zero console errors
+  throughout. `tsc --noEmit`, `eslint`, and a clean `next build` all pass.
+
 **Needs a one-time manual step (couldn't be automated — no SQL/DDL or Auth
 config access from this session's tools):**
 - Run `supabase/migrations/0001_init.sql`, `0002_learning_stages.sql`,
-  `0003_grammar.sql`, and `0004_grammar_blocking.sql` (in that order) once
-  in the Supabase SQL Editor. If you already ran the first three, you only
-  need `0004_grammar_blocking.sql` now — it's a single additive column on
-  `grammar_meta`, nothing else changes.
+  `0003_grammar.sql`, `0004_grammar_blocking.sql`, and `0005_goal.sql` (in
+  that order) once in the Supabase SQL Editor. If you already ran the first
+  four, you only need `0005_goal.sql` now — it's two additive columns on
+  `app_meta` (`goal_started_at`, `goal_baseline_total`), nothing else
+  changes.
 - Confirm the **Email** auth provider is on (default) and decide on the
   **Confirm email** setting — see step 2 above. No action needed if you're
   happy with the default.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { useAuth } from "@/lib/auth";
@@ -43,10 +43,11 @@ import WordListScreen from "./screens/WordListScreen";
 import WordDetailScreen from "./screens/WordDetailScreen";
 import StatsScreen from "./screens/StatsScreen";
 import SettingsScreen from "./screens/SettingsScreen";
+import GoalScreen from "./screens/GoalScreen";
 import WritingScreen, { type WritingCheckResult } from "./screens/WritingScreen";
 import LinkingExercise, { type LinkingResult } from "./exercises/LinkingExercise";
 
-export type Screen = "home" | "session" | "summary" | "list" | "stats" | "detail" | "settings" | "writing" | "linking";
+export type Screen = "home" | "session" | "summary" | "list" | "stats" | "detail" | "settings" | "writing" | "linking" | "goal";
 export type SessionMode = "vocab" | "grammar" | "mixed" | "writing" | "linking";
 
 type UnifiedItem = { domain: "vocab"; item: LearningQueueItem } | { domain: "grammar"; item: GrammarQueueItem };
@@ -105,6 +106,19 @@ export default function AppShell() {
   const [linkingSession, setLinkingSession] = useState<LinkingSessionState | null>(null);
   const [summary, setSummary] = useState<SummaryStats | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+
+  // Starts the 5-week basics goal's clock exactly once, snapshotting current combined progress
+  // as the baseline so pace can be computed as (current - baseline) / days elapsed. Runs once per
+  // account — startGoalIfNeeded itself no-ops if goal_started_at is already set.
+  useEffect(() => {
+    if (store.goalStartedAt !== null) return;
+    const vocabLearned = Object.values(store.words).filter((w) => w.stage === 4).length;
+    const grammarLearned = GRAMMAR_RULES.filter(
+      (r) => !grammarStore.blockedRuleIds.has(r.id) && grammarStore.ruleState(r.id).stage === 4
+    ).length;
+    store.startGoalIfNeeded(vocabLearned + grammarLearned);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.goalStartedAt]);
 
   // ---------- Primary flow: the adaptive learning-stage engine (vocab, grammar, or both) ----------
 
@@ -536,6 +550,9 @@ export default function AppShell() {
   function goSettings() {
     setScreen("settings");
   }
+  function goGoal() {
+    setScreen("goal");
+  }
 
   const activeMode: "learning" | "quick" | null = learningSession ? "learning" : quickSession ? "quick" : null;
   const currentWordId =
@@ -552,7 +569,15 @@ export default function AppShell() {
       className="h-[100dvh] max-w-[720px] lg:max-w-[920px] xl:max-w-[1100px] mx-auto flex flex-col px-5 lg:px-8 w-full overflow-hidden"
       style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <TopBar screen={screen} goHome={goHome} goList={goList} goStats={goStats} goSettings={goSettings} onLogout={() => signOut()} />
+      <TopBar
+        screen={screen}
+        goHome={goHome}
+        goList={goList}
+        goStats={goStats}
+        goSettings={goSettings}
+        goGoal={goGoal}
+        onLogout={() => signOut()}
+      />
       <main
         className={
           "flex-1 min-h-0 py-3 flex flex-col overscroll-x-none [-webkit-overflow-scrolling:touch] " +
@@ -563,6 +588,7 @@ export default function AppShell() {
           <HomeScreen
             onStart={(mode) => (mode === "writing" ? startWritingSession() : mode === "linking" ? startLinkingSession() : startLearningSession(mode))}
             onReview={startReviewSession}
+            onGoal={goGoal}
           />
         )}
 
@@ -661,6 +687,8 @@ export default function AppShell() {
         {screen === "stats" && <StatsScreen />}
 
         {screen === "settings" && <SettingsScreen />}
+
+        {screen === "goal" && <GoalScreen />}
       </main>
 
       <Modal

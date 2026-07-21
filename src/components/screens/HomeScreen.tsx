@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookOpen, Blocks, Flame, Heart, Link2, PenLine, Repeat, Shuffle, Target, TrendingDown } from "lucide-react";
+import { BookOpen, Blocks, Flag, Flame, Heart, Link2, PenLine, Repeat, Shuffle, Target, TrendingDown } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { VOCAB, VOCAB_BY_ID } from "@/lib/vocab";
 import { activeGrammarRules } from "@/lib/grammarLearning";
 import { WRITING_MIN_RULES, WRITING_MIN_WORDS } from "@/lib/writingTopics";
+import { computeGoalStatus } from "@/lib/goal";
 import type { SessionMode } from "@/components/AppShell";
 import type { SessionRecord } from "@/lib/types";
 import type { GrammarSessionRecord } from "@/lib/grammarTypes";
@@ -114,9 +115,11 @@ function formatRelativeDate(ts: number): string {
 export default function HomeScreen({
   onStart,
   onReview,
+  onGoal,
 }: {
   onStart: (mode: SessionMode) => void;
   onReview: (mode: SessionMode) => void;
+  onGoal: () => void;
 }) {
   const store = useStore();
   const grammarStore = useGrammarStore();
@@ -149,6 +152,17 @@ export default function HomeScreen({
     const accuracy = totalAll ? Math.round((totalCorrect / totalAll) * 100) : 0;
     return { learned, total: activeRules.length, sessions: grammarStore.totalPracticeSessions || 0, accuracy };
   }, [activeRules, grammarStore.rules, grammarStore.totalPracticeSessions]);
+
+  const goalStatus = useMemo(() => {
+    if (store.goalStartedAt === null || store.goalBaselineTotal === null) return null;
+    return computeGoalStatus({
+      startedAt: store.goalStartedAt,
+      baselineTotal: store.goalBaselineTotal,
+      vocabCurrent: vocabStats.learned,
+      grammarTotalActive: activeRules.length,
+      grammarCurrent: grammarStats.learned,
+    });
+  }, [store.goalStartedAt, store.goalBaselineTotal, vocabStats.learned, grammarStats.learned, activeRules.length]);
 
   const wordTypeBreakdown = useMemo(() => {
     const verbsTotal = VOCAB.filter((w) => w.type === "verb").length;
@@ -235,6 +249,30 @@ export default function HomeScreen({
         <span className="bg-gradient-to-r from-blue via-blue-dark to-purple bg-clip-text text-transparent">Vocabulary</span> Trainer
       </h1>
       <p className="text-ink-soft text-[14px] mb-5 leading-snug">English ↔ German · Grammar</p>
+
+      {goalStatus && (
+        <button
+          onClick={onGoal}
+          className="w-full flex items-center gap-3.5 rounded-2xl px-4 py-3.5 mb-5 text-left bg-gradient-to-r from-ink to-ink/85 text-white shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all"
+        >
+          <span className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-white/15">
+            <Flag size={16} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-semibold">5-Wochen-Ziel: {goalStatus.progressPct}%</div>
+            <div className="text-[11.5px] text-white/70">
+              {goalStatus.isPastDue
+                ? "Zielzeitraum abgelaufen"
+                : `${Math.ceil(goalStatus.daysRemaining)} ${Math.ceil(goalStatus.daysRemaining) === 1 ? "Tag" : "Tage"} übrig · ${
+                    goalStatus.onTrack ? "im Plan" : "im Rückstand"
+                  }`}
+            </div>
+          </div>
+          <div className="w-16 h-1.5 rounded-full bg-white/20 overflow-hidden shrink-0">
+            <div className="h-full rounded-full bg-white" style={{ width: goalStatus.progressPct + "%" }} />
+          </div>
+        </button>
+      )}
 
       <div className="lg:grid lg:grid-cols-[1.35fr_1fr] lg:gap-6 lg:items-start">
       <div>
