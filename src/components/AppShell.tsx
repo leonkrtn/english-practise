@@ -491,7 +491,7 @@ export default function AppShell() {
 
   return (
     <div
-      className="h-[100dvh] max-w-[720px] mx-auto flex flex-col px-5 w-full overflow-hidden"
+      className="h-[100dvh] max-w-[720px] lg:max-w-[920px] xl:max-w-[1100px] mx-auto flex flex-col px-5 lg:px-8 w-full overflow-hidden"
       style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <TopBar screen={screen} goHome={goHome} goList={goList} goStats={goStats} goSettings={goSettings} onLogout={() => signOut()} />

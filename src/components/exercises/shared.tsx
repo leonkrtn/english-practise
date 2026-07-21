@@ -150,7 +150,11 @@ export function AnswerInput({
     spellCheck: false,
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChange(e.target.value),
     onKeyDown: (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && !textarea) {
+      // Plain Enter confirms — including in the (2-row) textarea variant, since it's always a
+      // single sentence here, never a multi-paragraph text. Shift+Enter still inserts a literal
+      // newline as an escape hatch. The free-writing essay in WritingScreen has its own textarea
+      // and doesn't use this component, so it's unaffected — Enter there just types a newline.
+      if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         onEnter();
       }

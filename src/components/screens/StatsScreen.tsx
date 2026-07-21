@@ -71,7 +71,7 @@ export default function StatsScreen() {
       <h1 className="text-[26px] font-bold tracking-tight mt-1 mb-5">Statistics</h1>
 
       <h2 className="text-lg font-semibold tracking-tight mb-3">Vocabulary</h2>
-      <div className="grid grid-cols-2 gap-3 mb-7">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-7">
         <StatCard value={`${stats.practiced.length} / ${VOCAB.length}`} label="Words practiced" />
         <StatCard value={stats.mastered.length} label="Known" />
         <StatCard value={stats.difficult.length} label="Difficult" />
@@ -81,7 +81,7 @@ export default function StatsScreen() {
       </div>
 
       <h2 className="text-lg font-semibold tracking-tight mb-3">Grammar</h2>
-      <div className="grid grid-cols-2 gap-3 mb-7">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-7">
         <StatCard value={`${grammarStats.practiced.length} / ${grammarStats.total}`} label="Rules practiced" />
         <StatCard value={grammarStats.known.length} label="Known" />
         <StatCard value={`${grammarStats.overallAcc}%`} label="Overall accuracy" />

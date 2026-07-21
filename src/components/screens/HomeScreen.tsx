@@ -216,6 +216,8 @@ export default function HomeScreen({
       </h1>
       <p className="text-ink-soft text-[14px] mb-5 leading-snug">English ↔ German · Grammar</p>
 
+      <div className="lg:grid lg:grid-cols-[1.35fr_1fr] lg:gap-6 lg:items-start">
+      <div>
       <div className="grid grid-cols-4 gap-2 mb-5">
         {MODES.map((m) => {
           const Icon = m.icon;
@@ -315,10 +317,13 @@ export default function HomeScreen({
         </div>
       )}
 
+      </div>
+
+      <div className="flex flex-col gap-3 mt-3 lg:mt-0">
       <ActivityStrip dates={allDates} />
 
       {recentSessions.length > 0 && (
-        <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm mt-3">
+        <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm">
           <div className="text-[13px] font-semibold text-ink mb-1">Letzte Sessions</div>
           <div className="flex flex-col">
             {recentSessions.map((s, i) => (
@@ -348,12 +353,14 @@ export default function HomeScreen({
           </div>
         </div>
       )}
+      </div>
+      </div>
 
-      <div className="sticky bottom-0 pt-4 pb-2 -mx-5 px-5 bg-gradient-to-t from-bg from-65% to-transparent flex flex-col gap-2">
+      <div className="sticky bottom-0 pt-4 pb-2 -mx-5 px-5 bg-gradient-to-t from-bg from-65% to-transparent flex flex-col gap-2 lg:flex-row lg:gap-3">
         {mode !== "writing" && stats.learned > 0 && (
           <button
             onClick={() => onReview(mode)}
-            className="w-full rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:-translate-y-0.5 text-ink font-semibold py-3 text-[14px] transition-all active:scale-[0.97]"
+            className="w-full lg:flex-1 rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:-translate-y-0.5 text-ink font-semibold py-3 text-[14px] transition-all active:scale-[0.97]"
           >
             Gelerntes wiederholen ({stats.learned})
           </button>
@@ -362,7 +369,7 @@ export default function HomeScreen({
           onClick={() => onStart(mode)}
           disabled={mode === "writing" && !writingEligible}
           className={
-            "w-full rounded-full bg-gradient-to-r text-white font-semibold py-4 text-[16px] transition-all duration-200 active:scale-[0.97] hover:brightness-110 shadow-[0_14px_30px_-10px_rgba(15,23,42,0.4)] disabled:opacity-40 disabled:pointer-events-none disabled:shadow-none " +
+            "w-full lg:flex-1 rounded-full bg-gradient-to-r text-white font-semibold py-4 text-[16px] transition-all duration-200 active:scale-[0.97] hover:brightness-110 shadow-[0_14px_30px_-10px_rgba(15,23,42,0.4)] disabled:opacity-40 disabled:pointer-events-none disabled:shadow-none " +
             active.grad
           }
         >
@@ -464,7 +471,7 @@ function MiniBar({ label, learned, total, grad }: { label: string; learned: numb
 function ActivityStrip({ dates }: { dates: number[] }) {
   const cells = useMemo(() => buildActivityCells(dates), [dates]);
   return (
-    <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm mt-3">
+    <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm">
       <div className="text-[13px] font-semibold text-ink mb-3">Letzte 14 Tage</div>
       <div className="grid grid-cols-7 gap-1.5">
         {cells.map((c) => (

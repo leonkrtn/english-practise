@@ -65,7 +65,7 @@ export default function WritingScreen({
 
   return (
     <section className="h-full flex flex-col">
-      <div className="flex items-center gap-3 mb-3 shrink-0">
+      <div className="flex items-center gap-3 mb-3 shrink-0 w-full max-w-2xl mx-auto">
         <button
           onClick={onExit}
           title="Schreiben beenden"
@@ -76,7 +76,7 @@ export default function WritingScreen({
         <div className="text-[13px] font-semibold text-ink-soft">Schreibaufgabe</div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] bg-card border border-line-soft rounded-[22px] p-5 shadow-[0_2px_8px_rgba(15,23,42,0.05),0_24px_48px_-18px_rgba(15,23,42,0.18)] flex flex-col animate-fade-in">
+      <div className="flex-1 min-h-0 w-full max-w-2xl mx-auto overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] bg-card border border-line-soft rounded-[22px] p-5 lg:p-7 shadow-[0_2px_8px_rgba(15,23,42,0.05),0_24px_48px_-18px_rgba(15,23,42,0.18)] flex flex-col animate-fade-in">
         <span className="inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-3 text-white shadow-sm bg-gradient-to-r from-amber to-amber-dark">
           Thema
         </span>
