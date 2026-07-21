@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { useAuth } from "@/lib/auth";
-import { VOCAB, VOCAB_BY_ID, type Word } from "@/lib/vocab";
+import { VOCAB, VOCAB_BY_ID, VOCAB_BY_EN, type Word } from "@/lib/vocab";
 import { GRAMMAR_RULES, type GrammarRule } from "@/lib/grammar-data";
 import { WRITING_TOPICS, WRITING_MIN_WORDS, WRITING_MIN_RULES, type WritingTopic } from "@/lib/writingTopics";
 import { CLAUSE_PAIRS, type ClausePair } from "@/lib/connectors-data";
+import { READING_TEXTS, eligibleGapIds as computeEligibleGapIds, type ReadingText } from "@/lib/financeReading";
 import type { QueueItem } from "@/lib/sessionLogic";
 import {
   buildLearningBatch,
@@ -45,10 +46,11 @@ import StatsScreen from "./screens/StatsScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import GoalScreen from "./screens/GoalScreen";
 import WritingScreen, { type WritingCheckResult } from "./screens/WritingScreen";
+import ReadingScreen, { type ReadingCheckResult } from "./screens/ReadingScreen";
 import LinkingExercise, { type LinkingResult } from "./exercises/LinkingExercise";
 
-export type Screen = "home" | "session" | "summary" | "list" | "stats" | "detail" | "settings" | "writing" | "linking" | "goal";
-export type SessionMode = "vocab" | "grammar" | "mixed" | "writing" | "linking";
+export type Screen = "home" | "session" | "summary" | "list" | "stats" | "detail" | "settings" | "writing" | "linking" | "goal" | "reading";
+export type SessionMode = "vocab" | "grammar" | "mixed" | "writing" | "linking" | "reading";
 
 type UnifiedItem = { domain: "vocab"; item: LearningQueueItem } | { domain: "grammar"; item: GrammarQueueItem };
 
@@ -75,6 +77,13 @@ interface LinkingSessionState {
   results: LinkingResult[];
 }
 
+/** Finance reading drill: one multi-gap text, with the subset of its gaps that are actually
+ * interactive this session (finance terms always; general-vocab gaps only once mastered). */
+interface ReadingSessionState {
+  text: ReadingText;
+  eligibleGapIds: Set<string>;
+}
+
 const LINKING_BATCH_SIZE = 6;
 
 /** Primary session mode: an adaptive queue that grows as vocab words / grammar rules move through their stage. Ids in attempts/finishedItemIds/masteredItemIds/totalItemIds are prefixed "v:"/"g:" to keep the two domains apart. */
@@ -89,6 +98,20 @@ interface LearningSessionState {
   masteredItemIds: Set<string>;
   /** Word Matching pool — vocab only, grammar has no matching round. */
   matchPool: Word[];
+  /** Set only for a Speed Round: the timestamp the session auto-finishes at. */
+  speedEndsAt: number | null;
+}
+
+const SPEED_ROUND_MS = 60000;
+
+/** A ref that always holds the latest value — lets a long-lived interval/timeout callback read
+ * current state without the effect that scheduled it having to re-run on every change. */
+function useRefLatest<T>(value: T) {
+  const ref = useRef(value);
+  useEffect(() => {
+    ref.current = value;
+  }, [value]);
+  return ref;
 }
 
 const SIMPLE_FORMATS: QueueItem["format"][] = ["translate", "gap", "mc", "sentence", "build"];
@@ -104,6 +127,7 @@ export default function AppShell() {
   const [learningSession, setLearningSession] = useState<LearningSessionState | null>(null);
   const [writingSession, setWritingSession] = useState<WritingSessionState | null>(null);
   const [linkingSession, setLinkingSession] = useState<LinkingSessionState | null>(null);
+  const [readingSession, setReadingSession] = useState<ReadingSessionState | null>(null);
   const [summary, setSummary] = useState<SummaryStats | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -167,6 +191,7 @@ export default function AppShell() {
         finishedItemIds: new Set(),
         masteredItemIds: new Set(),
         matchPool,
+        speedEndsAt: null,
       });
       setScreen("session");
     },
@@ -210,11 +235,41 @@ export default function AppShell() {
         finishedItemIds: new Set(),
         masteredItemIds: new Set(),
         matchPool: [],
+        speedEndsAt: null,
       });
       setScreen("session");
     },
     [store, grammarStore]
   );
+
+  // Timed, vocabulary-only drill built on the same mastered-word pool + "review" exercise kind as
+  // startReviewSession — a Speed Round is really just review under a 60-second clock, so it reuses
+  // that machinery instead of a parallel session type. Auto-finishes via the effect below when
+  // speedEndsAt passes; an early exit through the "End session?" modal works exactly like review too.
+  const startSpeedRound = useCallback(() => {
+    const vocabQueue: LearningQueueItem[] = VOCAB.filter((w) => store.wordState(w.id).stage === 4).map((w) => ({
+      kind: "review" as const,
+      words: [w],
+      direction: directionForKind("review"),
+    }));
+    const queue: UnifiedItem[] = shuffle(vocabQueue.map((item) => ({ domain: "vocab" as const, item })));
+    if (queue.length === 0) return;
+
+    const totalItemIds = [...new Set(queue.map((u) => "v:" + (u.domain === "vocab" ? u.item.words[0].id : "")))];
+    setLearningSession({
+      queue,
+      index: 0,
+      vocabResults: [],
+      grammarResults: [],
+      attempts: {},
+      totalItemIds,
+      finishedItemIds: new Set(),
+      masteredItemIds: new Set(),
+      matchPool: [],
+      speedEndsAt: Date.now() + SPEED_ROUND_MS,
+    });
+    setScreen("session");
+  }, [store]);
 
   // ---------- Writing: free-text exercise checked against required words/grammar + LanguageTool ----------
 
@@ -240,6 +295,34 @@ export default function AppShell() {
       const accuracy = correct ? 100 : almost ? 60 : 0;
       grammarStore.recordSession({ date: Date.now(), total: 1, correct, almost, incorrect, accuracy, format: "writing" });
       setWritingSession(null);
+      setScreen("home");
+    },
+    [grammarStore]
+  );
+
+  // ---------- Reading: multi-gap finance texts, mixing finance vocabulary with mastered words ----------
+
+  const startReadingSession = useCallback(() => {
+    const text = sample(READING_TEXTS, 1)[0];
+    const isVocabLearned = (en: string) => {
+      const word = VOCAB_BY_EN[en.toLowerCase()];
+      return !!word && store.wordState(word.id).stage === 4;
+    };
+    const eligible = computeEligibleGapIds(text, isVocabLearned);
+    setReadingSession({ text, eligibleGapIds: eligible });
+    setScreen("reading");
+  }, [store]);
+
+  const finishReading = useCallback(
+    (result: ReadingCheckResult) => {
+      const correct = result.correctCount;
+      const total = result.totalCount || 1;
+      const incorrect = total - correct;
+      const accuracy = Math.round((correct / total) * 100);
+      for (let i = 0; i < correct; i++) grammarStore.recordFormatStat("reading", "correct");
+      for (let i = 0; i < incorrect; i++) grammarStore.recordFormatStat("reading", "incorrect");
+      grammarStore.recordSession({ date: Date.now(), total, correct, almost: 0, incorrect, accuracy, format: "reading" });
+      setReadingSession(null);
       setScreen("home");
     },
     [grammarStore]
@@ -309,7 +392,15 @@ export default function AppShell() {
 
       if (s.vocabResults.length > 0) {
         const vTotal = s.vocabResults.length;
-        store.recordSession({ date: Date.now(), total: vTotal, correct: vCorrect, almost: vAlmost, incorrect: vIncorrect, accuracy: Math.round((vCorrect / vTotal) * 100), format: "learn" });
+        store.recordSession({
+          date: Date.now(),
+          total: vTotal,
+          correct: vCorrect,
+          almost: vAlmost,
+          incorrect: vIncorrect,
+          accuracy: Math.round((vCorrect / vTotal) * 100),
+          format: s.speedEndsAt !== null ? "speed" : "learn",
+        });
       }
       if (s.grammarResults.length > 0) {
         const gTotal = s.grammarResults.length;
@@ -337,6 +428,28 @@ export default function AppShell() {
     },
     [store, grammarStore]
   );
+
+  // Speed Round countdown: ticks while a timed session is active and auto-finishes it once the
+  // clock runs out, same as the "End session?" modal's early-exit path. The interval reads the
+  // latest session off a ref (rather than closing over the value from when it was scheduled) since
+  // the queue/results keep growing as the learner answers questions during the countdown.
+  const [speedNow, setSpeedNow] = useState(() => Date.now());
+  const learningSessionRef = useRefLatest(learningSession);
+  useEffect(() => {
+    if (!learningSession?.speedEndsAt) return;
+    const endsAt = learningSession.speedEndsAt;
+    const id = setInterval(() => {
+      if (Date.now() >= endsAt) {
+        clearInterval(id);
+        const latest = learningSessionRef.current;
+        if (latest) endLearningSession(latest);
+      } else {
+        setSpeedNow(Date.now());
+      }
+    }, 250);
+    return () => clearInterval(id);
+  }, [learningSession?.speedEndsAt, learningSessionRef, endLearningSession]);
+  const speedSecondsLeft = learningSession?.speedEndsAt ? Math.max(0, Math.ceil((learningSession.speedEndsAt - speedNow) / 1000)) : null;
 
   const currentItem = learningSession ? learningSession.queue[learningSession.index] : null;
 
@@ -581,13 +694,24 @@ export default function AppShell() {
       <main
         className={
           "flex-1 min-h-0 py-3 flex flex-col overscroll-x-none [-webkit-overflow-scrolling:touch] " +
-          (screen === "session" || screen === "writing" || screen === "linking" ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden")
+          (screen === "session" || screen === "writing" || screen === "linking" || screen === "reading"
+            ? "overflow-hidden"
+            : "overflow-y-auto overflow-x-hidden")
         }
       >
         {screen === "home" && (
           <HomeScreen
-            onStart={(mode) => (mode === "writing" ? startWritingSession() : mode === "linking" ? startLinkingSession() : startLearningSession(mode))}
+            onStart={(mode) =>
+              mode === "writing"
+                ? startWritingSession()
+                : mode === "linking"
+                ? startLinkingSession()
+                : mode === "reading"
+                ? startReadingSession()
+                : startLearningSession(mode)
+            }
             onReview={startReviewSession}
+            onSpeedRound={startSpeedRound}
             onGoal={goGoal}
           />
         )}
@@ -619,6 +743,18 @@ export default function AppShell() {
           />
         )}
 
+        {screen === "reading" && readingSession && (
+          <ReadingScreen
+            text={readingSession.text}
+            eligibleGapIds={readingSession.eligibleGapIds}
+            onExit={() => {
+              setReadingSession(null);
+              setScreen("home");
+            }}
+            onFinish={finishReading}
+          />
+        )}
+
         {screen === "session" && activeMode === "learning" && learningSession && currentItem && (
           <SessionScreen
             renderKey={`${learningSession.index}-${currentItem.domain}-${currentItem.domain === "vocab" ? currentItem.item.words[0].id : currentItem.item.rule.id}-${currentItem.item.kind}`}
@@ -626,6 +762,7 @@ export default function AppShell() {
             progressLabel={`${learningSession.finishedItemIds.size} / ${learningSession.totalItemIds.length}`}
             favorite={favorite}
             showFavorite={showFavorite}
+            timerLabel={speedSecondsLeft !== null ? `0:${String(speedSecondsLeft).padStart(2, "0")}` : undefined}
             onExit={() => setModalOpen(true)}
             onToggleFav={() => currentWordId && store.toggleFavorite(currentWordId)}
           >

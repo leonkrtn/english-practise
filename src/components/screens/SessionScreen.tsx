@@ -1,6 +1,6 @@
 "use client";
 
-import { Star, X } from "lucide-react";
+import { Star, Timer, X } from "lucide-react";
 
 export default function SessionScreen({
   renderKey,
@@ -8,6 +8,7 @@ export default function SessionScreen({
   progressLabel,
   favorite,
   showFavorite = true,
+  timerLabel,
   onExit,
   onToggleFav,
   children,
@@ -17,6 +18,7 @@ export default function SessionScreen({
   progressLabel: string;
   favorite: boolean;
   showFavorite?: boolean;
+  timerLabel?: string;
   onExit: () => void;
   onToggleFav: () => void;
   children: React.ReactNode;
@@ -38,6 +40,11 @@ export default function SessionScreen({
           />
         </div>
         <div className="text-[12.5px] text-ink-faint font-semibold whitespace-nowrap tabular-nums">{progressLabel}</div>
+        {timerLabel && (
+          <div className="flex items-center gap-1 text-[12.5px] font-bold tabular-nums text-white bg-gradient-to-r from-amber to-amber-dark rounded-full px-2.5 py-1 shrink-0">
+            <Timer size={12} /> {timerLabel}
+          </div>
+        )}
         {showFavorite && (
           <button
             onClick={onToggleFav}

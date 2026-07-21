@@ -43,6 +43,22 @@ the relationship differently shouldn't be marked wrong. No unlock
 requirement — it doesn't depend on learned vocabulary/grammar, so it's
 available from the start.
 
+A sixth mode, **Reading**, drills reading comprehension with finance-themed
+texts (personal finance, stocks & investing, economics, business, and
+cryptocurrency), staggered from B2 up through genuinely difficult C2
+material. Each text has several multiple-choice gaps drawn from a mix of
+finance/business vocabulary (always active) and already-mastered words from
+the main Vocabulary track (only active once you've actually learned that
+word) — so the mix of "words you know" and "finance vocabulary" is
+personalized rather than one fixed text for everyone. No unlock
+requirement, same as Linking.
+
+Vocabulary also has a **Speed Round**: a 60-second, typed-answer timed drill
+through your mastered ("gelernt") words, reusing the same review mechanics
+as "Gelerntes wiederholen" under a countdown instead of a separate mode —
+available as a second button right next to it once you have at least one
+mastered word.
+
 Writing now draws from **35** topic templates (up from 10), each combined
 with a fresh random pick of required words/grammar per attempt.
 
@@ -299,6 +315,57 @@ research surveyed before building this — see the git history for sources).
   `grammar_format_stats` for the per-format accuracy breakdown on Stats.
   No unlock gate — always available from Home.
 
+## Reading (finance texts)
+
+A sixth mode: 25 curated, multi-gap finance/business texts, staggered B2
+through C2, covering personal finance, stocks & investing, economics,
+business, and cryptocurrency.
+
+- `src/lib/financeReading.ts` — `READING_TEXTS`: each text has ~6
+  authored gap tokens (`{{gapId}}` inside the prose), tagged `source:
+  "finance"` or `source: "vocab"`, each with the correct answer plus 3
+  hand-picked wrong-option distractors of the same part of speech.
+- **The mix is personalized, not fixed.** `eligibleGapIds()` decides which
+  of a text's gaps are actually interactive this session: `"finance"` gaps
+  always are (that's the point of the mode — exposure to that
+  vocabulary regardless of progress elsewhere); `"vocab"` gaps only
+  become interactive once the learner has genuinely mastered that word
+  (stage 4) in the main Vocabulary track, checked by looking the gap's
+  answer up in `VOCAB_BY_EN`. A gap that isn't eligible this session is
+  rendered as plain text instead of a blank, so the passage always reads
+  naturally — it just has fewer editable blanks for a total beginner than
+  for someone with 300 mastered words. No unlock gate on the mode itself.
+- `src/components/screens/ReadingScreen.tsx` — renders the passage with
+  numbered inline blanks, and a multiple-choice picker (shuffled options)
+  below the text for each active gap. Grading is deterministic
+  (`correct`/`almost`/`incorrect` by how many gaps were answered right),
+  reusing the shared `FeedbackPanel`.
+- Finishing a session logs to `grammar_session_history` with
+  `format: "reading"` plus a `grammar_format_stats` entry per gap
+  (correct/incorrect), the same pattern as Writing/Linking — so Reading
+  gets its own accuracy stat on Home and in the Stats screen.
+
+## Speed Round
+
+A 60-second, typed-answer timed drill through your already-mastered
+("gelernt", stage 4) vocabulary — reachable from Home's Vocabulary tab,
+next to "Gelerntes wiederholen", once you have at least one mastered word.
+
+- Deliberately *not* a new top-level mode or a new session-state shape: it
+  reuses `startReviewSession`'s exact vocab-only, stage-4, `"review"`-kind
+  queue machinery, just seeded with a `speedEndsAt` timestamp
+  (`AppShell.startSpeedRound()`), so the same typed translate-style
+  exercise, scoring, and stage engine apply — a Speed Round genuinely is
+  review, just under a clock.
+- A ticking countdown (`SessionScreen`'s new `timerLabel` prop) reads the
+  latest in-progress session off a ref rather than a stale closure, since
+  the queue and results keep growing as the learner answers during the
+  60 seconds; when the clock hits zero it auto-finishes exactly like the
+  "End session?" modal's early-exit path does.
+- Finishing logs to `session_history` with `format: "speed"` instead of
+  `"learn"`, so Speed Rounds show up distinctly in Home's "Letzte
+  Sessions" and don't get folded into normal review's stats.
+
 ## Goal (5-week basics target)
 
 A personal, honestly-calculated target rather than a marketing number:
@@ -360,15 +427,17 @@ means at this stage.
   (learn, multiple choice, gap fill, sentence build, error-tap) plus
   `GrammarExerciseRouter` and the shared `CategoryBadge`
 - `src/components/screens/*` — Home (Vocabulary/Grammar/Mixed/Writing/
-  Linking mode switcher + stats dashboard + Goal teaser banner), Session,
-  Summary, Word List, Word Detail, Stats, Settings (grammar rule blocking),
-  Writing, Goal (5-week basics target, see below)
+  Linking/Reading mode switcher + stats dashboard + Goal teaser banner),
+  Session, Summary, Word List, Word Detail, Stats, Settings (grammar rule
+  blocking), Writing, Reading, Goal (5-week basics target, see below)
 - `src/lib/writingTopics.ts`, `src/lib/languageTool.ts`,
   `src/lib/grammarUsageCheck.ts` — the Writing feature (see below)
 - `src/lib/connectors-data.ts`, `src/lib/connectorCheck.ts`,
   `src/components/exercises/LinkingExercise.tsx` — the Linking (sentence
   combining) feature (see below); `src/lib/textHighlight.tsx` is the
   LanguageTool-match highlighter shared by both Writing and Linking
+- `src/lib/financeReading.ts`, `src/components/screens/ReadingScreen.tsx`
+  — the Reading (finance texts) feature (see above)
 - `src/lib/sound.ts` — synthesized Web Audio feedback tones (correct/
   almost/incorrect) with a mute toggle persisted in `localStorage`,
   wired into the shared `FeedbackPanel` so every exercise type gets it
@@ -484,6 +553,18 @@ Playwright script and inspecting the queue growth directly.
   Grammar breakdown, and pace panel correctly, and the flag icon in
   `TopBar` shows the active state on the Goal screen — zero console errors
   throughout. `tsc --noEmit`, `eslint`, and a clean `next build` all pass.
+- Reading mode (25 finance texts, B2→C2, multi-gap with a personalized mix
+  of finance vocabulary and mastered general vocabulary) and Speed Round
+  (60-second timed review of mastered words) — see the Reading and Speed
+  Round sections above. Verified with Playwright against a mocked Supabase
+  backend: Reading renders a text with its interactive gaps, grading
+  correctly marks right/wrong options and produces the right `correct`/
+  `almost` overall result, and finishing logs a `format: "reading"` entry
+  plus per-gap `grammar_format_stats`; Speed Round shows a live countdown
+  badge in the session header, presents the mastered-word pool as typed
+  translate questions, and exits cleanly through the same "End session?"
+  modal as every other session type — zero console errors throughout.
+  `tsc --noEmit`, `eslint`, and a clean `next build` all pass.
 
 **Needs a one-time manual step (couldn't be automated — no SQL/DDL or Auth
 config access from this session's tools):**

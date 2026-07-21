@@ -23,6 +23,8 @@ const FMT_LABELS: Record<string, string> = {
   "g-error": "Fehler finden",
   writing: "Writing",
   linking: "Sentence Linking",
+  speed: "Speed-Runde",
+  reading: "Reading",
 };
 
 export default function StatsScreen() {
@@ -104,7 +106,7 @@ export default function StatsScreen() {
             {Object.entries(grammarStore.formatStats).map(([f, v]) => {
               const total = v.correct + v.almost + v.incorrect;
               const acc = total ? Math.round((v.correct / total) * 100) : 0;
-              const suffix = f === "writing" || f === "linking" ? "" : " (Grammar)";
+              const suffix = f === "writing" || f === "linking" || f === "reading" ? "" : " (Grammar)";
               return <BarRow key={f} label={(FMT_LABELS[f] || f) + suffix} value={acc + "%"} pct={acc} />;
             })}
           </>
