@@ -20,49 +20,75 @@ export const CONNECTOR_CATEGORIES: ConnectorCategory[] = [
     id: "addition",
     label: "Addition",
     labelDe: "Ergänzung",
-    connectors: ["and", "also", "in addition", "furthermore", "moreover", "besides", "as well as", "not only", "plus"],
+    connectors: [
+      "and", "also", "in addition", "furthermore", "moreover", "besides", "as well as", "not only", "plus",
+      "additionally", "what's more", "on top of that", "along with", "together with", "too", "as well",
+      "not to mention", "equally important", "similarly",
+    ],
   },
   {
     id: "contrast",
     label: "Contrast",
     labelDe: "Gegensatz",
-    connectors: ["but", "however", "although", "though", "while", "whereas", "yet", "on the other hand", "even though", "despite", "in spite of"],
+    connectors: [
+      "but", "however", "although", "though", "while", "whereas", "yet", "on the other hand", "even though",
+      "despite", "in spite of", "nevertheless", "nonetheless", "still", "conversely", "in contrast",
+      "on the contrary", "despite the fact that", "regardless of", "even so", "that said", "then again",
+    ],
   },
   {
     id: "cause",
     label: "Cause",
     labelDe: "Grund",
-    connectors: ["because", "since", "as", "due to", "given that", "seeing that"],
+    connectors: [
+      "because", "since", "as", "due to", "given that", "seeing that", "on account of", "because of",
+      "owing to", "thanks to", "now that", "in light of", "for the reason that",
+    ],
   },
   {
     id: "result",
     label: "Result",
     labelDe: "Folge",
-    connectors: ["so", "therefore", "as a result", "consequently", "thus", "which means", "which is why"],
+    connectors: [
+      "so", "therefore", "as a result", "consequently", "thus", "which means", "which is why", "hence",
+      "accordingly", "for this reason", "as a consequence", "that's why", "as such", "so much so that",
+    ],
   },
   {
     id: "condition",
     label: "Condition",
     labelDe: "Bedingung",
-    connectors: ["if", "unless", "provided that", "as long as", "in case", "even if"],
+    connectors: [
+      "if", "unless", "provided that", "as long as", "in case", "even if", "providing that",
+      "on condition that", "assuming that", "only if", "as soon as", "should",
+    ],
   },
   {
     id: "time",
     label: "Time",
     labelDe: "Zeit",
-    connectors: ["after", "before", "when", "while", "as soon as", "once", "until", "by the time"],
+    connectors: [
+      "after", "before", "when", "while", "as soon as", "once", "until", "by the time", "whenever",
+      "meanwhile", "afterward", "afterwards", "then", "since", "as", "till", "the moment",
+    ],
   },
   {
     id: "purpose",
     label: "Purpose",
     labelDe: "Zweck",
-    connectors: ["so that", "in order to", "so as to", "to"],
+    connectors: [
+      "so that", "in order to", "so as to", "to", "in order that", "with the aim of", "for the purpose of",
+      "so", "with a view to",
+    ],
   },
   {
     id: "example",
     label: "Example",
     labelDe: "Beispiel",
-    connectors: ["for example", "for instance", "such as", "namely", "specifically"],
+    connectors: [
+      "for example", "for instance", "such as", "namely", "specifically", "like", "to illustrate",
+      "in particular", "including", "as an illustration", "a case in point",
+    ],
   },
 ];
 

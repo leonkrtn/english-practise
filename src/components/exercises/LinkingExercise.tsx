@@ -39,8 +39,13 @@ export default function LinkingExercise({
     setError(null);
     const connector = findUsedConnector(text, category);
     try {
-      const lt = connector ? await checkText(text) : { matches: [] };
-      const result: AnswerResultKind = !connector ? "incorrect" : lt.matches.length === 0 ? "correct" : "almost";
+      const lt = await checkText(text);
+      const grammarOk = lt.matches.length === 0;
+      // A connector from our curated list plus clean grammar is full marks. Missing our exact
+      // wordlist (the writer may have used a valid connector we just don't have listed, or
+      // combined the clauses in another correct way) never gets hard-rejected as long as the
+      // result is grammatically sound — that's still a good sentence.
+      const result: AnswerResultKind = connector ? (grammarOk ? "correct" : "almost") : grammarOk ? "almost" : "incorrect";
       setOutcome({ result, connector, matches: lt.matches });
       onAnswered({ pairId: pair.id, result });
     } catch (e) {
@@ -112,6 +117,11 @@ export default function LinkingExercise({
             {outcome.connector ? (
               <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[#0d7a4f] mb-1.5">
                 <Check size={14} /> Bindewort erkannt: &quot;{outcome.connector}&quot;
+              </div>
+            ) : outcome.matches.length === 0 ? (
+              <div className="text-[13px] font-semibold text-[#96690f] mb-1.5">
+                Grammatikalisch einwandfrei! Kein {category.labelDe}-Bindewort aus unserer Liste erkannt — für mehr Übung versuch es mal mit:{" "}
+                {category.connectors.slice(0, 4).join(", ")}…
               </div>
             ) : (
               <div className="text-[13px] font-semibold text-[#b8271b] mb-1.5">
