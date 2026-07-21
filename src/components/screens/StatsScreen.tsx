@@ -21,6 +21,8 @@ const FMT_LABELS: Record<string, string> = {
   "g-gap": "Lückentext",
   "g-build": "Satz umbauen",
   "g-error": "Fehler finden",
+  writing: "Writing",
+  linking: "Sentence Linking",
 };
 
 export default function StatsScreen() {
@@ -102,7 +104,8 @@ export default function StatsScreen() {
             {Object.entries(grammarStore.formatStats).map(([f, v]) => {
               const total = v.correct + v.almost + v.incorrect;
               const acc = total ? Math.round((v.correct / total) * 100) : 0;
-              return <BarRow key={f} label={(FMT_LABELS[f] || f) + " (Grammar)"} value={acc + "%"} pct={acc} />;
+              const suffix = f === "writing" || f === "linking" ? "" : " (Grammar)";
+              return <BarRow key={f} label={(FMT_LABELS[f] || f) + suffix} value={acc + "%"} pct={acc} />;
             })}
           </>
         )}

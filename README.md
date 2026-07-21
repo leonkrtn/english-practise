@@ -30,6 +30,16 @@ errors are highlighted right in your text with correction suggestions
 below. Unlocks once you've learned at least 5 words and 2 (unblocked)
 grammar rules.
 
+A fifth mode, **Linking**, drills sentence combining — the single most
+research-backed technique for improving sentence-level writing quality (85+
+studies since the 1970s). Each round shows two short, plain clauses and a
+target logical relationship (contrast, cause, result, condition, time,
+purpose, addition, example); you combine them into one natural sentence
+using an appropriate connector, checked deterministically for the connector
+plus a real LanguageTool grammar/spelling pass. No unlock requirement — it
+doesn't depend on learned vocabulary/grammar, so it's available from the
+start.
+
 ## Setup
 
 1. In the Supabase project **English-practise**, open the SQL Editor and run,
@@ -222,6 +232,47 @@ the end, not a queue of graded exercises.
   words missing) — so Writing attempts show up in Home's streak, activity
   heatmap, and "Letzte Sessions" list (labeled "Writing", not "Grammar").
 
+## Linking (sentence combining)
+
+A fifth mode built specifically to address "I can't write really good
+sentences" — sentence combining is the most consistently-replicated
+technique in the writing-instruction research for improving syntactic
+maturity and sentence quality, and works best when connectors are taught
+grouped by logical relationship rather than as one big list (both from
+research surveyed before building this — see the git history for sources).
+
+- `src/lib/connectors-data.ts` — 8 connector categories (Addition,
+  Contrast, Cause, Result, Condition, Time, Purpose, Example), each with
+  its own accepted-connector word list, plus a curated bank of ~45 short
+  clause pairs tagged by category with a model combined sentence.
+- `AppShell.startLinkingSession()` samples one clause pair per category
+  (up to `LINKING_BATCH_SIZE` = 6), shuffled — so a session always spans
+  several different relationship types rather than drilling one repeatedly.
+- `src/components/exercises/LinkingExercise.tsx` — rendered inside the
+  existing `SessionScreen` chrome (progress bar, exit button — same as
+  the vocab/grammar queue, just with no favorite star), so it reuses that
+  machinery instead of duplicating it the way `WritingScreen` had to.
+  Shows both clauses, a "Bindewörter zeigen" hint revealing that
+  category's connector bank, a text field (Enter confirms), and a
+  "Prüfen" button.
+- **Connector usage is a hard, deterministic check**
+  (`findUsedConnector` in `src/lib/connectorCheck.ts`) — whole-word/phrase
+  matching against that category's accepted list. No connector found →
+  `incorrect`, regardless of grammar quality, since using the connector
+  is the entire point of the drill.
+- **Grammar/spelling** reuses the same LanguageTool client and the shared
+  `renderHighlighted` helper (extracted to `src/lib/textHighlight.tsx` so
+  both Writing and Linking use one implementation) — connector found +
+  zero issues → `correct`; connector found + issues → `almost`.
+- The model sentence for that pair is always shown after checking
+  ("So könnte es auch klingen") as a reference, never presented as the
+  only right answer.
+- Finishing a session records one aggregate entry to
+  `grammar_session_history` with `format: "linking"` (same pattern as
+  Writing, no new table), and each item also logs to
+  `grammar_format_stats` for the per-format accuracy breakdown on Stats.
+  No unlock gate — always available from Home.
+
 ## Structure
 
 - `src/lib/auth.tsx` — React context around Supabase email/password auth
@@ -247,11 +298,15 @@ the end, not a queue of graded exercises.
 - `src/components/grammar-exercises/*` — the 5 Grammar exercise types
   (learn, multiple choice, gap fill, sentence build, error-tap) plus
   `GrammarExerciseRouter` and the shared `CategoryBadge`
-- `src/components/screens/*` — Home (Vocabulary/Grammar/Mixed/Writing mode
-  switcher + stats dashboard), Session, Summary, Word List, Word Detail,
-  Stats, Settings (grammar rule blocking), Writing
+- `src/components/screens/*` — Home (Vocabulary/Grammar/Mixed/Writing/
+  Linking mode switcher + stats dashboard), Session, Summary, Word List,
+  Word Detail, Stats, Settings (grammar rule blocking), Writing
 - `src/lib/writingTopics.ts`, `src/lib/languageTool.ts`,
   `src/lib/grammarUsageCheck.ts` — the Writing feature (see below)
+- `src/lib/connectors-data.ts`, `src/lib/connectorCheck.ts`,
+  `src/components/exercises/LinkingExercise.tsx` — the Linking (sentence
+  combining) feature (see below); `src/lib/textHighlight.tsx` is the
+  LanguageTool-match highlighter shared by both Writing and Linking
 - `src/lib/sound.ts` — synthesized Web Audio feedback tones (correct/
   almost/incorrect) with a mute toggle persisted in `localStorage`,
   wired into the shared `FeedbackPanel` so every exercise type gets it

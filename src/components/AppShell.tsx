@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { VOCAB, VOCAB_BY_ID, type Word } from "@/lib/vocab";
 import { GRAMMAR_RULES, type GrammarRule } from "@/lib/grammar-data";
 import { WRITING_TOPICS, WRITING_MIN_WORDS, WRITING_MIN_RULES, type WritingTopic } from "@/lib/writingTopics";
+import { CLAUSE_PAIRS, type ClausePair } from "@/lib/connectors-data";
 import type { QueueItem } from "@/lib/sessionLogic";
 import {
   buildLearningBatch,
@@ -43,9 +44,10 @@ import WordDetailScreen from "./screens/WordDetailScreen";
 import StatsScreen from "./screens/StatsScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import WritingScreen, { type WritingCheckResult } from "./screens/WritingScreen";
+import LinkingExercise, { type LinkingResult } from "./exercises/LinkingExercise";
 
-export type Screen = "home" | "session" | "summary" | "list" | "stats" | "detail" | "settings" | "writing";
-export type SessionMode = "vocab" | "grammar" | "mixed" | "writing";
+export type Screen = "home" | "session" | "summary" | "list" | "stats" | "detail" | "settings" | "writing" | "linking";
+export type SessionMode = "vocab" | "grammar" | "mixed" | "writing" | "linking";
 
 type UnifiedItem = { domain: "vocab"; item: LearningQueueItem } | { domain: "grammar"; item: GrammarQueueItem };
 
@@ -64,6 +66,15 @@ export interface WritingSessionState {
   requiredRules: GrammarRule[];
 }
 
+/** Sentence-combining drill: a queue of clause pairs, each checked independently (connector used?
+ * + LanguageTool) rather than progressing through the stage engine. */
+interface LinkingSessionState {
+  queue: ClausePair[];
+  index: number;
+  results: LinkingResult[];
+}
+
+const LINKING_BATCH_SIZE = 6;
 
 /** Primary session mode: an adaptive queue that grows as vocab words / grammar rules move through their stage. Ids in attempts/finishedItemIds/masteredItemIds/totalItemIds are prefixed "v:"/"g:" to keep the two domains apart. */
 interface LearningSessionState {
@@ -91,6 +102,7 @@ export default function AppShell() {
   const [quickSession, setQuickSession] = useState<QuickSessionState | null>(null);
   const [learningSession, setLearningSession] = useState<LearningSessionState | null>(null);
   const [writingSession, setWritingSession] = useState<WritingSessionState | null>(null);
+  const [linkingSession, setLinkingSession] = useState<LinkingSessionState | null>(null);
   const [summary, setSummary] = useState<SummaryStats | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -218,6 +230,52 @@ export default function AppShell() {
     },
     [grammarStore]
   );
+
+  // ---------- Linking: sentence-combining drill (clause pair + connector + LanguageTool check) ----------
+
+  const startLinkingSession = useCallback(() => {
+    const byCategory = new Map<string, ClausePair[]>();
+    CLAUSE_PAIRS.forEach((p) => {
+      if (!byCategory.has(p.categoryId)) byCategory.set(p.categoryId, []);
+      byCategory.get(p.categoryId)!.push(p);
+    });
+    const categoryIds = shuffle([...byCategory.keys()]).slice(0, LINKING_BATCH_SIZE);
+    const queue = shuffle(categoryIds.map((cid) => sample(byCategory.get(cid)!, 1)[0]));
+    setLinkingSession({ queue, index: 0, results: [] });
+    setScreen("linking");
+  }, []);
+
+  const finishLinking = useCallback(
+    (s: LinkingSessionState) => {
+      const correct = s.results.filter((r) => r.result === "correct").length;
+      const almost = s.results.filter((r) => r.result === "almost").length;
+      const incorrect = s.results.filter((r) => r.result === "incorrect").length;
+      const total = s.results.length || 1;
+      const accuracy = Math.round((correct / total) * 100);
+      grammarStore.recordSession({ date: Date.now(), total, correct, almost, incorrect, accuracy, format: "linking" });
+      setLinkingSession(null);
+      setScreen("home");
+    },
+    [grammarStore]
+  );
+
+  const onLinkingAnswered = useCallback(
+    (r: LinkingResult) => {
+      grammarStore.recordFormatStat("linking", r.result);
+      setLinkingSession((prev) => (prev ? { ...prev, results: [...prev.results, r] } : prev));
+    },
+    [grammarStore]
+  );
+
+  const nextLinkingQuestion = useCallback(() => {
+    if (!linkingSession) return;
+    const nextIndex = linkingSession.index + 1;
+    if (nextIndex >= linkingSession.queue.length) {
+      finishLinking(linkingSession);
+    } else {
+      setLinkingSession({ ...linkingSession, index: nextIndex });
+    }
+  }, [linkingSession, finishLinking]);
 
   const endLearningSession = useCallback(
     (s: LearningSessionState) => {
@@ -498,14 +556,28 @@ export default function AppShell() {
       <main
         className={
           "flex-1 min-h-0 py-3 flex flex-col overscroll-x-none [-webkit-overflow-scrolling:touch] " +
-          (screen === "session" || screen === "writing" ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden")
+          (screen === "session" || screen === "writing" || screen === "linking" ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden")
         }
       >
         {screen === "home" && (
           <HomeScreen
-            onStart={(mode) => (mode === "writing" ? startWritingSession() : startLearningSession(mode))}
+            onStart={(mode) => (mode === "writing" ? startWritingSession() : mode === "linking" ? startLinkingSession() : startLearningSession(mode))}
             onReview={startReviewSession}
           />
+        )}
+
+        {screen === "linking" && linkingSession && linkingSession.queue[linkingSession.index] && (
+          <SessionScreen
+            renderKey={`${linkingSession.index}-${linkingSession.queue[linkingSession.index].id}`}
+            progressPct={Math.round((linkingSession.index / linkingSession.queue.length) * 100)}
+            progressLabel={`${linkingSession.index + 1} / ${linkingSession.queue.length}`}
+            favorite={false}
+            showFavorite={false}
+            onExit={() => setModalOpen(true)}
+            onToggleFav={NOOP}
+          >
+            <LinkingExercise pair={linkingSession.queue[linkingSession.index]} onAnswered={onLinkingAnswered} onNext={nextLinkingQuestion} />
+          </SessionScreen>
         )}
 
         {screen === "writing" && writingSession && (
@@ -600,6 +672,7 @@ export default function AppShell() {
           setModalOpen(false);
           if (learningSession) endLearningSession(learningSession);
           else if (quickSession) endQuickSession(quickSession);
+          else if (linkingSession) finishLinking(linkingSession);
         }}
       />
     </div>

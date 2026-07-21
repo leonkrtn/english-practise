@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookOpen, Blocks, Flame, Heart, PenLine, Repeat, Shuffle, Target, TrendingDown } from "lucide-react";
+import { BookOpen, Blocks, Flame, Heart, Link2, PenLine, Repeat, Shuffle, Target, TrendingDown } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { VOCAB, VOCAB_BY_ID } from "@/lib/vocab";
@@ -55,6 +55,15 @@ const MODES: {
     tint: "bg-amber-light text-amber",
     glow: "shadow-[0_10px_24px_-8px_rgba(232,161,46,0.5)]",
     ring: ["#e8a12e", "#c9860f"],
+  },
+  {
+    val: "linking",
+    label: "Linking",
+    icon: Link2,
+    grad: "from-green to-green-dark",
+    tint: "bg-green-light text-green",
+    glow: "shadow-[0_10px_24px_-8px_rgba(30,182,118,0.5)]",
+    ring: ["#1eb676", "#0e9464"],
   },
 ];
 
@@ -206,6 +215,17 @@ export default function HomeScreen({
   );
   const writingEligible = vocabStats.learned >= WRITING_MIN_WORDS && grammarStats.learned >= WRITING_MIN_RULES;
 
+  const linkingSessionsCount = useMemo(
+    () => grammarStore.sessionHistory.filter((s) => s.format === "linking").length,
+    [grammarStore.sessionHistory]
+  );
+  const linkingAccuracy = useMemo(() => {
+    const s = grammarStore.formatStats["linking"];
+    if (!s) return 0;
+    const total = s.correct + s.almost + s.incorrect;
+    return total ? Math.round((s.correct / total) * 100) : 0;
+  }, [grammarStore.formatStats]);
+
   const active = MODES.find((m) => m.val === mode)!;
   const progressPct = stats.total ? Math.round((stats.learned / stats.total) * 100) : 0;
 
@@ -218,7 +238,7 @@ export default function HomeScreen({
 
       <div className="lg:grid lg:grid-cols-[1.35fr_1fr] lg:gap-6 lg:items-start">
       <div>
-      <div className="grid grid-cols-4 gap-2 mb-5">
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-5">
         {MODES.map((m) => {
           const Icon = m.icon;
           const isActive = mode === m.val;
@@ -263,6 +283,17 @@ export default function HomeScreen({
               /{WRITING_MIN_WORDS} Wörter, {grammarStats.learned}/{WRITING_MIN_RULES} Regeln gelernt).
             </div>
           )}
+        </div>
+      ) : mode === "linking" ? (
+        <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm flex items-center gap-4">
+          <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 bg-green-light text-green">
+            <Link2 size={22} />
+          </span>
+          <div className="flex-1 flex flex-col gap-2.5 min-w-0">
+            <StatRow icon={<Repeat size={14} />} value={linkingSessionsCount} label="Sessions" tint="bg-blue-light text-blue" />
+            <StatRow icon={<Target size={14} />} value={`${linkingAccuracy}%`} label="Genauigkeit" tint="bg-amber-light text-amber" />
+            <StatRow icon={<Flame size={14} />} value={streak} label={streak === 1 ? "Tag Streak" : "Tage Streak"} tint="bg-red-light text-red" />
+          </div>
         </div>
       ) : (
         <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm flex items-center gap-4">
@@ -332,12 +363,12 @@ export default function HomeScreen({
                   <span
                     className={
                       "w-2 h-2 rounded-full shrink-0 " +
-                      (s.format === "writing" ? "bg-amber" : s.domain === "vocab" ? "bg-blue" : "bg-purple")
+                      (s.format === "writing" ? "bg-amber" : s.format === "linking" ? "bg-green" : s.domain === "vocab" ? "bg-blue" : "bg-purple")
                     }
                   />
                   <div className="min-w-0">
                     <div className="text-[13px] font-semibold text-ink">
-                      {s.format === "writing" ? "Writing" : s.domain === "vocab" ? "Vocabulary" : "Grammar"}
+                      {s.format === "writing" ? "Writing" : s.format === "linking" ? "Linking" : s.domain === "vocab" ? "Vocabulary" : "Grammar"}
                     </div>
                     <div className="text-[11px] text-ink-faint">{formatRelativeDate(s.date)}</div>
                   </div>
@@ -357,7 +388,7 @@ export default function HomeScreen({
       </div>
 
       <div className="sticky bottom-0 pt-4 pb-2 -mx-5 px-5 bg-gradient-to-t from-bg from-65% to-transparent flex flex-col gap-2 lg:flex-row lg:gap-3">
-        {mode !== "writing" && stats.learned > 0 && (
+        {mode !== "writing" && mode !== "linking" && stats.learned > 0 && (
           <button
             onClick={() => onReview(mode)}
             className="w-full lg:flex-1 rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:-translate-y-0.5 text-ink font-semibold py-3 text-[14px] transition-all active:scale-[0.97]"

@@ -7,6 +7,7 @@ import type { GrammarRule } from "@/lib/grammar-data";
 import type { WritingTopic } from "@/lib/writingTopics";
 import { checkText, LanguageToolError, type LanguageToolMatch } from "@/lib/languageTool";
 import { textLikelyUsesGrammar, textUsesWord } from "@/lib/grammarUsageCheck";
+import { renderHighlighted } from "@/lib/textHighlight";
 
 const MIN_WORDS = 40;
 
@@ -220,24 +221,4 @@ export default function WritingScreen({
       </div>
     </section>
   );
-}
-
-function renderHighlighted(text: string, matches: LanguageToolMatch[]): React.ReactNode {
-  if (matches.length === 0) return text;
-  const sorted = [...matches].sort((a, b) => a.offset - b.offset);
-  const nodes: React.ReactNode[] = [];
-  let cursor = 0;
-  sorted.forEach((m, i) => {
-    if (m.offset < cursor) return;
-    if (m.offset > cursor) nodes.push(text.slice(cursor, m.offset));
-    const end = m.offset + m.length;
-    nodes.push(
-      <mark key={i} title={m.shortMessage} className="bg-red-light text-[#b8271b] rounded px-0.5 not-italic">
-        {text.slice(m.offset, end)}
-      </mark>
-    );
-    cursor = end;
-  });
-  if (cursor < text.length) nodes.push(text.slice(cursor));
-  return nodes;
 }
