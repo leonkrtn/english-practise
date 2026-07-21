@@ -267,15 +267,10 @@ export default function HomeScreen({
 
   return (
     <section className="flex flex-col pb-1">
-      <h1 className="text-[27px] font-bold tracking-tight mt-1 mb-1">
-        <span className="bg-gradient-to-r from-blue via-blue-dark to-purple bg-clip-text text-transparent">Vocabulary</span> Trainer
-      </h1>
-      <p className="text-ink-soft text-[14px] mb-5 leading-snug">English ↔ German · Grammar</p>
-
       {goalStatus && (
         <button
           onClick={onGoal}
-          className="w-full flex items-center gap-3.5 rounded-2xl px-4 py-3.5 mb-5 text-left bg-gradient-to-r from-ink to-ink/85 text-white shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all"
+          className="w-full flex items-center gap-3.5 rounded-2xl px-4 py-3.5 mt-1 mb-5 text-left bg-gradient-to-r from-ink to-ink/85 text-white shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all"
         >
           <span className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-white/15">
             <Flag size={16} />
@@ -298,7 +293,7 @@ export default function HomeScreen({
 
       <div className="lg:grid lg:grid-cols-[1.35fr_1fr] lg:gap-6 lg:items-start">
       <div>
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5 mt-1">
         {MODES.map((m) => {
           const Icon = m.icon;
           const isActive = mode === m.val;

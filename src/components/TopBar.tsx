@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { BarChart3, Flag, LogOut, ScrollText, Settings, Volume2, VolumeX } from "lucide-react";
 import type { Screen } from "./AppShell";
 import { useSoundMuted } from "@/lib/sound";
@@ -26,7 +25,9 @@ export default function TopBar({
   return (
     <div className="shrink-0 flex items-center justify-between py-2.5 border-b border-line-soft">
       <button onClick={goHome} aria-label="Home" className="flex items-center">
-        <Image src="/icons/icon-192.png" alt="" width={34} height={34} priority />
+        <span className="text-[19px] font-extrabold tracking-tight bg-gradient-to-r from-blue via-blue-dark to-purple bg-clip-text text-transparent">
+          PRACTISE
+        </span>
       </button>
       <div className="flex items-center gap-1">
         <IconButton onClick={toggleMuted} title={muted ? "Sound aktivieren" : "Sound stummschalten"}>
