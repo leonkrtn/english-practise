@@ -1,16 +1,24 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookOpen, Blocks, Flag, Flame, Heart, Link2, Newspaper, PenLine, Repeat, Shuffle, Target, Timer, TrendingDown } from "lucide-react";
+import { BookMarked, BookOpen, Blocks, Flag, Flame, Heart, Link2, Newspaper, PenLine, Repeat, Shuffle, Target, Timer, TrendingDown } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { VOCAB, VOCAB_BY_ID } from "@/lib/vocab";
 import { activeGrammarRules } from "@/lib/grammarLearning";
 import { WRITING_MIN_RULES, WRITING_MIN_WORDS } from "@/lib/writingTopics";
 import { computeGoalStatus } from "@/lib/goal";
-import type { SessionMode } from "@/components/AppShell";
+import type { SessionMode, LinkingSubMode } from "@/components/AppShell";
 import type { SessionRecord } from "@/lib/types";
 import type { GrammarSessionRecord } from "@/lib/grammarTypes";
+
+const LINKING_FORMATS = ["linking", "linking-vocab", "linking-essay"];
+
+const LINKING_SUB_MODES: { val: LinkingSubMode; label: string; icon: typeof Link2 }[] = [
+  { val: "combine", label: "Sätze verbinden", icon: Link2 },
+  { val: "learn", label: "Wörter lernen", icon: BookMarked },
+  { val: "essay", label: "Freies Schreiben", icon: PenLine },
+];
 
 const MODES: {
   val: SessionMode;
@@ -127,7 +135,7 @@ export default function HomeScreen({
   onSpeedRound,
   onGoal,
 }: {
-  onStart: (mode: SessionMode, includeReview?: boolean) => void;
+  onStart: (mode: SessionMode, includeReview?: boolean, linkingSubMode?: LinkingSubMode) => void;
   onReview: (mode: SessionMode) => void;
   onSpeedRound: () => void;
   onGoal: () => void;
@@ -136,6 +144,7 @@ export default function HomeScreen({
   const grammarStore = useGrammarStore();
   const [mode, setMode] = useState<SessionMode>("vocab");
   const [includeReview, setIncludeReview] = useState(true);
+  const [linkingSubMode, setLinkingSubMode] = useState<LinkingSubMode>("combine");
 
   const activeVocabTotal = useMemo(() => VOCAB.length - store.blockedWordIds.size, [store.blockedWordIds]);
 
@@ -247,14 +256,19 @@ export default function HomeScreen({
   const writingEligible = vocabStats.learned >= WRITING_MIN_WORDS && grammarStats.learned >= WRITING_MIN_RULES;
 
   const linkingSessionsCount = useMemo(
-    () => grammarStore.sessionHistory.filter((s) => s.format === "linking").length,
+    () => grammarStore.sessionHistory.filter((s) => LINKING_FORMATS.includes(s.format)).length,
     [grammarStore.sessionHistory]
   );
   const linkingAccuracy = useMemo(() => {
-    const s = grammarStore.formatStats["linking"];
-    if (!s) return 0;
-    const total = s.correct + s.almost + s.incorrect;
-    return total ? Math.round((s.correct / total) * 100) : 0;
+    let correct = 0;
+    let total = 0;
+    LINKING_FORMATS.forEach((f) => {
+      const s = grammarStore.formatStats[f];
+      if (!s) return;
+      correct += s.correct;
+      total += s.correct + s.almost + s.incorrect;
+    });
+    return total ? Math.round((correct / total) * 100) : 0;
   }, [grammarStore.formatStats]);
 
   const readingSessionsCount = useMemo(
@@ -326,6 +340,28 @@ export default function HomeScreen({
           );
         })}
       </div>
+
+      {mode === "linking" && (
+        <div className="grid grid-cols-3 gap-2 mb-5">
+          {LINKING_SUB_MODES.map((sm) => {
+            const Icon = sm.icon;
+            const isActive = linkingSubMode === sm.val;
+            return (
+              <button
+                key={sm.val}
+                onClick={() => setLinkingSubMode(sm.val)}
+                className={
+                  "flex flex-col items-center gap-1 rounded-xl px-1.5 py-2.5 text-center transition-all " +
+                  (isActive ? "bg-green-light border-[1.5px] border-green text-[#0d7a4f]" : "bg-card border-[1.5px] border-line-soft text-ink-soft hover:border-line")
+                }
+              >
+                <Icon size={15} />
+                <span className="text-[11px] font-semibold leading-tight">{sm.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {mode === "writing" ? (
         <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm">
@@ -451,7 +487,7 @@ export default function HomeScreen({
                       "w-2 h-2 rounded-full shrink-0 " +
                       (s.format === "writing"
                         ? "bg-amber"
-                        : s.format === "linking"
+                        : LINKING_FORMATS.includes(s.format)
                         ? "bg-green"
                         : s.format === "reading"
                         ? "bg-red"
@@ -468,6 +504,10 @@ export default function HomeScreen({
                         ? "Writing"
                         : s.format === "linking"
                         ? "Linking"
+                        : s.format === "linking-vocab"
+                        ? "Bindewörter"
+                        : s.format === "linking-essay"
+                        ? "Linking-Essay"
                         : s.format === "reading"
                         ? "Reading"
                         : s.format === "speed"
@@ -511,7 +551,7 @@ export default function HomeScreen({
           </button>
         )}
         <button
-          onClick={() => onStart(mode, includeReview)}
+          onClick={() => onStart(mode, includeReview, linkingSubMode)}
           disabled={mode === "writing" && !writingEligible}
           className={
             "w-full lg:flex-1 rounded-full bg-gradient-to-r text-white font-semibold py-4 text-[16px] transition-all duration-200 active:scale-[0.97] hover:brightness-110 shadow-[0_14px_30px_-10px_rgba(15,23,42,0.4)] disabled:opacity-40 disabled:pointer-events-none disabled:shadow-none " +

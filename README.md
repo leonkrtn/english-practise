@@ -310,7 +310,7 @@ the end, not a queue of graded exercises.
   words missing) — so Writing attempts show up in Home's streak, activity
   heatmap, and "Letzte Sessions" list (labeled "Writing", not "Grammar").
 
-## Linking (sentence combining)
+## Linking (sentence combining, connector recall, free writing)
 
 A fifth mode built specifically to address "I can't write really good
 sentences" — sentence combining is the most consistently-replicated
@@ -318,6 +318,12 @@ technique in the writing-instruction research for improving syntactic
 maturity and sentence quality, and works best when connectors are taught
 grouped by logical relationship rather than as one big list (both from
 research surveyed before building this — see the git history for sources).
+
+Linking now has three sub-modes, chosen via a segmented control that
+appears once the Linking tile is selected on Home — the original drill
+alone left two real gaps: it never asks you to actively recall a connector
+from nothing (the two given clauses always hint at the relationship), and
+it never asks you to produce free, unprompted English at all.
 
 - `src/lib/connectors-data.ts` — 8 connector categories (Addition,
   Contrast, Cause, Result, Condition, Time, Purpose, Example), each with
@@ -353,6 +359,30 @@ research surveyed before building this — see the git history for sources).
   Writing, no new table), and each item also logs to
   `grammar_format_stats` for the per-format accuracy breakdown on Stats.
   No unlock gate — always available from Home.
+
+**"Wörter lernen" — active connector recall.** The sentence-combining drill
+never actually requires you to produce a connector from memory, since the
+two given clauses always hint at the relationship. This sub-mode removes
+that scaffold: `src/lib/connectorQuiz.ts`'s `buildConnectorQuiz()` builds a
+16-question multiple-choice quiz (2 per category × 8 categories, shuffled)
+— "Welches Wort drückt diese Beziehung aus?" (category name), 4 lettered
+options where the 3 distractors are sampled from the *other* categories, so
+there's a clear single right answer. `src/components/screens/
+ConnectorLearnScreen.tsx` reuses `SessionScreen`'s chrome (progress bar,
+letter-key shortcuts via `useLetterShortcuts`) and logs one aggregate
+session with `format: "linking-vocab"`.
+
+**"Freies Schreiben" — free writing, no fixed clauses.** A topic (sampled
+from the same `WRITING_TOPICS` pool as Writing) and an empty textarea —
+no sentence template, no required word list. The only requirement is using
+connectors from at least `MIN_CATEGORIES` (3) of the 8 categories, checked
+live as you type via `findUsedConnector()` run against the whole text for
+every category, shown as a green/grey chip checklist, plus a real
+LanguageTool grammar pass on demand (`src/components/screens/
+LinkingEssayScreen.tsx`, structurally a sibling of `WritingScreen.tsx`).
+Graded `correct` (≥3 categories, zero issues) / `almost` (met one
+criterion but not the other) / `incorrect` (met neither), logged as
+`format: "linking-essay"`.
 
 ## Reading (finance texts)
 
@@ -472,9 +502,13 @@ means at this stage.
 - `src/lib/writingTopics.ts`, `src/lib/languageTool.ts`,
   `src/lib/grammarUsageCheck.ts` — the Writing feature (see below)
 - `src/lib/connectors-data.ts`, `src/lib/connectorCheck.ts`,
-  `src/components/exercises/LinkingExercise.tsx` — the Linking (sentence
-  combining) feature (see below); `src/lib/textHighlight.tsx` is the
-  LanguageTool-match highlighter shared by both Writing and Linking
+  `src/components/exercises/LinkingExercise.tsx` — the Linking
+  sentence-combining sub-mode (see below); `src/lib/textHighlight.tsx` is
+  the LanguageTool-match highlighter shared by Writing and all of Linking
+- `src/lib/connectorQuiz.ts`, `src/components/screens/
+  ConnectorLearnScreen.tsx` — Linking's "Wörter lernen" connector-recall
+  quiz; `src/components/screens/LinkingEssayScreen.tsx` — Linking's
+  "Freies Schreiben" free-writing sub-mode (both see above)
 - `src/lib/financeReading.ts`, `src/components/screens/ReadingScreen.tsx`
   — the Reading (finance texts) feature (see above)
 - `src/lib/sound.ts` — synthesized Web Audio feedback tones (correct/
@@ -613,6 +647,17 @@ Playwright script and inspecting the queue growth directly.
   it, and Settings correctly lists the blocked word as an unblockable chip
   — zero console errors. `tsc --noEmit`, `eslint`, and a clean build all
   pass.
+- A/B/C/D keyboard shortcuts on every lettered multiple-choice exercise,
+  bold English-word highlighting throughout solution explanations, and
+  Linking's two new sub-modes ("Wörter lernen" connector-recall quiz,
+  "Freies Schreiben" free writing with live category-usage tracking) — see
+  the Linking section above. Verified with Playwright against a mocked
+  Supabase backend and a mocked LanguageTool endpoint: pressing a letter
+  key selects the matching option exactly like a click, the connector quiz
+  presents 16 shuffled questions with working letter shortcuts, and a real
+  free-form paragraph correctly detected 5 of 8 connector categories live
+  while typing and passed the grammar check — zero console errors
+  throughout. `tsc --noEmit`, `eslint`, and a clean build all pass.
 
 **Needs a one-time manual step (couldn't be automated — no SQL/DDL or Auth
 config access from this session's tools):**

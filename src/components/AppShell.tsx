@@ -47,10 +47,26 @@ import SettingsScreen from "./screens/SettingsScreen";
 import GoalScreen from "./screens/GoalScreen";
 import WritingScreen, { type WritingCheckResult } from "./screens/WritingScreen";
 import ReadingScreen, { type ReadingCheckResult } from "./screens/ReadingScreen";
+import ConnectorLearnScreen, { type ConnectorLearnResult } from "./screens/ConnectorLearnScreen";
+import LinkingEssayScreen, { type LinkingEssayResult, MIN_CATEGORIES as LINKING_ESSAY_MIN_CATEGORIES } from "./screens/LinkingEssayScreen";
 import LinkingExercise, { type LinkingResult } from "./exercises/LinkingExercise";
 
-export type Screen = "home" | "session" | "summary" | "list" | "stats" | "detail" | "settings" | "writing" | "linking" | "goal" | "reading";
+export type Screen =
+  | "home"
+  | "session"
+  | "summary"
+  | "list"
+  | "stats"
+  | "detail"
+  | "settings"
+  | "writing"
+  | "linking"
+  | "linking-learn"
+  | "linking-essay"
+  | "goal"
+  | "reading";
 export type SessionMode = "vocab" | "grammar" | "mixed" | "writing" | "linking" | "reading";
+export type LinkingSubMode = "combine" | "learn" | "essay";
 
 type UnifiedItem = { domain: "vocab"; item: LearningQueueItem } | { domain: "grammar"; item: GrammarQueueItem };
 
@@ -128,6 +144,7 @@ export default function AppShell() {
   const [writingSession, setWritingSession] = useState<WritingSessionState | null>(null);
   const [linkingSession, setLinkingSession] = useState<LinkingSessionState | null>(null);
   const [readingSession, setReadingSession] = useState<ReadingSessionState | null>(null);
+  const [linkingEssayTopic, setLinkingEssayTopic] = useState<WritingTopic | null>(null);
   const [summary, setSummary] = useState<SummaryStats | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -373,6 +390,46 @@ export default function AppShell() {
       setLinkingSession({ ...linkingSession, index: nextIndex });
     }
   }, [linkingSession, finishLinking]);
+
+  // ---------- Linking: connector-recall quiz ("which word expresses this relationship") ----------
+
+  const startConnectorLearn = useCallback(() => {
+    setScreen("linking-learn");
+  }, []);
+
+  const finishConnectorLearn = useCallback(
+    (result: ConnectorLearnResult) => {
+      const correct = result.correctCount;
+      const total = result.totalCount || 1;
+      const incorrect = total - correct;
+      const accuracy = Math.round((correct / total) * 100);
+      grammarStore.recordSession({ date: Date.now(), total, correct, almost: 0, incorrect, accuracy, format: "linking-vocab" });
+      setScreen("home");
+    },
+    [grammarStore]
+  );
+
+  // ---------- Linking: free-form essay requiring connectors from several categories, no fixed clauses ----------
+
+  const startLinkingEssay = useCallback(() => {
+    setLinkingEssayTopic(sample(WRITING_TOPICS, 1)[0]);
+    setScreen("linking-essay");
+  }, []);
+
+  const finishLinkingEssay = useCallback(
+    (result: LinkingEssayResult) => {
+      const enoughCategories = result.categoriesUsed >= LINKING_ESSAY_MIN_CATEGORIES;
+      const errorCount = result.issues.length;
+      const correct = enoughCategories && errorCount === 0 ? 1 : 0;
+      const almost = enoughCategories !== (errorCount === 0) ? 1 : 0;
+      const incorrect = !enoughCategories && errorCount > 0 ? 1 : 0;
+      const accuracy = correct ? 100 : almost ? 60 : 0;
+      grammarStore.recordSession({ date: Date.now(), total: 1, correct, almost, incorrect, accuracy, format: "linking-essay" });
+      setLinkingEssayTopic(null);
+      setScreen("home");
+    },
+    [grammarStore]
+  );
 
   const endLearningSession = useCallback(
     (s: LearningSessionState) => {
@@ -724,18 +781,27 @@ export default function AppShell() {
       <main
         className={
           "flex-1 min-h-0 py-3 flex flex-col overscroll-x-none [-webkit-overflow-scrolling:touch] " +
-          (screen === "session" || screen === "writing" || screen === "linking" || screen === "reading"
+          (screen === "session" ||
+          screen === "writing" ||
+          screen === "linking" ||
+          screen === "linking-learn" ||
+          screen === "linking-essay" ||
+          screen === "reading"
             ? "overflow-hidden"
             : "overflow-y-auto overflow-x-hidden")
         }
       >
         {screen === "home" && (
           <HomeScreen
-            onStart={(mode, includeReview) =>
+            onStart={(mode, includeReview, linkingSubMode) =>
               mode === "writing"
                 ? startWritingSession()
                 : mode === "linking"
-                ? startLinkingSession()
+                ? linkingSubMode === "learn"
+                  ? startConnectorLearn()
+                  : linkingSubMode === "essay"
+                  ? startLinkingEssay()
+                  : startLinkingSession()
                 : mode === "reading"
                 ? startReadingSession()
                 : startLearningSession(mode, includeReview)
@@ -782,6 +848,19 @@ export default function AppShell() {
               setScreen("home");
             }}
             onFinish={finishReading}
+          />
+        )}
+
+        {screen === "linking-learn" && <ConnectorLearnScreen onExit={() => setScreen("home")} onFinish={finishConnectorLearn} />}
+
+        {screen === "linking-essay" && linkingEssayTopic && (
+          <LinkingEssayScreen
+            topic={linkingEssayTopic}
+            onExit={() => {
+              setLinkingEssayTopic(null);
+              setScreen("home");
+            }}
+            onFinish={finishLinkingEssay}
           />
         )}
 
