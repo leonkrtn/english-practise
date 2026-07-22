@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { classifyAnswer, findGap } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
-import { Badge, ContextNote, FeedbackPanel, AnswerInput, ExerciseFooter, HintButton, HintIcon, PrimaryButton, useHints, DetailRow } from "./shared";
+import { Badge, ContextNote, FeedbackPanel, AnswerInput, ExerciseFooter, HintButton, HintIcon, PrimaryButton, useHints, DetailRow, boldenWord } from "./shared";
 import type { ExerciseProps } from "./types";
 import TranslateExercise from "./TranslateExercise";
 
@@ -70,7 +70,7 @@ export default function GapExercise(props: ExerciseProps) {
       {result && (
         <FeedbackPanel result={result} onContinue={onNext}>
           <DetailRow label="Full sentence">
-            {word.enSentence}
+            {boldenWord(word.enSentence, word)}
             <br />
             <span className="text-ink-faint">{word.deSentence}</span>
           </DetailRow>

@@ -5,6 +5,21 @@ import { Check, Lightbulb, Minus, X } from "lucide-react";
 import type { Word } from "@/lib/vocab";
 import type { AnswerResultKind } from "@/lib/types";
 import { playFeedbackSound } from "@/lib/sound";
+import { findGap } from "@/lib/utils";
+
+/** Renders a sentence with the target word's occurrence in bold — used everywhere a full English
+ * sentence appears in a solution explanation, so the word being learned always stands out. */
+export function boldenWord(sentence: string, word: Word): React.ReactNode {
+  const gap = findGap(sentence, word);
+  if (!gap) return sentence;
+  return (
+    <>
+      {sentence.slice(0, gap.index)}
+      <b className="font-semibold text-ink">{gap.matched}</b>
+      {sentence.slice(gap.index + gap.matched.length)}
+    </>
+  );
+}
 
 export function Badge({ word }: { word: Word }) {
   const isAdj = word.type === "adjective";
@@ -29,7 +44,7 @@ export function ContextNote({ word }: { word: Word }) {
       </Row>
       <Row label="Type">{word.type === "verb" ? "Verb" : "Adjective"}</Row>
       <Row label="Example">
-        {word.enSentence}
+        {boldenWord(word.enSentence, word)}
         <br />
         <span className="text-ink-faint">{word.deSentence}</span>
       </Row>

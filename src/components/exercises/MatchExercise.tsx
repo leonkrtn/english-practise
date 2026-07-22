@@ -97,7 +97,7 @@ export default function MatchExercise({ item, onAnswered, onNext }: ExerciseProp
         <FeedbackPanel result={wrongIds.size === 0 ? "correct" : "almost"} onContinue={onNext}>
           {words.map((w) => (
             <div className="mb-2 last:mb-0" key={w.id}>
-              {w.en} → <b className="font-semibold text-ink">{w.de.join(" / ")}</b>
+              <b className="font-semibold text-ink">{w.en}</b> → <b className="font-semibold text-ink">{w.de.join(" / ")}</b>
               {wrongIds.has(w.id) && (
                 <span className="inline-block text-[11.5px] font-semibold px-2 py-0.5 rounded-full bg-red-light text-[#b8271b] ml-2">retry</span>
               )}

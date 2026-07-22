@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { levenshtein, normalize, shuffle } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
-import { Badge, ContextNote, FeedbackPanel, ExerciseFooter, HintButton, PrimaryButton, DetailRow } from "./shared";
+import { Badge, ContextNote, FeedbackPanel, ExerciseFooter, HintButton, PrimaryButton, DetailRow, boldenWord } from "./shared";
 import type { ExerciseProps } from "./types";
 
 interface Token {
@@ -91,7 +91,7 @@ export default function BuildExercise({ item, onAnswered, onNext }: ExerciseProp
       {result && (
         <FeedbackPanel result={result} onContinue={onNext}>
           <DetailRow label="Correct sentence">
-            {sentence}
+            {boldenWord(sentence, word)}
             <br />
             <span className="text-ink-faint">{word.deSentence}</span>
           </DetailRow>
