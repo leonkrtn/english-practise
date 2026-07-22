@@ -166,25 +166,20 @@ export function AnswerInput({
   return <input type="text" autoCapitalize="off" className={common} {...props} />;
 }
 
+/** Each press reveals one more letter of the target word than the previous press, up to the
+ * whole word — rather than switching between unrelated hint types. */
 export function useHints(word: Word, targetIsGerman: boolean) {
-  const [stage, setStage] = useState(0);
-  const [reveal, setReveal] = useState<string | null>(null);
+  const target = targetIsGerman ? word.de[0] : word.en;
+  const [count, setCount] = useState(0);
   const [used, setUsed] = useState(0);
 
-  const hints = [
-    () => `First letter: "${(targetIsGerman ? word.de[0] : word.en)[0].toUpperCase()}…"`,
-    () => `Length: ${(targetIsGerman ? word.de[0] : word.en).length} letters`,
-    () => `Word type: ${word.type === "verb" ? "Verb" : "Adjective"}`,
-    () => (targetIsGerman ? `English word: ${word.en}` : `German meaning: ${word.de.join(" / ")}`),
-    () => `From the example: "${targetIsGerman ? word.deSentence : word.enSentence}"`,
-  ];
-
   function reveal_() {
-    if (stage >= hints.length) return;
-    setReveal(hints[stage]());
-    setStage((s) => s + 1);
+    if (count >= target.length) return;
+    setCount((c) => c + 1);
     setUsed((u) => u + 1);
   }
+
+  const reveal = count > 0 ? target.slice(0, count) + (count < target.length ? "…" : "") : null;
 
   return { reveal, showHint: reveal_, hintsUsed: used };
 }
