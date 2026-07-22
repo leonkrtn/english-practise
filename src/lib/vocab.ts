@@ -41,6 +41,11 @@ VOCAB.forEach((w) => {
   if (!VOCAB_BY_EN[key]) VOCAB_BY_EN[key] = w;
 });
 
+/** VOCAB minus any words the learner has permanently excluded — mirrors activeGrammarRules(). */
+export function activeVocab(blockedWordIds: ReadonlySet<string> = new Set()): Word[] {
+  return blockedWordIds.size === 0 ? VOCAB : VOCAB.filter((w) => !blockedWordIds.has(w.id));
+}
+
 const CONFUSABLE_RAW: [string, string][] = [
   ["raise", "rise"],
   ["affect", "effect"],

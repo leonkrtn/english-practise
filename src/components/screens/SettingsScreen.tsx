@@ -1,10 +1,14 @@
 "use client";
 
 import { useMemo } from "react";
+import { X } from "lucide-react";
 import { GRAMMAR_RULES } from "@/lib/grammar-data";
 import { useGrammarStore } from "@/lib/grammarStore";
+import { useStore } from "@/lib/store";
+import { VOCAB_BY_ID } from "@/lib/vocab";
 
 export default function SettingsScreen() {
+  const store = useStore();
   const grammarStore = useGrammarStore();
 
   const byCategory = useMemo(() => {
@@ -16,6 +20,11 @@ export default function SettingsScreen() {
     return [...map.entries()];
   }, []);
 
+  const blockedWords = useMemo(
+    () => [...store.blockedWordIds].map((id) => VOCAB_BY_ID[id]).filter(Boolean),
+    [store.blockedWordIds]
+  );
+
   return (
     <section className="animate-fade-in pb-4">
       <h1 className="text-[26px] font-bold tracking-tight mt-1 mb-1">Settings</h1>
@@ -23,6 +32,29 @@ export default function SettingsScreen() {
         Blockierte Regeln tauchen nirgendwo mehr auf — weder beim Grammatik-Lernen, bei &quot;Gelerntes wiederholen&quot; noch als
         Pflichtgrammatik beim Schreiben.
       </p>
+
+      <div className="mb-5">
+        <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">Ausgeschlossene Wörter</h2>
+        {blockedWords.length === 0 ? (
+          <p className="text-ink-faint text-[13.5px]">
+            Noch keine — mit dem Block-Symbol während einer Übung kannst du ein Wort dauerhaft ausschließen.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {blockedWords.map((w) => (
+              <button
+                key={w.id}
+                onClick={() => store.setWordBlocked(w.id, false)}
+                title="Wieder zulassen"
+                className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-line-soft bg-card px-3 py-1.5 text-[13px] font-medium text-ink-soft hover:border-red/40 hover:text-red hover:bg-red-light transition-colors"
+              >
+                {w.en}
+                <X size={12} />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {byCategory.map(([category, rules]) => (
         <div key={category} className="mb-5">

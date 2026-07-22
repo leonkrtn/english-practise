@@ -1,6 +1,6 @@
 "use client";
 
-import { Star, Timer, X } from "lucide-react";
+import { Ban, Star, Timer, X } from "lucide-react";
 
 export default function SessionScreen({
   renderKey,
@@ -11,6 +11,7 @@ export default function SessionScreen({
   timerLabel,
   onExit,
   onToggleFav,
+  onBlock,
   children,
 }: {
   renderKey: string | number;
@@ -21,6 +22,7 @@ export default function SessionScreen({
   timerLabel?: string;
   onExit: () => void;
   onToggleFav: () => void;
+  onBlock?: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -44,6 +46,17 @@ export default function SessionScreen({
           <div className="flex items-center gap-1 text-[12.5px] font-bold tabular-nums text-white bg-gradient-to-r from-amber to-amber-dark rounded-full px-2.5 py-1 shrink-0">
             <Timer size={12} /> {timerLabel}
           </div>
+        )}
+        {showFavorite && onBlock && (
+          <button
+            onClick={() => {
+              if (window.confirm("Dieses Wort für immer aus dem Training ausschließen?")) onBlock();
+            }}
+            title="Wort ausschließen"
+            className="w-8 h-8 rounded-full border border-line bg-card text-ink-soft flex items-center justify-center shrink-0 transition-all hover:-translate-y-0.5 hover:shadow-sm hover:border-red/40 hover:text-red hover:bg-red-light"
+          >
+            <Ban size={16} />
+          </button>
         )}
         {showFavorite && (
           <button

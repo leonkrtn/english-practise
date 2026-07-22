@@ -1,4 +1,4 @@
-import { VOCAB, type Word } from "./vocab";
+import { activeVocab, type Word } from "./vocab";
 import { sample, shuffle } from "./utils";
 import type { AnswerResultKind, LearningStage, WordState } from "./types";
 import { pickDirection, type QueueItem } from "./sessionLogic";
@@ -82,16 +82,26 @@ export interface LearningBatch {
  * sample size per session means the backlog only clears if the words waiting longest go first,
  * otherwise some could get skipped indefinitely in favor of always-fresher due words.
  */
-export function buildLearningBatch(getState: (id: string) => WordState, totalPracticeSessions: number): LearningBatch {
-  const duePool = VOCAB.filter((w) => {
-    const s = getState(w.id);
-    return s.stage === 4 && s.dueAtSession !== null && s.dueAtSession <= totalPracticeSessions;
-  });
-  duePool.sort((a, b) => (getState(a.id).dueAtSession ?? 0) - (getState(b.id).dueAtSession ?? 0));
-  const reviewWords = duePool.slice(0, REVIEW_SAMPLE_SIZE);
+export function buildLearningBatch(
+  getState: (id: string) => WordState,
+  totalPracticeSessions: number,
+  blockedWordIds: ReadonlySet<string> = new Set(),
+  includeReview: boolean = true
+): LearningBatch {
+  const pool = activeVocab(blockedWordIds);
+
+  let reviewWords: Word[] = [];
+  if (includeReview) {
+    const duePool = pool.filter((w) => {
+      const s = getState(w.id);
+      return s.stage === 4 && s.dueAtSession !== null && s.dueAtSession <= totalPracticeSessions;
+    });
+    duePool.sort((a, b) => (getState(a.id).dueAtSession ?? 0) - (getState(b.id).dueAtSession ?? 0));
+    reviewWords = duePool.slice(0, REVIEW_SAMPLE_SIZE);
+  }
 
   const inProgressPool = shuffle(
-    VOCAB.filter((w) => {
+    pool.filter((w) => {
       const s = getState(w.id);
       return s.stage >= 1 && s.stage <= 3;
     })
@@ -99,7 +109,7 @@ export function buildLearningBatch(getState: (id: string) => WordState, totalPra
   const inProgressWords = inProgressPool.slice(0, ACTIVE_BATCH_SIZE);
 
   const remaining = ACTIVE_BATCH_SIZE - inProgressWords.length;
-  const newPool = VOCAB.filter((w) => getState(w.id).stage === 0);
+  const newPool = pool.filter((w) => getState(w.id).stage === 0);
   const newWords = remaining > 0 ? sample(newPool, remaining) : [];
 
   return { activeWords: inProgressWords.concat(newWords), reviewWords };

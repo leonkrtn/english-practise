@@ -127,7 +127,7 @@ export default function HomeScreen({
   onSpeedRound,
   onGoal,
 }: {
-  onStart: (mode: SessionMode) => void;
+  onStart: (mode: SessionMode, includeReview?: boolean) => void;
   onReview: (mode: SessionMode) => void;
   onSpeedRound: () => void;
   onGoal: () => void;
@@ -135,9 +135,14 @@ export default function HomeScreen({
   const store = useStore();
   const grammarStore = useGrammarStore();
   const [mode, setMode] = useState<SessionMode>("vocab");
+  const [includeReview, setIncludeReview] = useState(true);
+
+  const activeVocabTotal = useMemo(() => VOCAB.length - store.blockedWordIds.size, [store.blockedWordIds]);
 
   const vocabStats = useMemo(() => {
-    const words = Object.values(store.words);
+    const words = Object.entries(store.words)
+      .filter(([id]) => !store.blockedWordIds.has(id))
+      .map(([, w]) => w);
     const learned = words.filter((w) => w.stage === 4).length;
     let totalCorrect = 0;
     let totalAll = 0;
@@ -146,8 +151,8 @@ export default function HomeScreen({
       totalAll += w.timesCorrect + w.timesAlmost + w.timesIncorrect;
     });
     const accuracy = totalAll ? Math.round((totalCorrect / totalAll) * 100) : 0;
-    return { learned, total: VOCAB.length, sessions: store.totalPracticeSessions || 0, accuracy };
-  }, [store.words, store.totalPracticeSessions]);
+    return { learned, total: activeVocabTotal, sessions: store.totalPracticeSessions || 0, accuracy };
+  }, [store.words, store.blockedWordIds, activeVocabTotal, store.totalPracticeSessions]);
 
   const activeRules = useMemo(() => activeGrammarRules(grammarStore.blockedRuleIds), [grammarStore.blockedRuleIds]);
 
@@ -176,13 +181,14 @@ export default function HomeScreen({
   }, [store.goalStartedAt, store.goalBaselineTotal, vocabStats.learned, grammarStats.learned, activeRules.length]);
 
   const wordTypeBreakdown = useMemo(() => {
-    const verbsTotal = VOCAB.filter((w) => w.type === "verb").length;
-    const adjTotal = VOCAB.filter((w) => w.type === "adjective").length;
+    const verbsTotal = VOCAB.filter((w) => w.type === "verb" && !store.blockedWordIds.has(w.id)).length;
+    const adjTotal = VOCAB.filter((w) => w.type === "adjective" && !store.blockedWordIds.has(w.id)).length;
     let verbsLearned = 0;
     let adjLearned = 0;
     let favorites = 0;
     let difficult = 0;
     Object.entries(store.words).forEach(([id, w]) => {
+      if (store.blockedWordIds.has(id)) return;
       const word = VOCAB_BY_ID[id];
       if (!word) return;
       if (w.stage === 4) {
@@ -193,7 +199,7 @@ export default function HomeScreen({
       if (w.timesSeen > 0 && w.score <= 2.5) difficult++;
     });
     return { verbsTotal, adjTotal, verbsLearned, adjLearned, favorites, difficult };
-  }, [store.words]);
+  }, [store.words, store.blockedWordIds]);
 
   const grammarCategoryBreakdown = useMemo(() => {
     const byCategory: Record<string, { learned: number; total: number }> = {};
@@ -375,6 +381,20 @@ export default function HomeScreen({
         </div>
       )}
 
+      {(mode === "vocab" || mode === "grammar") && (
+        <div className="flex items-center justify-between gap-3 bg-card border border-line-soft rounded-2xl px-4 py-3 shadow-sm mt-3">
+          <span className="text-[13px] font-semibold text-ink-soft">Session-Inhalt</span>
+          <select
+            value={includeReview ? "both" : "new"}
+            onChange={(e) => setIncludeReview(e.target.value === "both")}
+            className="text-[13px] font-semibold bg-bg border border-line rounded-full pl-3 pr-2 py-1.5 outline-none focus:border-blue cursor-pointer"
+          >
+            <option value="both">Neu + Wiederholung</option>
+            <option value="new">Nur Neues lernen</option>
+          </select>
+        </div>
+      )}
+
       {mode === "mixed" && (
         <div className="flex flex-col gap-2.5 mt-3">
           <MiniBar label="Vocabulary" learned={vocabStats.learned} total={vocabStats.total} grad="from-blue to-blue-dark" />
@@ -491,7 +511,7 @@ export default function HomeScreen({
           </button>
         )}
         <button
-          onClick={() => onStart(mode)}
+          onClick={() => onStart(mode, includeReview)}
           disabled={mode === "writing" && !writingEligible}
           className={
             "w-full lg:flex-1 rounded-full bg-gradient-to-r text-white font-semibold py-4 text-[16px] transition-all duration-200 active:scale-[0.97] hover:brightness-110 shadow-[0_14px_30px_-10px_rgba(15,23,42,0.4)] disabled:opacity-40 disabled:pointer-events-none disabled:shadow-none " +

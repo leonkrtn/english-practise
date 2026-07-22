@@ -11,6 +11,7 @@ interface StoreShape {
   totalPracticeSessions: number;
   goalStartedAt: number | null;
   goalBaselineTotal: number | null;
+  blockedWordIds: Set<string>;
 }
 
 interface StoreApi {
@@ -22,6 +23,7 @@ interface StoreApi {
   totalPracticeSessions: number;
   goalStartedAt: number | null;
   goalBaselineTotal: number | null;
+  blockedWordIds: Set<string>;
   wordState: (id: string) => WordState;
   updateWord: (id: string, result: AnswerResultKind, hintsUsed?: number) => void;
   recordFormatStat: (format: string, result: AnswerResultKind) => void;
@@ -29,6 +31,7 @@ interface StoreApi {
   recordSession: (session: SessionRecord) => void;
   setLearningStage: (id: string, stage: LearningStage, reviewStreak: number, dueAtSession: number | null) => void;
   startGoalIfNeeded: (baselineTotal: number) => void;
+  setWordBlocked: (id: string, blocked: boolean) => void;
 }
 
 const StoreContext = createContext<StoreApi | null>(null);
@@ -44,6 +47,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     totalPracticeSessions: 0,
     goalStartedAt: null,
     goalBaselineTotal: null,
+    blockedWordIds: new Set(),
   });
 
   useEffect(() => {
@@ -113,6 +117,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
           totalPracticeSessions: meta.data ? meta.data.total_practice_sessions : 0,
           goalStartedAt: meta.data?.goal_started_at ? new Date(meta.data.goal_started_at).getTime() : null,
           goalBaselineTotal: meta.data?.goal_baseline_total ?? null,
+          blockedWordIds: new Set(meta.data?.blocked_word_ids || []),
         });
         setReady(true);
       } catch (e) {
@@ -304,6 +309,24 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     [userId]
   );
 
+  const setWordBlocked = useCallback(
+    (id: string, blocked: boolean) => {
+      setState((prev) => {
+        const next = new Set(prev.blockedWordIds);
+        if (blocked) next.add(id);
+        else next.delete(id);
+        supabase
+          .from("app_meta")
+          .upsert({ user_id: userId, blocked_word_ids: [...next] }, { onConflict: "user_id" })
+          .then(({ error: err }) => {
+            if (err) console.error("app_meta blocked_word_ids", err);
+          });
+        return { ...prev, blockedWordIds: next };
+      });
+    },
+    [userId]
+  );
+
   const api: StoreApi = {
     ready,
     error,
@@ -313,6 +336,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     totalPracticeSessions: state.totalPracticeSessions,
     goalStartedAt: state.goalStartedAt,
     goalBaselineTotal: state.goalBaselineTotal,
+    blockedWordIds: state.blockedWordIds,
     wordState,
     updateWord,
     recordFormatStat,
@@ -320,6 +344,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     recordSession,
     setLearningStage,
     startGoalIfNeeded,
+    setWordBlocked,
   };
 
   return <StoreContext.Provider value={api}>{children}</StoreContext.Provider>;

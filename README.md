@@ -96,6 +96,9 @@ the current pace would miss the 5-week window.
    - `supabase/migrations/0005_goal.sql` — adds `goal_started_at` and
      `goal_baseline_total` columns to `app_meta` for the 5-week goal
      feature (Goal screen). Purely additive.
+   - `supabase/migrations/0006_word_blocking.sql` — adds a
+     `blocked_word_ids text[]` column to `app_meta` for the per-word
+     blocking feature (Ban icon in exercises + Settings). Purely additive.
 2. In **Authentication → Sign In / Providers**, make sure the **Email**
    provider is enabled (it is by default). Decide whether you want **Confirm
    email** on: if it's on, `signUp` won't return a session immediately and
@@ -230,6 +233,42 @@ totals and category breakdowns. Toggled from the new Settings screen
 (`SettingsScreen.tsx`, gear icon in the TopBar) — one switch per rule,
 grouped by category for browsability, no bulk "block whole category"
 action (blocking is per-rule by design).
+
+## Word blocking
+
+Individual vocabulary words can be permanently excluded right when they
+come up during an exercise — a Ban icon next to the favorite star (visible
+on every single-word vocab exercise, i.e. everywhere but Word Matching)
+asks "Dieses Wort für immer aus dem Training ausschließen?" and, once
+confirmed, the word never comes up again in any future session.
+
+- `app_meta.blocked_word_ids` (migration `0006_word_blocking.sql`, a plain
+  `text[]`) loaded into `store.blockedWordIds` as a `Set<string>` —
+  mirrors `grammar_meta.blocked_rule_ids` exactly. `activeVocab()` in
+  `src/lib/vocab.ts` is the single source of truth, mirroring
+  `activeGrammarRules()`; `buildLearningBatch()` in `learning.ts` now
+  takes a `blockedWordIds` param, and every other vocab-word pool
+  (`startReviewSession`, Speed Round, Writing's required-word picks,
+  Reading's vocab-gap eligibility, Home/Stats totals and the
+  Verbs/Adjectives breakdown) filters through it too.
+- Blocking mid-session (`AppShell.blockWordAndAdvance` /
+  `blockWordAndAdvanceQuick`) marks the current item finished without
+  recording an answer — no attempt, no score change, no retry — then
+  advances exactly like a normal "Continue" would.
+- Reversible from Settings: a "Ausgeschlossene Wörter" section lists every
+  currently-blocked word as a chip; clicking one unblocks it. Empty by
+  default with a one-line explainer of how blocking works.
+
+**New-only vs. review sessions:** a "Session-Inhalt" dropdown appears on
+Home whenever the Vocabulary or Grammar tab is selected — "Neu +
+Wiederholung" (default, unchanged behavior: due long-term reviews are
+mixed in alongside new/in-progress items) or "Nur Neues lernen" (skips the
+due-review pull entirely for that session). Implemented as an
+`includeReview` param threaded through `buildLearningBatch()` and
+`buildGrammarBatch()` down to `AppShell.startLearningSession()` — when
+`false`, the due-pool query is simply never run, so the session batch is
+built purely from in-progress + brand-new items. Doesn't affect "Gelerntes
+wiederholen" or Speed Round, which are explicitly review-only by design.
 
 ## Writing
 
@@ -565,15 +604,24 @@ Playwright script and inspecting the queue growth directly.
   translate questions, and exits cleanly through the same "End session?"
   modal as every other session type — zero console errors throughout.
   `tsc --noEmit`, `eslint`, and a clean `next build` all pass.
+- Per-word blocking (Ban icon in exercises, "Ausgeschlossene Wörter" in
+  Settings) and the Home "Session-Inhalt" dropdown (new-only vs.
+  new+review) — see the Word blocking section above. Verified with
+  Playwright against a mocked Supabase backend: the dropdown renders on
+  the Vocabulary tab, blocking a word from an exercise shows the confirm
+  dialog, persists via an `app_meta` upsert, and immediately advances past
+  it, and Settings correctly lists the blocked word as an unblockable chip
+  — zero console errors. `tsc --noEmit`, `eslint`, and a clean build all
+  pass.
 
 **Needs a one-time manual step (couldn't be automated — no SQL/DDL or Auth
 config access from this session's tools):**
 - Run `supabase/migrations/0001_init.sql`, `0002_learning_stages.sql`,
-  `0003_grammar.sql`, `0004_grammar_blocking.sql`, and `0005_goal.sql` (in
-  that order) once in the Supabase SQL Editor. If you already ran the first
-  four, you only need `0005_goal.sql` now — it's two additive columns on
-  `app_meta` (`goal_started_at`, `goal_baseline_total`), nothing else
-  changes.
+  `0003_grammar.sql`, `0004_grammar_blocking.sql`, `0005_goal.sql`, and
+  `0006_word_blocking.sql` (in that order) once in the Supabase SQL
+  Editor. If you already ran the first five, you only need
+  `0006_word_blocking.sql` now — it's a single additive column on
+  `app_meta` (`blocked_word_ids`), nothing else changes.
 - Confirm the **Email** auth provider is on (default) and decide on the
   **Confirm email** setting — see step 2 above. No action needed if you're
   happy with the default.

@@ -59,15 +59,20 @@ export function activeGrammarRules(blockedRuleIds: ReadonlySet<string> = new Set
 export function buildGrammarBatch(
   getState: (id: string) => GrammarRuleState,
   totalPracticeSessions: number,
-  blockedRuleIds: ReadonlySet<string> = new Set()
+  blockedRuleIds: ReadonlySet<string> = new Set(),
+  includeReview: boolean = true
 ): GrammarBatch {
   const pool = activeGrammarRules(blockedRuleIds);
-  const duePool = pool.filter((r) => {
-    const s = getState(r.id);
-    return s.stage === 4 && s.dueAtSession !== null && s.dueAtSession <= totalPracticeSessions;
-  });
-  duePool.sort((a, b) => (getState(a.id).dueAtSession ?? 0) - (getState(b.id).dueAtSession ?? 0));
-  const reviewRules = duePool.slice(0, GRAMMAR_REVIEW_SAMPLE);
+
+  let reviewRules: GrammarRule[] = [];
+  if (includeReview) {
+    const duePool = pool.filter((r) => {
+      const s = getState(r.id);
+      return s.stage === 4 && s.dueAtSession !== null && s.dueAtSession <= totalPracticeSessions;
+    });
+    duePool.sort((a, b) => (getState(a.id).dueAtSession ?? 0) - (getState(b.id).dueAtSession ?? 0));
+    reviewRules = duePool.slice(0, GRAMMAR_REVIEW_SAMPLE);
+  }
 
   const inProgressPool = shuffle(
     pool.filter((r) => {

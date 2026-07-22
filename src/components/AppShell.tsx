@@ -147,19 +147,19 @@ export default function AppShell() {
   // ---------- Primary flow: the adaptive learning-stage engine (vocab, grammar, or both) ----------
 
   const startLearningSession = useCallback(
-    (mode: SessionMode) => {
+    (mode: SessionMode, includeReview: boolean = true) => {
       let vocabQueue: LearningQueueItem[] = [];
       let matchPool: Word[] = [];
       let grammarQueueItems: GrammarQueueItem[] = [];
 
       if (mode === "vocab" || mode === "mixed") {
-        const batch = buildLearningBatch(store.wordState, store.totalPracticeSessions);
+        const batch = buildLearningBatch(store.wordState, store.totalPracticeSessions, store.blockedWordIds, includeReview);
         const built = buildInitialQueue(batch, store.wordState);
         vocabQueue = built.queue;
         matchPool = built.matchPool;
       }
       if (mode === "grammar" || mode === "mixed") {
-        const gBatch = buildGrammarBatch(grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds);
+        const gBatch = buildGrammarBatch(grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds, includeReview);
         grammarQueueItems = buildGrammarQueue(gBatch, grammarStore.ruleState);
       }
 
@@ -195,7 +195,7 @@ export default function AppShell() {
       });
       setScreen("session");
     },
-    [store.wordState, store.totalPracticeSessions, grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds]
+    [store.wordState, store.totalPracticeSessions, store.blockedWordIds, grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds]
   );
 
   // Drills exclusively every word/rule that has already reached stage 4 ("gelernt"), using the
@@ -207,7 +207,7 @@ export default function AppShell() {
     (mode: SessionMode) => {
       const vocabQueue: LearningQueueItem[] =
         mode === "vocab" || mode === "mixed"
-          ? VOCAB.filter((w) => store.wordState(w.id).stage === 4).map((w) => ({
+          ? VOCAB.filter((w) => !store.blockedWordIds.has(w.id) && store.wordState(w.id).stage === 4).map((w) => ({
               kind: "review" as const,
               words: [w],
               direction: directionForKind("review"),
@@ -247,7 +247,7 @@ export default function AppShell() {
   // that machinery instead of a parallel session type. Auto-finishes via the effect below when
   // speedEndsAt passes; an early exit through the "End session?" modal works exactly like review too.
   const startSpeedRound = useCallback(() => {
-    const vocabQueue: LearningQueueItem[] = VOCAB.filter((w) => store.wordState(w.id).stage === 4).map((w) => ({
+    const vocabQueue: LearningQueueItem[] = VOCAB.filter((w) => !store.blockedWordIds.has(w.id) && store.wordState(w.id).stage === 4).map((w) => ({
       kind: "review" as const,
       words: [w],
       direction: directionForKind("review"),
@@ -274,7 +274,7 @@ export default function AppShell() {
   // ---------- Writing: free-text exercise checked against required words/grammar + LanguageTool ----------
 
   const startWritingSession = useCallback(() => {
-    const learnedWords = VOCAB.filter((w) => store.wordState(w.id).stage === 4);
+    const learnedWords = VOCAB.filter((w) => !store.blockedWordIds.has(w.id) && store.wordState(w.id).stage === 4);
     const learnedRules = GRAMMAR_RULES.filter((r) => !grammarStore.blockedRuleIds.has(r.id) && grammarStore.ruleState(r.id).stage === 4);
     if (learnedWords.length < WRITING_MIN_WORDS || learnedRules.length < WRITING_MIN_RULES) return;
     setWritingSession({
@@ -306,7 +306,7 @@ export default function AppShell() {
     const text = sample(READING_TEXTS, 1)[0];
     const isVocabLearned = (en: string) => {
       const word = VOCAB_BY_EN[en.toLowerCase()];
-      return !!word && store.wordState(word.id).stage === 4;
+      return !!word && !store.blockedWordIds.has(word.id) && store.wordState(word.id).stage === 4;
     };
     const eligible = computeEligibleGapIds(text, isVocabLearned);
     setReadingSession({ text, eligibleGapIds: eligible });
@@ -571,6 +571,28 @@ export default function AppShell() {
     }
   }, [learningSession, endLearningSession]);
 
+  // Permanently excludes a word from future sessions and skips past it right now — marks it
+  // finished without recording an answer (no attempt insertion, no score change), then advances
+  // exactly like nextLearningQuestion.
+  const blockWordAndAdvance = useCallback(
+    (wordId: string) => {
+      store.setWordBlocked(wordId, true);
+      if (!learningSession) return;
+      let session = { ...learningSession, finishedItemIds: new Set(learningSession.finishedItemIds).add("v:" + wordId) };
+      let nextIndex = session.index + 1;
+      if (nextIndex >= session.queue.length && session.matchPool.length > 0) {
+        session = { ...session, queue: [...session.queue, ...flushMatchPool(session.matchPool).map((item) => ({ domain: "vocab" as const, item }))], matchPool: [] };
+        nextIndex = session.index + 1;
+      }
+      if (nextIndex >= session.queue.length) {
+        endLearningSession(session);
+      } else {
+        setLearningSession({ ...session, index: nextIndex });
+      }
+    },
+    [learningSession, endLearningSession, store]
+  );
+
   // Learn cards (both domains) answer and advance in one click — handled atomically to avoid
   // relying on two state updates issued from the same synchronous handler.
   const onVocabLearnAcknowledged = useCallback(
@@ -649,6 +671,14 @@ export default function AppShell() {
     }
   }, [quickSession, endQuickSession]);
 
+  const blockWordAndAdvanceQuick = useCallback(
+    (wordId: string) => {
+      store.setWordBlocked(wordId, true);
+      nextQuickQuestion();
+    },
+    [store, nextQuickQuestion]
+  );
+
   // ---------- Navigation ----------
 
   function goHome() {
@@ -701,14 +731,14 @@ export default function AppShell() {
       >
         {screen === "home" && (
           <HomeScreen
-            onStart={(mode) =>
+            onStart={(mode, includeReview) =>
               mode === "writing"
                 ? startWritingSession()
                 : mode === "linking"
                 ? startLinkingSession()
                 : mode === "reading"
                 ? startReadingSession()
-                : startLearningSession(mode)
+                : startLearningSession(mode, includeReview)
             }
             onReview={startReviewSession}
             onSpeedRound={startSpeedRound}
@@ -765,6 +795,7 @@ export default function AppShell() {
             timerLabel={speedSecondsLeft !== null ? `0:${String(speedSecondsLeft).padStart(2, "0")}` : undefined}
             onExit={() => setModalOpen(true)}
             onToggleFav={() => currentWordId && store.toggleFavorite(currentWordId)}
+            onBlock={currentWordId ? () => blockWordAndAdvance(currentWordId) : undefined}
           >
             {currentItem.domain === "vocab" ? (
               <ExerciseRouter
@@ -791,6 +822,7 @@ export default function AppShell() {
             favorite={favorite}
             onExit={() => setModalOpen(true)}
             onToggleFav={() => currentWordId && store.toggleFavorite(currentWordId)}
+            onBlock={currentWordId ? () => blockWordAndAdvanceQuick(currentWordId) : undefined}
           >
             <ExerciseRouter item={quickSession.queue[quickSession.index]} onAnswered={onQuickAnswered} onNext={nextQuickQuestion} />
           </SessionScreen>
