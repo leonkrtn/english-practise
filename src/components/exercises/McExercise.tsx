@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { VOCAB } from "@/lib/vocab";
 import { choice, findGap, sample, shuffle } from "@/lib/utils";
-import { Badge, ContextNote, FeedbackPanel } from "./shared";
+import { Badge, ContextNote, FeedbackPanel, useLetterShortcuts } from "./shared";
 import type { ExerciseProps } from "./types";
 
 export default function McExercise({ item, onAnswered, onNext }: ExerciseProps) {
@@ -50,6 +50,8 @@ export default function McExercise({ item, onAnswered, onNext }: ExerciseProps) 
     const isCorrect = i === built.correctIdx;
     onAnswered([{ wordId: word.id, format: "mc", result: isCorrect ? "correct" : "incorrect", errorType: isCorrect ? null : "wrong", hintsUsed: 0 }]);
   }
+
+  useLetterShortcuts(built.options.length, select, chosen !== null);
 
   let promptNode: React.ReactNode;
   if (built.variant === "word2trans") {

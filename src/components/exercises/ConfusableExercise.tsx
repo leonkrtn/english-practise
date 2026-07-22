@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { choice, findGap, shuffle } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
-import { FeedbackPanel } from "./shared";
+import { FeedbackPanel, useLetterShortcuts } from "./shared";
 import type { ExerciseProps } from "./types";
 
 export default function ConfusableExercise({ item, onAnswered, onNext }: ExerciseProps) {
@@ -20,6 +20,8 @@ export default function ConfusableExercise({ item, onAnswered, onNext }: Exercis
     const isCorrect = options[i].toLowerCase() === target.en.toLowerCase();
     onAnswered([{ wordId: target.id, format: "confusable", result: isCorrect ? "correct" : "incorrect", errorType: isCorrect ? null : "confused", hintsUsed: 0 }]);
   }
+
+  useLetterShortcuts(options.length, select, chosen !== null);
 
   const result: AnswerResultKind | null = chosen === null ? null : options[chosen].toLowerCase() === target.en.toLowerCase() ? "correct" : "incorrect";
   const correctIdx = options.findIndex((o) => o.toLowerCase() === target.en.toLowerCase());

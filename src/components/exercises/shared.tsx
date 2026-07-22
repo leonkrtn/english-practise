@@ -7,6 +7,27 @@ import type { AnswerResultKind } from "@/lib/types";
 import { playFeedbackSound } from "@/lib/sound";
 import { findGap } from "@/lib/utils";
 
+/** Lets a desktop user pick a lettered multiple-choice option (A, B, C, …) by pressing that
+ * letter key, instead of only being able to click — mirrors the A/B/C/D labels already shown on
+ * each option button. Ignored once answered, and while a modifier key is held (so it never fights
+ * browser/OS shortcuts like Cmd+A). */
+export function useLetterShortcuts(optionCount: number, onSelect: (index: number) => void, disabled: boolean) {
+  useEffect(() => {
+    if (disabled) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const key = e.key.toUpperCase();
+      if (key.length !== 1 || key < "A" || key > "Z") return;
+      const index = key.charCodeAt(0) - 65;
+      if (index < 0 || index >= optionCount) return;
+      e.preventDefault();
+      onSelect(index);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [optionCount, onSelect, disabled]);
+}
+
 /** Renders a sentence with the target word's occurrence in bold — used everywhere a full English
  * sentence appears in a solution explanation, so the word being learned always stands out. */
 export function boldenWord(sentence: string, word: Word): React.ReactNode {

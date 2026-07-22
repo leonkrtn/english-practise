@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FeedbackPanel } from "@/components/exercises/shared";
+import { FeedbackPanel, useLetterShortcuts } from "@/components/exercises/shared";
 import { CategoryBadge, type GrammarExerciseProps } from "./shared";
 
 export default function GrammarMcExercise({ rule, onAnswered, onNext }: GrammarExerciseProps) {
@@ -13,6 +13,8 @@ export default function GrammarMcExercise({ rule, onAnswered, onNext }: GrammarE
     const isCorrect = i === rule.mc.correctIndex;
     onAnswered([{ ruleId: rule.id, format: "g-mc", result: isCorrect ? "correct" : "incorrect", errorType: isCorrect ? null : "wrong", hintsUsed: 0 }]);
   }
+
+  useLetterShortcuts(rule.mc.options.length, select, chosen !== null);
 
   const result = chosen === null ? null : chosen === rule.mc.correctIndex ? "correct" : "incorrect";
 
