@@ -130,11 +130,19 @@ function formatRelativeDate(ts: number): string {
 }
 
 export default function HomeScreen({
+  mode,
+  onModeChange,
+  linkingSubMode,
+  onLinkingSubModeChange,
   onStart,
   onReview,
   onSpeedRound,
   onGoal,
 }: {
+  mode: SessionMode;
+  onModeChange: (mode: SessionMode) => void;
+  linkingSubMode: LinkingSubMode;
+  onLinkingSubModeChange: (mode: LinkingSubMode) => void;
   onStart: (mode: SessionMode, includeReview?: boolean, linkingSubMode?: LinkingSubMode) => void;
   onReview: (mode: SessionMode) => void;
   onSpeedRound: () => void;
@@ -142,9 +150,7 @@ export default function HomeScreen({
 }) {
   const store = useStore();
   const grammarStore = useGrammarStore();
-  const [mode, setMode] = useState<SessionMode>("vocab");
   const [includeReview, setIncludeReview] = useState(true);
-  const [linkingSubMode, setLinkingSubMode] = useState<LinkingSubMode>("combine");
 
   const activeVocabTotal = useMemo(() => VOCAB.length - store.blockedWordIds.size, [store.blockedWordIds]);
 
@@ -320,7 +326,7 @@ export default function HomeScreen({
           return (
             <button
               key={m.val}
-              onClick={() => setMode(m.val)}
+              onClick={() => onModeChange(m.val)}
               className={
                 "flex flex-col items-center gap-1.5 rounded-2xl px-1.5 py-3.5 text-center transition-all duration-200 " +
                 (isActive
@@ -349,7 +355,7 @@ export default function HomeScreen({
             return (
               <button
                 key={sm.val}
-                onClick={() => setLinkingSubMode(sm.val)}
+                onClick={() => onLinkingSubModeChange(sm.val)}
                 className={
                   "flex flex-col items-center gap-1 rounded-xl px-1.5 py-2.5 text-center transition-all " +
                   (isActive ? "bg-green-light border-[1.5px] border-green text-[#0d7a4f]" : "bg-card border-[1.5px] border-line-soft text-ink-soft hover:border-line")

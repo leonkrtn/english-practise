@@ -139,6 +139,10 @@ export default function AppShell() {
   const { signOut } = useAuth();
   const [screen, setScreen] = useState<Screen>("home");
   const [detailWordId, setDetailWordId] = useState<string | null>(null);
+  // Lifted out of HomeScreen so the selected tab survives leaving and returning to Home (e.g.
+  // after finishing a session) instead of always resetting back to Vocabulary.
+  const [homeMode, setHomeMode] = useState<SessionMode>("vocab");
+  const [homeLinkingSubMode, setHomeLinkingSubMode] = useState<LinkingSubMode>("combine");
   const [quickSession, setQuickSession] = useState<QuickSessionState | null>(null);
   const [learningSession, setLearningSession] = useState<LearningSessionState | null>(null);
   const [writingSession, setWritingSession] = useState<WritingSessionState | null>(null);
@@ -793,6 +797,10 @@ export default function AppShell() {
       >
         {screen === "home" && (
           <HomeScreen
+            mode={homeMode}
+            onModeChange={setHomeMode}
+            linkingSubMode={homeLinkingSubMode}
+            onLinkingSubModeChange={setHomeLinkingSubMode}
             onStart={(mode, includeReview, linkingSubMode) =>
               mode === "writing"
                 ? startWritingSession()
