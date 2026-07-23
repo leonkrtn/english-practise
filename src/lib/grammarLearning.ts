@@ -64,15 +64,19 @@ export function buildGrammarBatch(
 ): GrammarBatch {
   const pool = activeGrammarRules(blockedRuleIds);
 
-  let reviewRules: GrammarRule[] = [];
-  if (includeReview) {
-    const duePool = pool.filter((r) => {
-      const s = getState(r.id);
-      return s.stage === 4 && s.dueAtSession !== null && s.dueAtSession <= totalPracticeSessions;
-    });
-    duePool.sort((a, b) => (getState(a.id).dueAtSession ?? 0) - (getState(b.id).dueAtSession ?? 0));
-    reviewRules = duePool.slice(0, GRAMMAR_REVIEW_SAMPLE);
+  if (!includeReview) {
+    // "Nur Neues lernen": brand-new rules only — see buildLearningBatch's identical fix for why
+    // in-progress rules can't be mixed back in here without defeating the whole point.
+    const newPool = pool.filter((r) => getState(r.id).stage === 0);
+    return { activeRules: sample(newPool, GRAMMAR_BATCH_SIZE), reviewRules: [] };
   }
+
+  const duePool = pool.filter((r) => {
+    const s = getState(r.id);
+    return s.stage === 4 && s.dueAtSession !== null && s.dueAtSession <= totalPracticeSessions;
+  });
+  duePool.sort((a, b) => (getState(a.id).dueAtSession ?? 0) - (getState(b.id).dueAtSession ?? 0));
+  const reviewRules = duePool.slice(0, GRAMMAR_REVIEW_SAMPLE);
 
   const inProgressPool = shuffle(
     pool.filter((r) => {

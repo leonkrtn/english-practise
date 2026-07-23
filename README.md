@@ -123,27 +123,38 @@ Each word moves through 5 stages, tracked per-word in `word_progress.stage`.
 The method follows well-supported memory research rather than one specific
 named system: retrieval practice / the testing effect (you're always being
 asked to produce the answer, not just re-read it), increasing retrieval
-difficulty (recognition → cued recall → free production), spaced repetition
-(the Ebbinghaus forgetting curve — reviews get further apart the more times
-you get a word right), and interleaving (repeats are spread through the
-session, never back-to-back, which research shows beats blocked practice).
+difficulty (recognition → cued recall), spaced repetition (the Ebbinghaus
+forgetting curve — reviews get further apart the more times you get a word
+right), and interleaving (repeats are spread through the session, never
+back-to-back, which research shows beats blocked practice).
 
 | Stage | Task | Exercise used |
 |---|---|---|
 | 0 → 1 | **Kennenlernen** — plain info card (word, translation, example, collocations) | `LearnExercise` |
 | 1 → 2 | **Abfragen** — recognition: multiple choice, or a Word Matching round (see below) | `McExercise` / `MatchExercise` |
-| 2 → 3 | **Einbauen** — cued recall: use the word in a sentence context | `GapExercise` |
-| 3 → 4 | **Schreiben** — free recall: type a full translated sentence | `SentenceExercise` |
+| 2 → 4 | **Einbauen** — cued recall: use the word in a sentence context; a correct answer here promotes straight to mastery | `GapExercise` |
 | 4 (mastered-active) | **Wiederholung** — periodic long-term review | `TranslateExercise` |
+
+**No full-sentence writing task in Vocabulary.** There used to be a fourth
+stage ("Schreiben" — type a complete translated sentence from scratch,
+`SentenceExercise`) between Einbauen and mastery. It's been removed as a
+vocabulary task: `kindForStage()` no longer produces it, "apply" (Einbauen)
+is now the final gate before stage 4, and `SIMPLE_FORMATS` (the pool used
+by "Practice this word" / "repeat mistakes" quick drills) no longer
+includes `"sentence"` either. `nextAfterAnswer()` still resolves a stray
+`"produce"` queue item gracefully (for any session already open in a
+browser tab at deploy time) by treating it exactly like Einbauen. This
+only affects the Vocabulary engine — Grammar's own "produce" stage
+(`GrammarBuildExercise`, scrambled-sentence reconstruction, not free
+writing) is unrelated and untouched.
 
 **You only ever type English, never German.** German is always the
 *meaning cue* (shown as the prompt, a hint, or a "German meaning:" label) —
 you're never asked to produce German spelling. `directionForKind()` forces
-`de-en` (German shown → English typed) for every typing-based stage
-(Schreiben, Wiederholung); the fill-in-the-blank stage (Einbauen) fills an
-English word into an English sentence regardless of direction. Only
-Multiple Choice, which requires no typing, still tests recognition in both
-directions for well-rounded comprehension.
+`de-en` (German shown → English typed) for Wiederholung; the fill-in-the-
+blank stage (Einbauen) fills an English word into an English sentence
+regardless of direction. Only Multiple Choice, which requires no typing,
+still tests recognition in both directions for well-rounded comprehension.
 
 **Word Matching is back** as the default way to clear the Abfragen stage.
 Rather than testing each word individually, words due for their first
@@ -261,13 +272,17 @@ confirmed, the word never comes up again in any future session.
 
 **New-only vs. review sessions:** a "Session-Inhalt" dropdown appears on
 Home whenever the Vocabulary or Grammar tab is selected — "Neu +
-Wiederholung" (default, unchanged behavior: due long-term reviews are
-mixed in alongside new/in-progress items) or "Nur Neues lernen" (skips the
-due-review pull entirely for that session). Implemented as an
-`includeReview` param threaded through `buildLearningBatch()` and
-`buildGrammarBatch()` down to `AppShell.startLearningSession()` — when
-`false`, the due-pool query is simply never run, so the session batch is
-built purely from in-progress + brand-new items. Doesn't affect "Gelerntes
+Wiederholung" (default, unchanged behavior: due long-term reviews and
+in-progress items are mixed in alongside new ones) or "Nur Neues lernen".
+Implemented as an `includeReview` param threaded through
+`buildLearningBatch()` and `buildGrammarBatch()` down to
+`AppShell.startLearningSession()`. "Nur Neues lernen" means exactly that:
+the batch is built **only** from brand-new (stage 0) items — no due
+reviews and, importantly, no in-progress ones either. An earlier version
+only excluded reviews, but in-progress items are filled into the batch
+first (up to the ~10-item cap) — with even a handful already in flight,
+they crowded out new ones on every session, so picking "only new" barely
+changed anything you'd actually see. Doesn't affect "Gelerntes
 wiederholen" or Speed Round, which are explicitly review-only by design.
 
 ## Writing
@@ -658,6 +673,17 @@ Playwright script and inspecting the queue growth directly.
   free-form paragraph correctly detected 5 of 8 connector categories live
   while typing and passed the grammar check — zero console errors
   throughout. `tsc --noEmit`, `eslint`, and a clean build all pass.
+- Fixed "Nur Neues lernen" actually meaning only-new (it previously still
+  filled the batch with in-progress items first, so it barely changed
+  anything), for both Vocabulary and Grammar — see the Learning engine
+  section above. Removed the full-sentence-writing ("Schreiben") task from
+  the Vocabulary stage engine entirely, per explicit request — "apply"
+  (Einbauen) is now the final gate before mastery. Verified with
+  Playwright: seeding 15 in-progress words and selecting "Nur Neues" showed
+  only brand-new learn cards and their immediate follow-ups, never one of
+  the seeded in-progress words, and no "Translate this sentence" prompt
+  appeared anywhere in an extended session — zero console errors.
+  `tsc --noEmit`, `eslint`, and a clean build all pass.
 
 **Needs a one-time manual step (couldn't be automated — no SQL/DDL or Auth
 config access from this session's tools):**

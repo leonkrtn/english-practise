@@ -32,16 +32,18 @@ export function reviewInterval(streak: number): number {
   return REVIEW_INTERVALS[Math.min(Math.max(streak, 0), REVIEW_INTERVALS.length - 1)];
 }
 
-export function kindForStage(stage: LearningStage): Exclude<StageKind, "match" | "review"> {
+export function kindForStage(stage: LearningStage): Exclude<StageKind, "match" | "review" | "produce"> {
   switch (stage) {
     case 0:
       return "learn";
     case 1:
       return "quiz";
-    case 2:
-      return "apply";
     default:
-      return "produce";
+      // "apply" is now the final active-learning gate before mastery — a correct answer here
+      // promotes straight to stage 4. Also the graceful landing spot for any word a previous
+      // version of the app already left sitting at stage 3 (the old "produce"/write-a-full-
+      // sentence stage, since removed as a vocabulary task).
+      return "apply";
   }
 }
 
@@ -90,15 +92,21 @@ export function buildLearningBatch(
 ): LearningBatch {
   const pool = activeVocab(blockedWordIds);
 
-  let reviewWords: Word[] = [];
-  if (includeReview) {
-    const duePool = pool.filter((w) => {
-      const s = getState(w.id);
-      return s.stage === 4 && s.dueAtSession !== null && s.dueAtSession <= totalPracticeSessions;
-    });
-    duePool.sort((a, b) => (getState(a.id).dueAtSession ?? 0) - (getState(b.id).dueAtSession ?? 0));
-    reviewWords = duePool.slice(0, REVIEW_SAMPLE_SIZE);
+  if (!includeReview) {
+    // "Nur Neues lernen" means exactly that — brand-new words only. Mixing in-progress words back
+    // in here would defeat the point: with even a handful of in-progress words already in flight,
+    // they'd crowd out new ones every time (in-progress is filled first, up to ACTIVE_BATCH_SIZE),
+    // so picking "only new" would barely change what you see session to session.
+    const newPool = pool.filter((w) => getState(w.id).stage === 0);
+    return { activeWords: sample(newPool, ACTIVE_BATCH_SIZE), reviewWords: [] };
   }
+
+  const duePool = pool.filter((w) => {
+    const s = getState(w.id);
+    return s.stage === 4 && s.dueAtSession !== null && s.dueAtSession <= totalPracticeSessions;
+  });
+  duePool.sort((a, b) => (getState(a.id).dueAtSession ?? 0) - (getState(b.id).dueAtSession ?? 0));
+  const reviewWords = duePool.slice(0, REVIEW_SAMPLE_SIZE);
 
   const inProgressPool = shuffle(
     pool.filter((w) => {
@@ -169,18 +177,37 @@ export function nextAfterAnswer(
       const rs = reviewStreak + 1;
       return { stage: 4, reviewStreak: rs, dueAtSession: totalPracticeSessions + reviewInterval(rs), nextKind: null };
     }
-    return { stage: 3, reviewStreak: 0, dueAtSession: null, nextKind: "produce" };
+    // A failed long-term review demotes back to the "apply" gate rather than the old
+    // "produce"/write-a-full-sentence stage, since that's no longer part of the vocab pipeline.
+    return { stage: 2, reviewStreak: 0, dueAtSession: null, nextKind: "apply" };
+  }
+
+  if (kind === "apply") {
+    // "apply" is the final active-learning gate — correct promotes straight to mastery instead of
+    // routing through a separate "produce" (write-a-full-sentence) stage, which isn't a vocabulary
+    // task anymore. Failure demotes back to "quiz", same severity as before this stage was removed.
+    if (result === "correct") {
+      return { stage: 4, reviewStreak: 0, dueAtSession: totalPracticeSessions + reviewInterval(0), nextKind: null };
+    }
+    return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: "quiz" };
+  }
+
+  if (kind === "produce") {
+    // No longer produced by kindForStage — kept only so a stray in-flight queue item from before
+    // this stage was removed (a session already open in a browser tab during deploy) still
+    // resolves to something instead of crashing.
+    if (result === "correct") {
+      return { stage: 4, reviewStreak: 0, dueAtSession: totalPracticeSessions + reviewInterval(0), nextKind: null };
+    }
+    return { stage: 2, reviewStreak: 0, dueAtSession: null, nextKind: "apply" };
   }
 
   // "match" is a group-testing variant of "quiz" — same stage-transition rules apply.
-  const taskStage: Record<"quiz" | "match" | "apply" | "produce", LearningStage> = { quiz: 1, match: 1, apply: 2, produce: 3 };
+  const taskStage: Record<"quiz" | "match", LearningStage> = { quiz: 1, match: 1 };
   const current = taskStage[kind];
 
   if (result === "correct") {
     const newStage = (current + 1) as LearningStage;
-    if (newStage >= 4) {
-      return { stage: 4, reviewStreak: 0, dueAtSession: totalPracticeSessions + reviewInterval(0), nextKind: null };
-    }
     return { stage: newStage, reviewStreak: 0, dueAtSession: null, nextKind: kindForStage(newStage) };
   }
 

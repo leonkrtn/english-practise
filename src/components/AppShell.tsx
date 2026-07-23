@@ -130,7 +130,7 @@ function useRefLatest<T>(value: T) {
   return ref;
 }
 
-const SIMPLE_FORMATS: QueueItem["format"][] = ["translate", "gap", "mc", "sentence", "build"];
+const SIMPLE_FORMATS: QueueItem["format"][] = ["translate", "gap", "mc", "build"];
 const NOOP = () => {};
 
 export default function AppShell() {
