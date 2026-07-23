@@ -99,6 +99,9 @@ the current pace would miss the 5-week window.
    - `supabase/migrations/0006_word_blocking.sql` — adds a
      `blocked_word_ids text[]` column to `app_meta` for the per-word
      blocking feature (Ban icon in exercises + Settings). Purely additive.
+   - `supabase/migrations/0007_hint_tracking.sql` — adds a
+     `hints_used integer` column to `word_progress` for the hint-tracking
+     feature (see below). Purely additive.
 2. In **Authentication → Sign In / Providers**, make sure the **Email**
    provider is enabled (it is by default). Decide whether you want **Confirm
    email** on: if it's on, `signUp` won't return a session immediately and
@@ -244,6 +247,34 @@ totals and category breakdowns. Toggled from the new Settings screen
 (`SettingsScreen.tsx`, gear icon in the TopBar) — one switch per rule,
 grouped by category for browsability, no bulk "block whole category"
 action (blocking is per-rule by design).
+
+## Hint tracking
+
+Every Hint button click is now tracked per word (`word_progress.hints_used`,
+migration `0007_hint_tracking.sql`) and used as a second, independent
+difficulty signal alongside the existing score-based "Difficult" list — a
+word that always ends up correct but only ever gets there with a hint
+looks fine by score (a hint-assisted correct answer still gives partial
+score credit), but frequent hint reliance is exactly the kind of word that
+needs deliberate extra practice.
+
+- `src/lib/intensify.ts` — `needsIntensification(state)`: true once a word
+  has been attempted at least `INTENSIFY_MIN_ATTEMPTS` (2) times and hints
+  were used in at least `INTENSIFY_HINT_RATIO` (50%) of those attempts.
+  `hintRatio()` is exported separately for sorting/display.
+- `store.updateWord(id, result, hintsUsed)` now accumulates `hintsUsed`
+  into `WordState.hintsUsed` on every answer (previously that argument
+  only affected the score bonus for that one attempt, and was never
+  persisted) — loaded from and written to the new column exactly like
+  every other per-word stat.
+- Surfaced in three places: a "Braucht Übung" chip next to Favoriten/
+  Schwierig on Home's Vocabulary breakdown; an "Intensivieren" filter tab
+  and a small hint-count badge per row on the Word List; a highlighted
+  "Hints used" stat plus an explanatory banner on Word Detail when that
+  word qualifies. Stats also gets a "Braucht Übung" count card and a
+  top-5 list of the most hint-dependent words (hints-used ÷ times-seen,
+  descending), so intensification candidates are visible without having
+  to browse the whole word list.
 
 ## Word blocking
 
@@ -684,15 +715,25 @@ Playwright script and inspecting the queue growth directly.
   the seeded in-progress words, and no "Translate this sentence" prompt
   appeared anywhere in an extended session — zero console errors.
   `tsc --noEmit`, `eslint`, and a clean build all pass.
+- Hint-usage tracking (`word_progress.hints_used`) plus the "Braucht
+  Übung"/"Intensivieren" surfaces on Home, Word List, Word Detail, and
+  Stats — see the Hint tracking section above. Verified with Playwright
+  against a mocked Supabase backend: clicking Hint during a real exercise
+  persists a growing `hints_used` value via the `word_progress` upsert, a
+  word that crosses the threshold correctly appears under the Word List's
+  "Intensivieren" filter and Stats' "Braucht Übung" card/list, and the
+  Word Detail page highlights its "Hints used" stat with an explanatory
+  banner — zero console errors. `tsc --noEmit`, `eslint`, and a clean
+  build all pass.
 
 **Needs a one-time manual step (couldn't be automated — no SQL/DDL or Auth
 config access from this session's tools):**
 - Run `supabase/migrations/0001_init.sql`, `0002_learning_stages.sql`,
-  `0003_grammar.sql`, `0004_grammar_blocking.sql`, `0005_goal.sql`, and
-  `0006_word_blocking.sql` (in that order) once in the Supabase SQL
-  Editor. If you already ran the first five, you only need
-  `0006_word_blocking.sql` now — it's a single additive column on
-  `app_meta` (`blocked_word_ids`), nothing else changes.
+  `0003_grammar.sql`, `0004_grammar_blocking.sql`, `0005_goal.sql`,
+  `0006_word_blocking.sql`, and `0007_hint_tracking.sql` (in that order)
+  once in the Supabase SQL Editor. If you already ran the first six, you
+  only need `0007_hint_tracking.sql` now — it's a single additive column
+  on `word_progress` (`hints_used`), nothing else changes.
 - Confirm the **Email** auth provider is on (default) and decide on the
   **Confirm email** setting — see step 2 above. No action needed if you're
   happy with the default.

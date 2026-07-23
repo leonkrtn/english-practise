@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookMarked, BookOpen, Blocks, Flag, Flame, Heart, Link2, Newspaper, PenLine, Repeat, Shuffle, Target, Timer, TrendingDown } from "lucide-react";
+import { BookMarked, BookOpen, Blocks, Flag, Flame, Heart, Lightbulb, Link2, Newspaper, PenLine, Repeat, Shuffle, Target, Timer, TrendingDown } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { VOCAB, VOCAB_BY_ID } from "@/lib/vocab";
 import { activeGrammarRules } from "@/lib/grammarLearning";
+import { needsIntensification } from "@/lib/intensify";
 import { WRITING_MIN_RULES, WRITING_MIN_WORDS } from "@/lib/writingTopics";
 import { computeGoalStatus } from "@/lib/goal";
 import type { SessionMode, LinkingSubMode } from "@/components/AppShell";
@@ -202,6 +203,7 @@ export default function HomeScreen({
     let adjLearned = 0;
     let favorites = 0;
     let difficult = 0;
+    let intensify = 0;
     Object.entries(store.words).forEach(([id, w]) => {
       if (store.blockedWordIds.has(id)) return;
       const word = VOCAB_BY_ID[id];
@@ -212,8 +214,9 @@ export default function HomeScreen({
       }
       if (w.favorite) favorites++;
       if (w.timesSeen > 0 && w.score <= 2.5) difficult++;
+      if (needsIntensification(w)) intensify++;
     });
-    return { verbsTotal, adjTotal, verbsLearned, adjLearned, favorites, difficult };
+    return { verbsTotal, adjTotal, verbsLearned, adjLearned, favorites, difficult, intensify };
   }, [store.words, store.blockedWordIds]);
 
   const grammarCategoryBreakdown = useMemo(() => {
@@ -453,9 +456,10 @@ export default function HomeScreen({
             total={wordTypeBreakdown.adjTotal}
             grad="from-purple to-purple-dark"
           />
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-3 gap-2.5">
             <StatChip icon={<Heart size={14} />} value={wordTypeBreakdown.favorites} label="Favoriten" tint="bg-red-light text-red" />
             <StatChip icon={<TrendingDown size={14} />} value={wordTypeBreakdown.difficult} label="Schwierig" tint="bg-amber-light text-amber" />
+            <StatChip icon={<Lightbulb size={14} />} value={wordTypeBreakdown.intensify} label="Intensivieren" tint="bg-amber-light text-amber" />
           </div>
         </div>
       )}

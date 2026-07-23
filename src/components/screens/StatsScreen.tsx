@@ -5,6 +5,7 @@ import { VOCAB, VOCAB_BY_ID } from "@/lib/vocab";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { activeGrammarRules } from "@/lib/grammarLearning";
+import { needsIntensification } from "@/lib/intensify";
 
 const FMT_LABELS: Record<string, string> = {
   learn: "Kennenlernen",
@@ -39,6 +40,7 @@ export default function StatsScreen() {
     const mastered = words.filter(([, s]) => s.stage === 4);
     const difficult = words.filter(([, s]) => s.timesSeen > 0 && s.score <= 2.5);
     const favorites = words.filter(([, s]) => s.favorite);
+    const intensify = words.filter(([, s]) => needsIntensification(s));
     let totalCorrect = 0,
       totalAll = 0;
     practiced.forEach(([, s]) => {
@@ -52,8 +54,19 @@ export default function StatsScreen() {
     const verbsPracticed = practiced.filter(([id]) => VOCAB_BY_ID[id]?.type === "verb").length;
     const adjPracticed = practiced.filter(([id]) => VOCAB_BY_ID[id]?.type === "adjective").length;
 
-    return { practiced, mastered, difficult, favorites, overallAcc, verbsTotal, adjTotal, verbsPracticed, adjPracticed };
+    return { practiced, mastered, difficult, favorites, intensify, overallAcc, verbsTotal, adjTotal, verbsPracticed, adjPracticed };
   }, [store.words]);
+
+  const topIntensify = useMemo(
+    () =>
+      stats.intensify
+        .slice()
+        .sort((a, b) => b[1].hintsUsed / b[1].timesSeen - a[1].hintsUsed / a[1].timesSeen)
+        .slice(0, 5)
+        .map(([id, s]) => ({ word: VOCAB_BY_ID[id], state: s }))
+        .filter((x) => x.word),
+    [stats.intensify]
+  );
 
   const activeRules = useMemo(() => activeGrammarRules(grammarStore.blockedRuleIds), [grammarStore.blockedRuleIds]);
 
@@ -81,6 +94,7 @@ export default function StatsScreen() {
         <StatCard value={`${stats.practiced.length} / ${VOCAB.length}`} label="Words practiced" />
         <StatCard value={stats.mastered.length} label="Known" />
         <StatCard value={stats.difficult.length} label="Difficult" />
+        <StatCard value={stats.intensify.length} label="Braucht Übung" />
         <StatCard value={stats.favorites.length} label="Favorites" />
         <StatCard value={`${stats.overallAcc}%`} label="Overall accuracy" />
         <StatCard value={store.totalPracticeSessions || 0} label="Sessions completed" />
@@ -115,6 +129,28 @@ export default function StatsScreen() {
           </>
         )}
       </div>
+
+      {topIntensify.length > 0 && (
+        <div className="mb-7">
+          <h2 className="text-xl font-semibold tracking-tight mb-1">Braucht Übung</h2>
+          <p className="text-ink-soft text-[13.5px] mb-3.5">
+            Wörter, bei denen du überdurchschnittlich oft einen Hint gebraucht hast — auch wenn die Antwort am Ende richtig war.
+          </p>
+          <div className="flex flex-col gap-2">
+            {topIntensify.map(({ word, state }) => (
+              <div key={word.id} className="flex items-center justify-between gap-3 bg-card border border-line-soft rounded-xl px-3.5 py-2.5">
+                <div className="min-w-0">
+                  <div className="text-[14px] font-semibold text-ink">{word.en}</div>
+                  <div className="text-[12px] text-ink-faint truncate">{word.de.join(" / ")}</div>
+                </div>
+                <div className="text-[12px] text-amber font-semibold whitespace-nowrap shrink-0">
+                  {state.hintsUsed} Hints / {state.timesSeen}×
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div>
         <h2 className="text-xl font-semibold tracking-tight mb-3.5">Progress</h2>

@@ -91,6 +91,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
             stage: (row.stage ?? 0) as LearningStage,
             reviewStreak: row.review_streak || 0,
             dueAtSession: row.due_at_session ?? null,
+            hintsUsed: row.hints_used || 0,
           };
         });
 
@@ -168,6 +169,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
             stage: w.stage,
             review_streak: w.reviewStreak,
             due_at_session: w.dueAtSession,
+            hints_used: w.hintsUsed,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "user_id,word_id" }
@@ -185,6 +187,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
         const w = { ...(prev.words[id] || blankWordState()) };
         w.timesSeen++;
         w.lastSeen = Date.now();
+        w.hintsUsed += hintsUsed;
         if (result === "correct") {
           w.timesCorrect++;
           w.streak++;

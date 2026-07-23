@@ -16,6 +16,8 @@ export interface WordState {
   stage: LearningStage;
   reviewStreak: number;
   dueAtSession: number | null;
+  /** Total number of times the Hint button was clicked for this word, across every attempt ever. */
+  hintsUsed: number;
 }
 
 export function blankWordState(): WordState {
@@ -34,6 +36,7 @@ export function blankWordState(): WordState {
     stage: 0,
     reviewStreak: 0,
     dueAtSession: null,
+    hintsUsed: 0,
   };
 }
 

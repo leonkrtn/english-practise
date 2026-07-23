@@ -3,6 +3,7 @@
 import { ChevronLeft, Star } from "lucide-react";
 import { VOCAB_BY_ID } from "@/lib/vocab";
 import { useStore } from "@/lib/store";
+import { needsIntensification } from "@/lib/intensify";
 
 export default function WordDetailScreen({ wordId, onBack, onPractice }: { wordId: string; onBack: () => void; onPractice: (wordId: string) => void }) {
   const store = useStore();
@@ -46,7 +47,14 @@ export default function WordDetailScreen({ wordId, onBack, onPractice }: { wordI
         <Stat value={s.timesSeen ? Math.round((s.timesCorrect / s.timesSeen) * 100) + "%" : "—"} label="Accuracy" />
         <Stat value={Math.round(s.score * 20) + "%"} label="Mastery" />
         <Stat value={s.spellingErrors} label="Spelling slips" />
+        <Stat value={s.hintsUsed} label="Hints used" highlight={needsIntensification(s)} />
       </div>
+
+      {needsIntensification(s) && (
+        <div className="flex items-center gap-2 rounded-xl bg-amber-light text-[#96690f] text-[13px] px-3.5 py-3 mb-4">
+          Du brauchst bei diesem Wort oft einen Hint — es lohnt sich, es gezielt zu wiederholen.
+        </div>
+      )}
 
       <div className="flex gap-2.5">
         <button
@@ -67,10 +75,10 @@ export default function WordDetailScreen({ wordId, onBack, onPractice }: { wordI
   );
 }
 
-function Stat({ value, label }: { value: string | number; label: string }) {
+function Stat({ value, label, highlight }: { value: string | number; label: string; highlight?: boolean }) {
   return (
-    <div className="bg-card border border-line-soft rounded-[14px] p-3.5">
-      <div className="text-[22px] font-bold tracking-tight">{value}</div>
+    <div className={"rounded-[14px] p-3.5 border " + (highlight ? "bg-amber-light border-amber/30" : "bg-card border-line-soft")}>
+      <div className={"text-[22px] font-bold tracking-tight " + (highlight ? "text-[#96690f]" : "")}>{value}</div>
       <div className="text-[12px] text-ink-faint mt-0.5">{label}</div>
     </div>
   );

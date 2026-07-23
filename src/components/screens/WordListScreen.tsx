@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CircleCheck, Search, Star } from "lucide-react";
+import { CircleCheck, Lightbulb, Search, Star } from "lucide-react";
 import { VOCAB } from "@/lib/vocab";
 import { normalize } from "@/lib/utils";
 import { useStore } from "@/lib/store";
+import { needsIntensification } from "@/lib/intensify";
 
 const FILTERS = [
   { val: "all", label: "All" },
@@ -14,6 +15,7 @@ const FILTERS = [
   { val: "favorites", label: "Favorites" },
   { val: "mistakes", label: "Mistakes" },
   { val: "unpracticed", label: "Unpracticed" },
+  { val: "intensify", label: "Intensivieren" },
 ];
 
 const MAX = 200;
@@ -31,6 +33,7 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
     if (filter === "mistakes") l = l.filter((w) => store.wordState(w.id).recentMistake);
     if (filter === "known") l = l.filter((w) => store.wordState(w.id).stage === 4);
     if (filter === "unpracticed") l = l.filter((w) => store.wordState(w.id).timesSeen === 0);
+    if (filter === "intensify") l = l.filter((w) => needsIntensification(store.wordState(w.id)));
     const q = normalize(query);
     if (q) l = l.filter((w) => normalize(w.en).includes(q) || w.de.some((d) => normalize(d).includes(q)));
     return l.slice().sort((a, b) => a.en.localeCompare(b.en));
@@ -90,6 +93,11 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
                   <div className="text-[14.5px] font-semibold">{w.en}</div>
                   <div className="text-[12.5px] text-ink-faint">{w.de.join(" / ")}</div>
                 </div>
+                {needsIntensification(s) && (
+                  <span title="Braucht viele Hints" className="flex items-center gap-0.5 text-[11px] font-semibold text-amber shrink-0">
+                    <Lightbulb size={13} /> {s.hintsUsed}
+                  </span>
+                )}
                 {s.stage === 4 && <CircleCheck size={14} className="text-green shrink-0" />}
                 <div className="text-[11px] text-ink-faint whitespace-nowrap">{s.timesSeen ? Math.round(s.score * 20) + "%" : "new"}</div>
                 <button
