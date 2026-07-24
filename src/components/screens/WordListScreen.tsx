@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleCheck, Lightbulb, Search, Star } from "lucide-react";
 import { VOCAB } from "@/lib/vocab";
 import { normalize } from "@/lib/utils";
@@ -22,6 +22,21 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
   const store = useStore();
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // "/" focuses the search box without typing a "/" into it — the common convention (GitHub,
+  // Slack, …) for jumping straight to search on a page that's otherwise all filter buttons and rows.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const list = useMemo(() => {
     let l = VOCAB;
@@ -44,10 +59,11 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
       <div className="flex items-center gap-2.5 bg-card border-[1.5px] border-line rounded-xl px-3.5 py-2.5 mb-3">
         <Search size={16} className="text-ink-faint shrink-0" />
         <input
+          ref={searchRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           type="text"
-          placeholder="Search English or German…"
+          placeholder="Search English or German… (/)"
           className="flex-1 border-none bg-transparent text-[15px] outline-none text-ink"
         />
       </div>

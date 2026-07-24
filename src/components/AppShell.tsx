@@ -31,12 +31,14 @@ import {
   type GrammarQueueItem,
 } from "@/lib/grammarLearning";
 import { sample, shuffle } from "@/lib/utils";
+import { toggleMuted } from "@/lib/sound";
 import type { ResultEntry } from "@/lib/types";
 import type { GrammarResultEntry } from "@/lib/grammarTypes";
 import ExerciseRouter from "@/components/exercises/ExerciseRouter";
 import GrammarExerciseRouter from "@/components/grammar-exercises/GrammarExerciseRouter";
 import TopBar from "./TopBar";
 import Modal from "./Modal";
+import ShortcutsHelp from "./ShortcutsHelp";
 import HomeScreen from "./screens/HomeScreen";
 import SessionScreen from "./screens/SessionScreen";
 import SummaryScreen, { type SummaryStats } from "./screens/SummaryScreen";
@@ -155,6 +157,7 @@ export default function AppShell() {
   const [linkingEssayTopic, setLinkingEssayTopic] = useState<WritingTopic | null>(null);
   const [summary, setSummary] = useState<SummaryStats | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
 
   // Starts the 5-week basics goal's clock exactly once, snapshotting current combined progress
   // as the baseline so pace can be computed as (current - baseline) / days elapsed. Runs once per
@@ -770,6 +773,124 @@ export default function AppShell() {
     setScreen("goal");
   }
 
+  // Shared by the "End session?" modal's Confirm button and the Escape/Enter keyboard path below,
+  // so both ways of confirming an early exit stay in sync.
+  const confirmEndSession = useCallback(() => {
+    setModalOpen(false);
+    if (learningSession) endLearningSession(learningSession);
+    else if (quickSession) endQuickSession(quickSession);
+    else if (linkingSession) finishLinking(linkingSession);
+  }, [learningSession, quickSession, linkingSession, endLearningSession, endQuickSession, finishLinking]);
+
+  // Escape is the one key that always makes sense regardless of screen — it's the keyboard
+  // equivalent of whatever "leave this" affordance is already on screen (the exit-confirm modal
+  // during an active exercise, a direct exit for screens that don't need confirmation, "back" on
+  // Word Detail, "home" everywhere else).
+  const handleEscape = useCallback(() => {
+    if (shortcutsHelpOpen) {
+      setShortcutsHelpOpen(false);
+      return;
+    }
+    if (modalOpen) {
+      setModalOpen(false);
+      return;
+    }
+    switch (screen) {
+      case "session":
+      case "linking":
+        setModalOpen(true);
+        return;
+      case "writing":
+        setWritingSession(null);
+        setScreen("home");
+        return;
+      case "reading":
+        setReadingSession(null);
+        setScreen("home");
+        return;
+      case "linking-learn":
+        setScreen("home");
+        return;
+      case "linking-essay":
+        setLinkingEssayTopic(null);
+        setScreen("home");
+        return;
+      case "detail":
+        setScreen("list");
+        return;
+      case "home":
+        return;
+      default:
+        setScreen("home");
+    }
+  }, [shortcutsHelpOpen, modalOpen, screen]);
+
+  // Global desktop shortcuts so the basic app functions (navigate, mute, exit, see this list) never
+  // require a mouse. Bails out while the user is typing in a text field so none of these single
+  // letters get swallowed mid-answer — Escape is the one exception, since it never types a
+  // character. Per-screen shortcuts (Home's mode/session keys, exercises' A–D/hint, Word List's "/")
+  // live next to the state they act on instead of here.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        handleEscape();
+        return;
+      }
+      // Checked before the "typing" bail below: once the modal/help overlay is up it visually owns
+      // the keyboard even if an exercise input underneath still technically holds DOM focus.
+      if (modalOpen) {
+        if (e.key === "Enter") {
+          // A focused button/link already reacts to Enter on its own (e.g. tabbing to Cancel) —
+          // only treat Enter as "confirm" when nothing more specific is going to handle it.
+          const activeTag = (document.activeElement as HTMLElement | null)?.tagName;
+          if (activeTag === "BUTTON" || activeTag === "A") return;
+          e.preventDefault();
+          confirmEndSession();
+        }
+        return;
+      }
+      if (shortcutsHelpOpen) {
+        if (e.key.toLowerCase() === "h") setShortcutsHelpOpen(false);
+        return;
+      }
+
+      const target = e.target as HTMLElement | null;
+      const isTyping = !!target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+      if (isTyping) return;
+
+      switch (e.key.toLowerCase()) {
+        case "g":
+          e.preventDefault();
+          goGoal();
+          break;
+        case "w":
+          e.preventDefault();
+          goList();
+          break;
+        case "s":
+          e.preventDefault();
+          goStats();
+          break;
+        case ",":
+          e.preventDefault();
+          goSettings();
+          break;
+        case "m":
+          e.preventDefault();
+          toggleMuted();
+          break;
+        case "h":
+          e.preventDefault();
+          setShortcutsHelpOpen(true);
+          break;
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleEscape, modalOpen, shortcutsHelpOpen, confirmEndSession]);
+
   const activeMode: "learning" | "quick" | null = learningSession ? "learning" : quickSession ? "quick" : null;
   const currentWordId =
     activeMode === "learning" && currentItem?.domain === "vocab"
@@ -792,6 +913,7 @@ export default function AppShell() {
         goStats={goStats}
         goSettings={goSettings}
         goGoal={goGoal}
+        onShortcuts={() => setShortcutsHelpOpen(true)}
         onLogout={() => signOut()}
       />
       <main
@@ -964,13 +1086,9 @@ export default function AppShell() {
         title="End session?"
         body="Your progress so far will be saved, but the session will end early."
         onCancel={() => setModalOpen(false)}
-        onConfirm={() => {
-          setModalOpen(false);
-          if (learningSession) endLearningSession(learningSession);
-          else if (quickSession) endQuickSession(quickSession);
-          else if (linkingSession) finishLinking(linkingSession);
-        }}
+        onConfirm={confirmEndSession}
       />
+      <ShortcutsHelp open={shortcutsHelpOpen} onClose={() => setShortcutsHelpOpen(false)} />
     </div>
   );
 }

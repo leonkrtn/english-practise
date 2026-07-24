@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BookMarked, BookOpen, Blocks, ChevronUp, Flag, Flame, Heart, Lightbulb, Link2, Newspaper, PenLine, Repeat, Shuffle, Target, Timer, TrendingDown } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
@@ -327,6 +327,63 @@ export default function HomeScreen({
 
   const active = MODES.find((m) => m.val === mode)!;
   const progressPct = stats.total ? Math.round((stats.learned / stats.total) * 100) : 0;
+
+  // Home's own no-mouse shortcuts: 1–6 pick a mode tile (same left-to-right order as MODES), R
+  // opens the review-filter dropdown, Enter either starts a session or — while that dropdown is
+  // open — confirms it instead, mirroring each control's own disabled state so the shortcut never
+  // does something the equivalent click couldn't.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+
+      const num = Number(e.key);
+      if (Number.isInteger(num) && num >= 1 && num <= MODES.length) {
+        e.preventDefault();
+        onModeChange(MODES[num - 1].val);
+        return;
+      }
+      if (e.key.toLowerCase() === "r") {
+        if (mode === "writing" || mode === "linking" || mode === "reading" || stats.learned === 0) return;
+        e.preventDefault();
+        setReviewMenuOpen((v) => !v);
+        return;
+      }
+      if (e.key === "Enter") {
+        // A focused button already reacts to its own Enter (e.g. tabbing to one of the dropdown's
+        // filter chips) — only treat Enter as the page-level shortcut when nothing more specific
+        // owns it.
+        const activeTag = (document.activeElement as HTMLElement | null)?.tagName;
+        if (activeTag === "BUTTON" || activeTag === "A") return;
+        if (reviewMenuOpen) {
+          if (reviewMatchCount === 0) return;
+          e.preventDefault();
+          setReviewMenuOpen(false);
+          onReview(mode, { maxAccuracy: reviewMaxAccuracy, limit: reviewLimit });
+          return;
+        }
+        if (mode === "writing" && !writingEligible) return;
+        e.preventDefault();
+        onStart(mode, includeReview, linkingSubMode);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    mode,
+    stats.learned,
+    reviewMenuOpen,
+    reviewMatchCount,
+    reviewMaxAccuracy,
+    reviewLimit,
+    onReview,
+    onModeChange,
+    onStart,
+    includeReview,
+    linkingSubMode,
+    writingEligible,
+  ]);
 
   return (
     <section className="flex flex-col pb-1">

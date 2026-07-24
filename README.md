@@ -347,6 +347,47 @@ stat cards.
 - Both chart rows use a fixed 14-day window (`TREND_DAYS` in
   `StatsScreen.tsx`).
 
+## Keyboard shortcuts
+
+Every basic function is reachable on desktop without a mouse. Each group
+of shortcuts lives as a `window`-level `keydown` listener next to the
+state it acts on, rather than one giant handler — they're always disjoint
+key sets, so several can coexist without stepping on each other.
+
+- **Global (`AppShell.tsx`), work on every screen except while a text
+  field is focused:** `Esc` (context-aware exit — closes the shortcuts
+  overlay or the "End session?" confirm if one is open, otherwise opens
+  that confirm during an active exercise/linking session, exits directly
+  from Writing/Reading/Linking-learn/Linking-essay, goes from Word Detail
+  back to Word List, and goes Home from everywhere else), `G` (Goal), `W`
+  (Word List), `S` (Stats), `,` (Settings), `M` (toggle mute — this one
+  works even mid-exercise, unlike the rest, since it can never be confused
+  with typing an answer), `H` (this shortcuts overlay — also reachable by
+  mouse via the new keyboard icon in `TopBar`). `Esc` is the one exception
+  to the "not while typing" rule, since it never inserts a character.
+- **Home (`HomeScreen.tsx`):** `1`–`6` picks a mode tile (same
+  left-to-right order as `MODES`), `Enter` starts a session (or, while the
+  review-filter dropdown is open, confirms that dropdown instead — see
+  below), `R` opens/closes the review-filter dropdown. Both `Enter` cases
+  bail if a `<button>`/`<a>` already has focus, so tabbing to one of the
+  dropdown's own filter chips and pressing Enter toggles that chip instead
+  of being hijacked into starting a session.
+- **During an exercise (`exercises/shared.tsx`):** `A`–`D` picks a
+  lettered multiple-choice option (`useLetterShortcuts`), `1` triggers the
+  Hint button and works even while typing an answer (`useHintShortcut`,
+  see Hint tracking above), `Enter` submits a typed answer or advances
+  past feedback/a Kennenlernen card (see Learning engine above). Exercise
+  types built on click/drag tiles instead of a fixed option list (Word
+  Matching, Sentence Building, "tap the wrong word") don't get a dedicated
+  key binding — a fixed small alphabet doesn't generalize to an arbitrary
+  number of tiles — but every tile is a real `<button>`, so Tab + Enter/
+  Space already reaches them without a mouse.
+- **Word List (`WordListScreen.tsx`):** `/` focuses the search box (same
+  convention as GitHub/Slack), without typing the `/` itself.
+- **`ShortcutsHelp.tsx`** renders the full list above, grouped and with
+  `KeyBadge` key caps for consistency with the in-exercise hint/check key
+  hints, opened via `H` or the TopBar's keyboard icon.
+
 ## Word blocking
 
 Individual vocabulary words can be permanently excluded right when they
@@ -831,6 +872,20 @@ Playwright script and inspecting the queue growth directly.
   fixed directly. Verified with Playwright: both chart rows render and
   respond to hover; pressing `1` while focused in an exercise's answer
   input reveals the hint without inserting a `"1"` character. `tsc
+  --noEmit`, `eslint`, and a clean `next build` all pass.
+- Enter-to-continue on Kennenlernen cards (`autoFocus` on `PrimaryButton`,
+  see Learning engine above), an unrestricted Word List (removed the old
+  hardcoded 200-result cap), the review-filter dropdown on Home (mastery
+  threshold + size cap before "Gelerntes wiederholen" — see the review
+  filter dropdown note above), and a full desktop keyboard-shortcut layer
+  (`Esc`/`G`/`W`/`S`/`,`/`M`/`H` globally, `1`–`6`/`Enter`/`R` on Home, `/`
+  on Word List, plus the pre-existing exercise shortcuts) with a `H`-
+  triggered overlay listing all of them — see the Keyboard shortcuts
+  section above. Verified with Playwright against a mocked Supabase
+  backend: `H` opens/closes the overlay, `W`/`S`/`G`/`,` navigate and
+  `Esc` returns Home from each, `1`–`2` switch Home's mode tabs, `R` opens
+  the review dropdown and a body-focused `Enter` correctly starts a
+  filtered review session — zero console errors throughout. `tsc
   --noEmit`, `eslint`, and a clean `next build` all pass.
 
 **Needs a one-time manual step (couldn't be automated — no SQL/DDL or Auth

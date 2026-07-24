@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Flag, LogOut, ScrollText, Settings, Volume2, VolumeX } from "lucide-react";
+import { BarChart3, Flag, Keyboard, LogOut, ScrollText, Settings, Volume2, VolumeX } from "lucide-react";
 import type { Screen } from "./AppShell";
 import { useSoundMuted } from "@/lib/sound";
 
@@ -11,6 +11,7 @@ export default function TopBar({
   goStats,
   goSettings,
   goGoal,
+  onShortcuts,
   onLogout,
 }: {
   screen: Screen;
@@ -19,6 +20,7 @@ export default function TopBar({
   goStats: () => void;
   goSettings: () => void;
   goGoal: () => void;
+  onShortcuts: () => void;
   onLogout: () => void;
 }) {
   const [muted, toggleMuted] = useSoundMuted();
@@ -44,6 +46,9 @@ export default function TopBar({
         </IconButton>
         <IconButton active={screen === "settings"} onClick={goSettings} title="Settings">
           <Settings size={18} />
+        </IconButton>
+        <IconButton onClick={onShortcuts} title="Tastenkürzel (H)">
+          <Keyboard size={18} />
         </IconButton>
         <IconButton onClick={onLogout} title="Abmelden">
           <LogOut size={18} />
