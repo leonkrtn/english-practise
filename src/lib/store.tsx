@@ -92,6 +92,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
             reviewStreak: row.review_streak || 0,
             dueAtSession: row.due_at_session ?? null,
             hintsUsed: row.hints_used || 0,
+            masteredAt: row.mastered_at ? new Date(row.mastered_at).getTime() : null,
           };
         });
 
@@ -170,6 +171,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
             review_streak: w.reviewStreak,
             due_at_session: w.dueAtSession,
             hints_used: w.hintsUsed,
+            mastered_at: w.masteredAt ? new Date(w.masteredAt).toISOString() : null,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "user_id,word_id" }
@@ -251,9 +253,11 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     (id: string, stage: LearningStage, reviewStreak: number, dueAtSession: number | null) => {
       setState((prev) => {
         const w = { ...(prev.words[id] || blankWordState()) };
+        const justMastered = stage === 4 && w.stage !== 4;
         w.stage = stage;
         w.reviewStreak = reviewStreak;
         w.dueAtSession = dueAtSession;
+        if (justMastered && w.masteredAt === null) w.masteredAt = Date.now();
         persistWord(id, w);
         return { ...prev, words: { ...prev.words, [id]: w } };
       });

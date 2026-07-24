@@ -3,7 +3,21 @@
 import { useState } from "react";
 import { normalize } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
-import { Badge, ContextNote, FeedbackPanel, AnswerInput, ExerciseFooter, HintButton, HintIcon, PrimaryButton, useHints, DetailRow, boldenWord } from "./shared";
+import {
+  Badge,
+  ContextNote,
+  FeedbackPanel,
+  AnswerInput,
+  ExerciseFooter,
+  HintButton,
+  HintIcon,
+  KeyBadge,
+  PrimaryButton,
+  useHints,
+  useHintShortcut,
+  DetailRow,
+  boldenWord,
+} from "./shared";
 import type { ExerciseProps } from "./types";
 
 export default function SentenceExercise({ item, onAnswered, onNext }: ExerciseProps) {
@@ -16,6 +30,7 @@ export default function SentenceExercise({ item, onAnswered, onNext }: ExerciseP
   const [value, setValue] = useState("");
   const [result, setResult] = useState<AnswerResultKind | null>(null);
   const { reveal, showHint, hintsUsed } = useHints(word, toGerman);
+  useHintShortcut(showHint, !!result);
 
   function check(skipped: boolean) {
     if (result) return;
@@ -64,7 +79,7 @@ export default function SentenceExercise({ item, onAnswered, onNext }: ExerciseP
         <ExerciseFooter>
           <div className="flex gap-2">
             <HintButton onClick={showHint}>
-              <HintIcon /> Hint
+              <HintIcon /> Hint <KeyBadge>1</KeyBadge>
             </HintButton>
             <HintButton onClick={() => check(true)}>Skip</HintButton>
           </div>

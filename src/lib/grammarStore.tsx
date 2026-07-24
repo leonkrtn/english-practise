@@ -70,6 +70,7 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
             recentMistake: !!row.recent_mistake,
             streak: row.streak || 0,
             score: Number(row.score) || 0,
+            masteredAt: row.mastered_at ? new Date(row.mastered_at).getTime() : null,
           };
         });
 
@@ -139,6 +140,7 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
             recent_mistake: s.recentMistake,
             streak: s.streak,
             score: s.score,
+            mastered_at: s.masteredAt ? new Date(s.masteredAt).toISOString() : null,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "user_id,rule_id" }
@@ -201,9 +203,11 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
     (id: string, stage: LearningStage, reviewStreak: number, dueAtSession: number | null) => {
       setState((prev) => {
         const s = { ...(prev.rules[id] || blankGrammarRuleState()) };
+        const justMastered = stage === 4 && s.stage !== 4;
         s.stage = stage;
         s.reviewStreak = reviewStreak;
         s.dueAtSession = dueAtSession;
+        if (justMastered && s.masteredAt === null) s.masteredAt = Date.now();
         persistRule(id, s);
         return { ...prev, rules: { ...prev.rules, [id]: s } };
       });

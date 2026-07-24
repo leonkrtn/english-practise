@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { classifyAnswer } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
-import { AnswerInput, ExerciseFooter, FeedbackPanel, HintButton, PrimaryButton } from "@/components/exercises/shared";
+import { AnswerInput, ExerciseFooter, FeedbackPanel, HintButton, KeyBadge, PrimaryButton, useHintShortcut } from "@/components/exercises/shared";
 import { CategoryBadge, type GrammarExerciseProps } from "./shared";
 
 export default function GrammarGapExercise({ rule, onAnswered, onNext }: GrammarExerciseProps) {
   const [value, setValue] = useState("");
   const [result, setResult] = useState<AnswerResultKind | null>(null);
   const [showHint, setShowHint] = useState(false);
+  useHintShortcut(() => setShowHint(true), !!result);
 
   const [before, after] = rule.gap.template.split("___");
 
@@ -36,7 +37,9 @@ export default function GrammarGapExercise({ rule, onAnswered, onNext }: Grammar
       {!result && (
         <ExerciseFooter>
           <div className="flex gap-2">
-            <HintButton onClick={() => setShowHint(true)}>Hint</HintButton>
+            <HintButton onClick={() => setShowHint(true)}>
+              Hint <KeyBadge>1</KeyBadge>
+            </HintButton>
             <HintButton onClick={() => check(true)}>Skip</HintButton>
           </div>
           <PrimaryButton onClick={() => check(false)}>Check</PrimaryButton>

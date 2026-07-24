@@ -12,6 +12,8 @@ export interface GrammarRuleState {
   recentMistake: boolean;
   streak: number;
   score: number;
+  /** When this rule first ever reached stage 4 — same semantics as WordState.masteredAt. */
+  masteredAt: number | null;
 }
 
 export function blankGrammarRuleState(): GrammarRuleState {
@@ -27,6 +29,7 @@ export function blankGrammarRuleState(): GrammarRuleState {
     recentMistake: false,
     streak: 0,
     score: 0,
+    masteredAt: null,
   };
 }
 

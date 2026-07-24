@@ -6,6 +6,10 @@ import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { activeGrammarRules } from "@/lib/grammarLearning";
 import { needsIntensification } from "@/lib/intensify";
+import { buildCumulativeSeries, buildAccuracySeries } from "@/lib/chartData";
+import { TrendLineChart, TrendBarChart } from "@/components/StatCharts";
+
+const TREND_DAYS = 14;
 
 const FMT_LABELS: Record<string, string> = {
   learn: "Kennenlernen",
@@ -85,6 +89,20 @@ export default function StatsScreen() {
     return { practiced, known, overallAcc, total: activeRules.length };
   }, [activeRules, grammarStore.rules]);
 
+  const vocabCumulative = useMemo(
+    () => buildCumulativeSeries(Object.values(store.words), TREND_DAYS),
+    [store.words]
+  );
+  const vocabAccuracySeries = useMemo(() => buildAccuracySeries(store.sessionHistory, TREND_DAYS), [store.sessionHistory]);
+  const grammarCumulative = useMemo(
+    () => buildCumulativeSeries(Object.values(grammarStore.rules), TREND_DAYS),
+    [grammarStore.rules]
+  );
+  const grammarAccuracySeries = useMemo(
+    () => buildAccuracySeries(grammarStore.sessionHistory, TREND_DAYS),
+    [grammarStore.sessionHistory]
+  );
+
   return (
     <section className="animate-fade-in">
       <h1 className="text-[26px] font-bold tracking-tight mt-1 mb-5">Statistics</h1>
@@ -100,12 +118,34 @@ export default function StatsScreen() {
         <StatCard value={store.totalPracticeSessions || 0} label="Sessions completed" />
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-7">
+        <div className="bg-card border border-line-soft rounded-2xl p-4">
+          <div className="text-[13px] font-semibold text-ink mb-2.5">Gelernte Wörter · letzte {TREND_DAYS} Tage</div>
+          <TrendLineChart points={vocabCumulative} gradFrom="#0071e3" gradTo="#0058b8" />
+        </div>
+        <div className="bg-card border border-line-soft rounded-2xl p-4">
+          <div className="text-[13px] font-semibold text-ink mb-2.5">Genauigkeit pro Tag · letzte {TREND_DAYS} Tage</div>
+          <TrendBarChart points={vocabAccuracySeries} from="#0071e3" to="#8b5cf6" />
+        </div>
+      </div>
+
       <h2 className="text-lg font-semibold tracking-tight mb-3">Grammar</h2>
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-7">
         <StatCard value={`${grammarStats.practiced.length} / ${grammarStats.total}`} label="Rules practiced" />
         <StatCard value={grammarStats.known.length} label="Known" />
         <StatCard value={`${grammarStats.overallAcc}%`} label="Overall accuracy" />
         <StatCard value={grammarStore.totalPracticeSessions || 0} label="Sessions completed" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-7">
+        <div className="bg-card border border-line-soft rounded-2xl p-4">
+          <div className="text-[13px] font-semibold text-ink mb-2.5">Gelernte Regeln · letzte {TREND_DAYS} Tage</div>
+          <TrendLineChart points={grammarCumulative} gradFrom="#8b5cf6" gradTo="#6d3fd4" />
+        </div>
+        <div className="bg-card border border-line-soft rounded-2xl p-4">
+          <div className="text-[13px] font-semibold text-ink mb-2.5">Genauigkeit pro Tag · letzte {TREND_DAYS} Tage</div>
+          <TrendBarChart points={grammarAccuracySeries} from="#8b5cf6" to="#0071e3" />
+        </div>
       </div>
 
       <div className="mb-7">

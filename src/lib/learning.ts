@@ -39,13 +39,24 @@ export function kindForStage(stage: LearningStage): Exclude<StageKind, "match" |
     case 1:
       return "quiz";
     default:
-      // "apply" is now the final active-learning gate before mastery — a correct answer here
-      // promotes straight to stage 4. Also the graceful landing spot for any word a previous
-      // version of the app already left sitting at stage 3 (the old "produce"/write-a-full-
-      // sentence stage, since removed as a vocabulary task).
+      // "apply" is the final active-learning gate before mastery — see APPLY_REQUIRED_STREAK
+      // below for why one correct answer here isn't enough on its own. Also the graceful
+      // landing spot for any word a previous version of the app already left sitting at stage 3
+      // (the old "produce"/write-a-full-sentence stage, since removed as a vocabulary task).
       return "apply";
   }
 }
+
+/**
+ * How many *consecutive* correct "apply" (Einbauen) answers a word needs before it's trusted as
+ * mastered. Removing the old "produce" (write-a-full-sentence) stage shortened the path to
+ * "gelernt" from 3 real tests (quiz, apply, produce) down to 2 (quiz, apply) — words were being
+ * marked known noticeably too fast. Requiring apply to be answered correctly twice (spaced apart
+ * within the session, not back-to-back, via insertionIndex) restores that lost rigor without
+ * bringing back a free-writing task: a single lucky/careless correct answer no longer promotes a
+ * word to mastery on its own, but repeating the whole "produce" stage type wasn't needed either.
+ */
+export const APPLY_REQUIRED_STREAK = 2;
 
 /**
  * Typed production (Schreiben / long-term review) always shows German and asks for English —
@@ -183,11 +194,16 @@ export function nextAfterAnswer(
   }
 
   if (kind === "apply") {
-    // "apply" is the final active-learning gate — correct promotes straight to mastery instead of
-    // routing through a separate "produce" (write-a-full-sentence) stage, which isn't a vocabulary
-    // task anymore. Failure demotes back to "quiz", same severity as before this stage was removed.
+    // Needs APPLY_REQUIRED_STREAK consecutive correct answers before promoting to mastery —
+    // reuses the reviewStreak field as that counter (otherwise unused below stage 4). Any
+    // failure resets the streak and demotes all the way back to "quiz", same severity as before
+    // this stage existed, so a careless slip doesn't just cost one extra rep.
     if (result === "correct") {
-      return { stage: 4, reviewStreak: 0, dueAtSession: totalPracticeSessions + reviewInterval(0), nextKind: null };
+      const streak = reviewStreak + 1;
+      if (streak >= APPLY_REQUIRED_STREAK) {
+        return { stage: 4, reviewStreak: 0, dueAtSession: totalPracticeSessions + reviewInterval(0), nextKind: null };
+      }
+      return { stage: 2, reviewStreak: streak, dueAtSession: null, nextKind: "apply" };
     }
     return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: "quiz" };
   }

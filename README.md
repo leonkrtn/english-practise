@@ -102,6 +102,10 @@ the current pace would miss the 5-week window.
    - `supabase/migrations/0007_hint_tracking.sql` — adds a
      `hints_used integer` column to `word_progress` for the hint-tracking
      feature (see below). Purely additive.
+   - `supabase/migrations/0008_mastery_tracking.sql` — adds a
+     `mastered_at timestamptz` column to both `word_progress` and
+     `grammar_progress`, powering the Statistics "learned over time"
+     charts (see below). Purely additive.
 2. In **Authentication → Sign In / Providers**, make sure the **Email**
    provider is enabled (it is by default). Decide whether you want **Confirm
    email** on: if it's on, `signUp` won't return a session immediately and
@@ -135,21 +139,35 @@ back-to-back, which research shows beats blocked practice).
 |---|---|---|
 | 0 → 1 | **Kennenlernen** — plain info card (word, translation, example, collocations) | `LearnExercise` |
 | 1 → 2 | **Abfragen** — recognition: multiple choice, or a Word Matching round (see below) | `McExercise` / `MatchExercise` |
-| 2 → 4 | **Einbauen** — cued recall: use the word in a sentence context; a correct answer here promotes straight to mastery | `GapExercise` |
+| 2 → 4 | **Einbauen** — cued recall: use the word in a sentence context; needs **two consecutive correct answers** before promoting to mastery (see below) | `GapExercise` |
 | 4 (mastered-active) | **Wiederholung** — periodic long-term review | `TranslateExercise` |
 
 **No full-sentence writing task in Vocabulary.** There used to be a fourth
 stage ("Schreiben" — type a complete translated sentence from scratch,
 `SentenceExercise`) between Einbauen and mastery. It's been removed as a
-vocabulary task: `kindForStage()` no longer produces it, "apply" (Einbauen)
-is now the final gate before stage 4, and `SIMPLE_FORMATS` (the pool used
-by "Practice this word" / "repeat mistakes" quick drills) no longer
-includes `"sentence"` either. `nextAfterAnswer()` still resolves a stray
-`"produce"` queue item gracefully (for any session already open in a
-browser tab at deploy time) by treating it exactly like Einbauen. This
-only affects the Vocabulary engine — Grammar's own "produce" stage
-(`GrammarBuildExercise`, scrambled-sentence reconstruction, not free
-writing) is unrelated and untouched.
+vocabulary task: `kindForStage()` no longer produces it, and
+`SIMPLE_FORMATS` (the pool used by "Practice this word" / "repeat
+mistakes" quick drills) no longer includes `"sentence"` either.
+`nextAfterAnswer()` still resolves a stray `"produce"` queue item
+gracefully (for any session already open in a browser tab at deploy time)
+by treating it like Einbauen. This only affects the Vocabulary engine —
+Grammar's own "produce" stage (`GrammarBuildExercise`,
+scrambled-sentence reconstruction, not free writing) is unrelated and
+untouched.
+
+**Einbauen requires two consecutive correct answers, not one.**
+Simplifying away the old "Schreiben" stage initially shortened the path
+to "gelernt" from 3 real tests (Abfragen, Einbauen, Schreiben) down to 2
+(Abfragen, Einbauen) — words were being marked known noticeably faster
+than before. `APPLY_REQUIRED_STREAK = 2` in `learning.ts` restores that
+lost rigor without bringing back a free-writing task: `nextAfterAnswer()`
+repurposes the (otherwise-unused-below-stage-4) `reviewStreak` field as a
+consecutive-Einbauen-successes counter — one correct answer queues
+another Einbauen attempt later in the session instead of promoting
+immediately, and any wrong answer resets the counter and demotes all the
+way back to Abfragen. A failed long-term review now drops a word back to
+stage 2 (Einbauen) rather than stage 3, since stage 3 is no longer a
+distinct task.
 
 **You only ever type English, never German.** German is always the
 *meaning cue* (shown as the prompt, a hint, or a "German meaning:" label) —
@@ -190,7 +208,7 @@ Rules (`src/lib/learning.ts`):
 - Reaching stage 4 schedules the word for long-term review after a growing
   interval (2, 3, 5, 8, 13, 21 sessions — `reviewInterval()`), based on
   `app_meta.total_practice_sessions` as the clock. A failed long-term review
-  drops the word back to stage 3 and resets the interval.
+  drops the word back to stage 2 (Einbauen) and resets the interval.
 - A per-word attempt cap (`MAX_ATTEMPTS_PER_WORD = 5`) guarantees every
   session terminates even if a word is answered wrong repeatedly — it's
   simply picked up again next session instead of looping forever.
@@ -275,6 +293,48 @@ needs deliberate extra practice.
   top-5 list of the most hint-dependent words (hints-used ÷ times-seen,
   descending), so intensification candidates are visible without having
   to browse the whole word list.
+- **Global "1" shortcut on desktop.** `useHintShortcut()` in
+  `exercises/shared.tsx` installs a `window`-level `keydown` listener that
+  fires the hint on the digit `1`, everywhere a Hint button exists
+  (Vocabulary's Translate/Gap/Sentence exercises and Grammar's
+  `GrammarGapExercise`). It's active even while the answer input is
+  focused — `preventDefault()` swallows the keystroke so `"1"` never
+  lands in the field — and is disabled once a result is showing, matching
+  the point at which the on-screen Hint button itself disappears. The
+  button label gets a small `<KeyBadge>1</KeyBadge>` next to it as a
+  discoverability hint for the shortcut.
+
+## Statistics charts
+
+Stats got hand-built SVG line/bar charts (no charting library dependency —
+same approach as the existing `ProgressRing` on Home) for both Vocabulary
+and Grammar, each as its own two-chart row directly under that domain's
+stat cards.
+
+- `src/lib/chartData.ts` — pure, framework-free functions that turn raw
+  state arrays into day-indexed points, independent of any rendering:
+  - `buildCumulativeSeries(states, days)`: a running "learned over time"
+    total ending today, built from each word/rule's `masteredAt`
+    timestamp (see below).
+  - `buildAccuracySeries(sessionHistory, days)`: per-day accuracy from
+    `%`-of-correct across that day's sessions; a day with zero sessions
+    gets `accuracy: null` rather than a misleading `0%`.
+- `src/components/StatCharts.tsx` — `TrendLineChart` (cumulative, gradient
+  fill under the line, since the metric is monotonic by construction) and
+  `TrendBarChart` (daily accuracy, discrete bars — a smooth line would
+  imply false continuity between days; a `null`-accuracy day renders as a
+  faint gray placeholder, visually distinct from a real `0%` bar).
+  Hovering a point/bar shows its exact value via a native SVG `<title>`.
+- **`masteredAt` (migration `0008_mastery_tracking.sql`).** Both
+  `WordState`/`GrammarRuleState` gained a `masteredAt: number | null`
+  field, set once — the first time `setLearningStage` promotes something
+  to stage 4 — and never overwritten afterwards. Words/rules that reached
+  stage 4 *before* this migration existed have `masteredAt === null`;
+  `buildCumulativeSeries` counts those as a flat baseline at the start of
+  the chart window instead of guessing a backdated timestamp, the same
+  "baseline snapshot" pattern already used by the Goal feature.
+- Both chart rows use a fixed 14-day window (`TREND_DAYS` in
+  `StatsScreen.tsx`).
 
 ## Word blocking
 
@@ -725,15 +785,39 @@ Playwright script and inspecting the queue growth directly.
   Word Detail page highlights its "Hints used" stat with an explanatory
   banner — zero console errors. `tsc --noEmit`, `eslint`, and a clean
   build all pass.
+- Stats redesign with hand-built SVG cumulative/accuracy trend charts
+  (migration `0008_mastery_tracking.sql`, `masteredAt` baseline-snapshot
+  pattern) for both Vocabulary and Grammar — see the Statistics charts
+  section above. The Einbauen (apply) mastery gate now requires
+  `APPLY_REQUIRED_STREAK` (2) consecutive correct answers instead of one —
+  see the Learning engine section — fixing a regression from an earlier
+  change in this project's history that had inadvertently dropped the
+  mastery path from 3 real tests down to 1 when the full-sentence-writing
+  stage was removed; unit-verified directly against `nextAfterAnswer` via
+  `npx tsx`. The hint shortcut is now the digit `1`, fires globally
+  (including while typing in the answer field, via `preventDefault()`
+  swallowing the keystroke) across every exercise with a Hint button — see
+  the Hint tracking section above. Also did a systematic audit for German
+  text leaking outside vocabulary contexts (grepped all vocab/grammar/
+  reading/writing/linking data files and exercise JSX for umlauts, `ß`,
+  and common German function words) and found no reproducible instance —
+  all matches were intentional German content (category labels, meaning
+  displays) or grep false positives from curly-quote characters. If you
+  spot one in the app, please note the exact word and screen so it can be
+  fixed directly. Verified with Playwright: both chart rows render and
+  respond to hover; pressing `1` while focused in an exercise's answer
+  input reveals the hint without inserting a `"1"` character. `tsc
+  --noEmit`, `eslint`, and a clean `next build` all pass.
 
 **Needs a one-time manual step (couldn't be automated — no SQL/DDL or Auth
 config access from this session's tools):**
 - Run `supabase/migrations/0001_init.sql`, `0002_learning_stages.sql`,
   `0003_grammar.sql`, `0004_grammar_blocking.sql`, `0005_goal.sql`,
-  `0006_word_blocking.sql`, and `0007_hint_tracking.sql` (in that order)
-  once in the Supabase SQL Editor. If you already ran the first six, you
-  only need `0007_hint_tracking.sql` now — it's a single additive column
-  on `word_progress` (`hints_used`), nothing else changes.
+  `0006_word_blocking.sql`, `0007_hint_tracking.sql`, and
+  `0008_mastery_tracking.sql` (in that order) once in the Supabase SQL
+  Editor. If you already ran the first seven, you only need
+  `0008_mastery_tracking.sql` now — it's two additive `mastered_at`
+  columns (`word_progress`, `grammar_progress`), nothing else changes.
 - Confirm the **Email** auth provider is on (default) and decide on the
   **Confirm email** setting — see step 2 above. No action needed if you're
   happy with the default.

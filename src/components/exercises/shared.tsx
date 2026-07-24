@@ -28,6 +28,25 @@ export function useLetterShortcuts(optionCount: number, onSelect: (index: number
   }, [optionCount, onSelect, disabled]);
 }
 
+/** Lets a desktop user trigger the Hint button by pressing "1" — deliberately global (fires even
+ * while the answer field is focused, unlike useLetterShortcuts) since a hint request is something
+ * you usually want mid-typing, not just before starting. Uses "1" rather than a letter specifically
+ * so it can always preventDefault() and swallow the keystroke — a letter shortcut would otherwise
+ * have no way to tell "wanted as a shortcut" apart from "being typed as part of the answer". */
+export function useHintShortcut(onTrigger: () => void, disabled: boolean) {
+  useEffect(() => {
+    if (disabled) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key !== "1") return;
+      e.preventDefault();
+      onTrigger();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onTrigger, disabled]);
+}
+
 /** Renders a sentence with the target word's occurrence in bold — used everywhere a full English
  * sentence appears in a solution explanation, so the word being learned always stands out. */
 export function boldenWord(sentence: string, word: Word): React.ReactNode {
@@ -234,6 +253,12 @@ export function HintButton({ onClick, children, id }: { onClick: () => void; chi
       {children}
     </button>
   );
+}
+
+/** Small keycap-style badge, matching the "↵" shown on Check buttons — used next to "Hint" to
+ * surface the "1" keyboard shortcut. */
+export function KeyBadge({ children }: { children: React.ReactNode }) {
+  return <span className="text-[11px] font-mono bg-line-soft border border-line rounded px-1.5 text-ink-soft">{children}</span>;
 }
 
 export function HintIcon() {

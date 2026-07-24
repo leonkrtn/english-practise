@@ -18,6 +18,10 @@ export interface WordState {
   dueAtSession: number | null;
   /** Total number of times the Hint button was clicked for this word, across every attempt ever. */
   hintsUsed: number;
+  /** When this word first ever reached stage 4 — null for words mastered before this field
+   * existed, or never mastered. Set once and never overwritten, so a word that's later demoted
+   * and re-mastered doesn't get double-counted in a cumulative "words learned over time" chart. */
+  masteredAt: number | null;
 }
 
 export function blankWordState(): WordState {
@@ -37,6 +41,7 @@ export function blankWordState(): WordState {
     reviewStreak: 0,
     dueAtSession: null,
     hintsUsed: 0,
+    masteredAt: null,
   };
 }
 

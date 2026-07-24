@@ -3,7 +3,21 @@
 import { useState } from "react";
 import { classifyAnswer, findGap } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
-import { Badge, ContextNote, FeedbackPanel, AnswerInput, ExerciseFooter, HintButton, HintIcon, PrimaryButton, useHints, DetailRow, boldenWord } from "./shared";
+import {
+  Badge,
+  ContextNote,
+  FeedbackPanel,
+  AnswerInput,
+  ExerciseFooter,
+  HintButton,
+  HintIcon,
+  KeyBadge,
+  PrimaryButton,
+  useHints,
+  useHintShortcut,
+  DetailRow,
+  boldenWord,
+} from "./shared";
 import type { ExerciseProps } from "./types";
 import TranslateExercise from "./TranslateExercise";
 
@@ -15,6 +29,7 @@ export default function GapExercise(props: ExerciseProps) {
   const [value, setValue] = useState("");
   const [result, setResult] = useState<AnswerResultKind | null>(null);
   const { reveal, showHint, hintsUsed } = useHints(word, false);
+  useHintShortcut(showHint, !!result);
 
   if (!gap) return <TranslateExercise {...props} />;
 
@@ -58,7 +73,7 @@ export default function GapExercise(props: ExerciseProps) {
         <ExerciseFooter>
           <div className="flex gap-2">
             <HintButton onClick={showHint}>
-              <HintIcon /> Hint
+              <HintIcon /> Hint <KeyBadge>1</KeyBadge>
             </HintButton>
             <HintButton onClick={() => check(true)}>Skip</HintButton>
           </div>
