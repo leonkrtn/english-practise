@@ -67,6 +67,10 @@ export type Screen =
   | "reading";
 export type SessionMode = "vocab" | "grammar" | "mixed" | "writing" | "linking" | "reading";
 export type LinkingSubMode = "combine" | "learn" | "essay";
+/** Options for the "Gelerntes wiederholen" dropdown on Home: restrict the review pool to items
+ * below a score-based mastery percentage (null = no restriction) and/or cap how many are drawn
+ * (null = everyone that matches). */
+export type ReviewOptions = { maxAccuracy: number | null; limit: number | null };
 
 type UnifiedItem = { domain: "vocab"; item: LearningQueueItem } | { domain: "grammar"; item: GrammarQueueItem };
 
@@ -225,10 +229,15 @@ export default function AppShell() {
   // growing/interleaved session machinery as startLearningSession, just seeded differently: every
   // already-mastered item at once instead of an adaptive ~10-word batch.
   const startReviewSession = useCallback(
-    (mode: SessionMode) => {
+    (mode: SessionMode, options?: ReviewOptions) => {
+      const maxAccuracy = options?.maxAccuracy ?? null;
+      const belowThreshold = (score: number) => maxAccuracy === null || score * 20 < maxAccuracy;
+
       const vocabQueue: LearningQueueItem[] =
         mode === "vocab" || mode === "mixed"
-          ? VOCAB.filter((w) => !store.blockedWordIds.has(w.id) && store.wordState(w.id).stage === 4).map((w) => ({
+          ? VOCAB.filter(
+              (w) => !store.blockedWordIds.has(w.id) && store.wordState(w.id).stage === 4 && belowThreshold(store.wordState(w.id).score)
+            ).map((w) => ({
               kind: "review" as const,
               words: [w],
               direction: directionForKind("review"),
@@ -236,13 +245,16 @@ export default function AppShell() {
           : [];
       const grammarQueueItems: GrammarQueueItem[] =
         mode === "grammar" || mode === "mixed"
-          ? GRAMMAR_RULES.filter((r) => !grammarStore.blockedRuleIds.has(r.id) && grammarStore.ruleState(r.id).stage === 4).map((rule) => ({ kind: "review" as const, rule }))
+          ? GRAMMAR_RULES.filter(
+              (r) => !grammarStore.blockedRuleIds.has(r.id) && grammarStore.ruleState(r.id).stage === 4 && belowThreshold(grammarStore.ruleState(r.id).score)
+            ).map((rule) => ({ kind: "review" as const, rule }))
           : [];
 
-      const queue: UnifiedItem[] = shuffle([
+      let queue: UnifiedItem[] = shuffle([
         ...vocabQueue.map((item) => ({ domain: "vocab" as const, item })),
         ...grammarQueueItems.map((item) => ({ domain: "grammar" as const, item })),
       ]);
+      if (options?.limit !== null && options?.limit !== undefined) queue = queue.slice(0, options.limit);
       if (queue.length === 0) return;
 
       const totalItemIds = [...new Set(queue.map((u) => (u.domain === "vocab" ? "v:" + u.item.words[0].id : "g:" + u.item.rule.id)))];

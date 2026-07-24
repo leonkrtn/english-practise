@@ -18,8 +18,6 @@ const FILTERS = [
   { val: "intensify", label: "Intensivieren" },
 ];
 
-const MAX = 200;
-
 export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: string) => void }) {
   const store = useStore();
   const [filter, setFilter] = useState("all");
@@ -39,8 +37,6 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
     return l.slice().sort((a, b) => a.en.localeCompare(b.en));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, query, store.words]);
-
-  const shown = list.slice(0, MAX);
 
   return (
     <section className="animate-fade-in">
@@ -73,7 +69,7 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
         <div className="text-center py-16 px-5 text-ink-faint text-sm">No words match your search.</div>
       ) : (
         <div>
-          {shown.map((w) => {
+          {list.map((w) => {
             const s = store.wordState(w.id);
             return (
               <div
@@ -112,11 +108,6 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
               </div>
             );
           })}
-          {list.length > MAX && (
-            <div className="text-center py-16 px-5 text-ink-faint text-sm">
-              Showing first {MAX} of {list.length} results — refine your search.
-            </div>
-          )}
         </div>
       )}
     </section>

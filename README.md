@@ -142,6 +142,17 @@ back-to-back, which research shows beats blocked practice).
 | 2 → 4 | **Einbauen** — cued recall: use the word in a sentence context; needs **two consecutive correct answers** before promoting to mastery (see below) | `GapExercise` |
 | 4 (mastered-active) | **Wiederholung** — periodic long-term review | `TranslateExercise` |
 
+**Enter advances everywhere, including the Kennenlernen card.** Typed
+answers already submitted on Enter (`AnswerInput`'s `onKeyDown`), and the
+feedback panel's "Continue" button was already reachable via Enter once
+focused (native `autoFocus` button behavior) — but the plain info card
+(`LearnExercise` / `GrammarLearnExercise`, no text input) had no keyboard
+path at all. Its "Verstanden, weiter" button now also gets `autoFocus`, so
+Enter (or Space) advances it too, consistent with every other exercise
+type. Each new word/rule gets a fresh, uniquely-`key`ed mount
+(`AppShell.tsx`'s `renderKey`), so the button re-focuses on every single
+new item, not just the first one.
+
 **No full-sentence writing task in Vocabulary.** There used to be a fourth
 stage ("Schreiben" — type a complete translated sentence from scratch,
 `SentenceExercise`) between Einbauen and mastery. It's been removed as a
@@ -375,6 +386,19 @@ first (up to the ~10-item cap) — with even a handful already in flight,
 they crowded out new ones on every session, so picking "only new" barely
 changed anything you'd actually see. Doesn't affect "Gelerntes
 wiederholen" or Speed Round, which are explicitly review-only by design.
+
+**Review filter dropdown.** Clicking "Gelerntes wiederholen" no longer
+starts the drill immediately — it opens a popover above the button
+(`HomeScreen.tsx`, `reviewMenuOpen` state) with two choices: a mastery
+threshold ("Alle" / "Unter 80%" / "Unter 60%", checked against the same
+`score * 20` percentage shown in Word List and Word Detail) and a size cap
+("Alle" / "20" / "10"). The popover shows a live count of how many
+mastered words/rules currently match the selected threshold before you
+commit. Confirming calls `onReview(mode, { maxAccuracy, limit })`;
+`startReviewSession()` in `AppShell.tsx` filters the mastered pool by
+`score * 20 < maxAccuracy` before shuffling, then slices to `limit` — so
+"Unter 60% / 20" reliably drills your 20 weakest-known items instead of a
+random slice of everything you've ever mastered.
 
 ## Writing
 

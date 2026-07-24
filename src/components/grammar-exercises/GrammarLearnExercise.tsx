@@ -25,7 +25,7 @@ export default function GrammarLearnExercise({ rule, onAnswered, onNext }: Gramm
         ))}
       </div>
       <div className="mt-4">
-        <PrimaryButton onClick={acknowledge}>
+        <PrimaryButton onClick={acknowledge} autoFocus>
           Verstanden, weiter
           <ArrowRight size={16} />
         </PrimaryButton>

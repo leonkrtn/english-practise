@@ -270,17 +270,20 @@ export function PrimaryButton({
   children,
   disabled,
   id,
+  autoFocus,
 }: {
   onClick: () => void;
   children: React.ReactNode;
   disabled?: boolean;
   id?: string;
+  autoFocus?: boolean;
 }) {
   return (
     <button
       id={id}
       onClick={onClick}
       disabled={disabled}
+      autoFocus={autoFocus}
       className="rounded-full bg-gradient-to-r from-blue to-blue-dark hover:brightness-110 disabled:bg-[#d1d1d6] disabled:from-[#d1d1d6] disabled:to-[#d1d1d6] disabled:shadow-none disabled:cursor-not-allowed text-white font-semibold px-5 py-3 text-[15px] transition-all active:scale-[0.97] shadow-[0_10px_22px_-8px_rgba(0,113,227,0.5)] inline-flex items-center gap-2"
     >
       {children}

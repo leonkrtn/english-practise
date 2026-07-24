@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookMarked, BookOpen, Blocks, Flag, Flame, Heart, Lightbulb, Link2, Newspaper, PenLine, Repeat, Shuffle, Target, Timer, TrendingDown } from "lucide-react";
+import { BookMarked, BookOpen, Blocks, ChevronUp, Flag, Flame, Heart, Lightbulb, Link2, Newspaper, PenLine, Repeat, Shuffle, Target, Timer, TrendingDown } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { VOCAB, VOCAB_BY_ID } from "@/lib/vocab";
@@ -9,7 +9,7 @@ import { activeGrammarRules } from "@/lib/grammarLearning";
 import { needsIntensification } from "@/lib/intensify";
 import { WRITING_MIN_RULES, WRITING_MIN_WORDS } from "@/lib/writingTopics";
 import { computeGoalStatus } from "@/lib/goal";
-import type { SessionMode, LinkingSubMode } from "@/components/AppShell";
+import type { SessionMode, LinkingSubMode, ReviewOptions } from "@/components/AppShell";
 import type { SessionRecord } from "@/lib/types";
 import type { GrammarSessionRecord } from "@/lib/grammarTypes";
 
@@ -86,6 +86,18 @@ const MODES: {
   },
 ];
 
+const REVIEW_ACCURACY_OPTIONS: { val: number | null; label: string }[] = [
+  { val: null, label: "Alle" },
+  { val: 80, label: "Unter 80%" },
+  { val: 60, label: "Unter 60%" },
+];
+
+const REVIEW_LIMIT_OPTIONS: { val: number | null; label: string }[] = [
+  { val: null, label: "Alle" },
+  { val: 20, label: "20" },
+  { val: 10, label: "10" },
+];
+
 const DAY_MS = 86400000;
 
 /** Consecutive calendar days (ending today or yesterday) with at least one completed session. */
@@ -145,13 +157,16 @@ export default function HomeScreen({
   linkingSubMode: LinkingSubMode;
   onLinkingSubModeChange: (mode: LinkingSubMode) => void;
   onStart: (mode: SessionMode, includeReview?: boolean, linkingSubMode?: LinkingSubMode) => void;
-  onReview: (mode: SessionMode) => void;
+  onReview: (mode: SessionMode, options?: ReviewOptions) => void;
   onSpeedRound: () => void;
   onGoal: () => void;
 }) {
   const store = useStore();
   const grammarStore = useGrammarStore();
   const [includeReview, setIncludeReview] = useState(true);
+  const [reviewMenuOpen, setReviewMenuOpen] = useState(false);
+  const [reviewMaxAccuracy, setReviewMaxAccuracy] = useState<number | null>(null);
+  const [reviewLimit, setReviewLimit] = useState<number | null>(null);
 
   const activeVocabTotal = useMemo(() => VOCAB.length - store.blockedWordIds.size, [store.blockedWordIds]);
 
@@ -290,6 +305,25 @@ export default function HomeScreen({
     const total = s.correct + s.almost + s.incorrect;
     return total ? Math.round((s.correct / total) * 100) : 0;
   }, [grammarStore.formatStats]);
+
+  // How many of the currently mastered words/rules pass the accuracy filter picked in the review
+  // dropdown — recomputed live as the filter changes so the dropdown always shows an accurate count.
+  const reviewMatchCount = useMemo(() => {
+    const belowThreshold = (score: number) => reviewMaxAccuracy === null || score * 20 < reviewMaxAccuracy;
+    let count = 0;
+    if (mode === "vocab" || mode === "mixed") {
+      Object.entries(store.words).forEach(([id, w]) => {
+        if (!store.blockedWordIds.has(id) && w.stage === 4 && belowThreshold(w.score)) count++;
+      });
+    }
+    if (mode === "grammar" || mode === "mixed") {
+      activeRules.forEach((r) => {
+        const s = grammarStore.rules[r.id];
+        if (s && s.stage === 4 && belowThreshold(s.score)) count++;
+      });
+    }
+    return count;
+  }, [mode, store.words, store.blockedWordIds, activeRules, grammarStore.rules, reviewMaxAccuracy]);
 
   const active = MODES.find((m) => m.val === mode)!;
   const progressPct = stats.total ? Math.round((stats.learned / stats.total) * 100) : 0;
@@ -545,12 +579,62 @@ export default function HomeScreen({
 
       <div className="sticky bottom-0 pt-4 pb-2 -mx-5 px-5 bg-gradient-to-t from-bg from-65% to-transparent flex flex-col gap-2 lg:flex-row lg:gap-3">
         {mode !== "writing" && mode !== "linking" && mode !== "reading" && stats.learned > 0 && (
-          <button
-            onClick={() => onReview(mode)}
-            className="w-full lg:flex-1 rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:-translate-y-0.5 text-ink font-semibold py-3 text-[14px] transition-all active:scale-[0.97]"
-          >
-            Gelerntes wiederholen ({stats.learned})
-          </button>
+          <div className="relative w-full lg:flex-1">
+            {reviewMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setReviewMenuOpen(false)} />
+                <div className="absolute bottom-full mb-2 left-0 right-0 z-20 bg-card border border-line-soft rounded-2xl p-3.5 shadow-[0_-10px_30px_-10px_rgba(15,23,42,0.25)] animate-fade-in">
+                  <div className="text-[12px] font-semibold text-ink-soft mb-1.5">Wie gut gekonnt?</div>
+                  <div className="flex gap-1.5 mb-3">
+                    {REVIEW_ACCURACY_OPTIONS.map((o) => (
+                      <button
+                        key={String(o.val)}
+                        onClick={() => setReviewMaxAccuracy(o.val)}
+                        className={
+                          "flex-1 text-[12.5px] font-semibold px-2 py-1.5 rounded-full border transition-colors " +
+                          (reviewMaxAccuracy === o.val ? "bg-ink text-white border-ink" : "border-line bg-bg text-ink-soft hover:bg-line-soft")
+                        }
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="text-[12px] font-semibold text-ink-soft mb-1.5">Wie viele?</div>
+                  <div className="flex gap-1.5 mb-3.5">
+                    {REVIEW_LIMIT_OPTIONS.map((o) => (
+                      <button
+                        key={String(o.val)}
+                        onClick={() => setReviewLimit(o.val)}
+                        className={
+                          "flex-1 text-[12.5px] font-semibold px-2 py-1.5 rounded-full border transition-colors " +
+                          (reviewLimit === o.val ? "bg-ink text-white border-ink" : "border-line bg-bg text-ink-soft hover:bg-line-soft")
+                        }
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setReviewMenuOpen(false);
+                      onReview(mode, { maxAccuracy: reviewMaxAccuracy, limit: reviewLimit });
+                    }}
+                    disabled={reviewMatchCount === 0}
+                    className="w-full rounded-full bg-gradient-to-r from-blue to-blue-dark hover:brightness-110 disabled:opacity-40 disabled:pointer-events-none text-white font-semibold py-2.5 text-[13.5px] transition-all active:scale-[0.97]"
+                  >
+                    Wiederholung starten ({reviewMatchCount})
+                  </button>
+                </div>
+              </>
+            )}
+            <button
+              onClick={() => setReviewMenuOpen((v) => !v)}
+              className="w-full rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:-translate-y-0.5 text-ink font-semibold py-3 text-[14px] transition-all active:scale-[0.97] flex items-center justify-center gap-1.5"
+            >
+              Gelerntes wiederholen ({stats.learned})
+              <ChevronUp size={14} className={"transition-transform " + (reviewMenuOpen ? "rotate-180" : "")} />
+            </button>
+          </div>
         )}
         {mode === "vocab" && vocabStats.learned > 0 && (
           <button

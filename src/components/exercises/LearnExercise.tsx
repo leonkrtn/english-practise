@@ -23,7 +23,7 @@ export default function LearnExercise({ item, onAnswered, onNext }: ExerciseProp
         <ContextNote word={word} />
       </div>
       <div className="mt-4">
-        <PrimaryButton onClick={acknowledge}>
+        <PrimaryButton onClick={acknowledge} autoFocus>
           Verstanden, weiter
           <ArrowRight size={16} />
         </PrimaryButton>
