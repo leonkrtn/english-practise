@@ -5,27 +5,31 @@ import { choice } from "@/lib/utils";
 import { FeedbackPanel, useLetterShortcuts } from "@/components/exercises/shared";
 import { CategoryBadge, type GrammarExerciseProps } from "./shared";
 
-export default function GrammarMcExercise({ rule, onAnswered, onNext }: GrammarExerciseProps) {
-  const variant = useMemo(() => choice(rule.mc), [rule]);
+/** Meaning-first recognition: two similar, both-grammatical sentences, but only one actually fits
+ * the described situation — tests when to use a rule, not just how to form it correctly. */
+export default function GrammarSituationExercise({ rule, onAnswered, onNext }: GrammarExerciseProps) {
+  const variant = useMemo(() => choice(rule.situation), [rule]);
+  const options = [variant.optionA, variant.optionB];
   const [chosen, setChosen] = useState<number | null>(null);
 
   function select(i: number) {
     if (chosen !== null) return;
     setChosen(i);
     const isCorrect = i === variant.correctIndex;
-    onAnswered([{ ruleId: rule.id, format: "g-mc", result: isCorrect ? "correct" : "incorrect", errorType: isCorrect ? null : "wrong", hintsUsed: 0 }]);
+    onAnswered([{ ruleId: rule.id, format: "g-situation", result: isCorrect ? "correct" : "incorrect", errorType: isCorrect ? null : "wrong", hintsUsed: 0 }]);
   }
 
-  useLetterShortcuts(variant.options.length, select, chosen !== null);
+  useLetterShortcuts(options.length, select, chosen !== null);
 
   const result = chosen === null ? null : chosen === variant.correctIndex ? "correct" : "incorrect";
 
   return (
     <>
       <CategoryBadge category={rule.category} />
-      <div className="text-[15px] text-ink mb-3 font-medium">{variant.prompt}</div>
+      <div className="text-[13.5px] text-ink-faint mb-1">Which sentence fits this situation?</div>
+      <div className="text-[15px] text-ink mb-3 font-medium leading-relaxed">{variant.situation}</div>
       <div className="flex flex-col gap-2 mt-1">
-        {variant.options.map((o, i) => {
+        {options.map((o, i) => {
           let cls = "border-line bg-card hover:border-purple/40 hover:bg-purple-light hover:-translate-y-0.5 hover:shadow-md";
           let keyCls = "border-line text-ink-faint bg-bg";
           if (chosen !== null) {

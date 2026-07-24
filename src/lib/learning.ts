@@ -1,14 +1,27 @@
-import { activeVocab, type Word } from "./vocab";
-import { sample, shuffle } from "./utils";
+import { activeVocab, CONFUSABLE_PAIRS, type Word } from "./vocab";
+import { choice, sample, shuffle } from "./utils";
 import type { AnswerResultKind, LearningStage, WordState } from "./types";
 import { pickDirection, type QueueItem } from "./sessionLogic";
 
 export type StageKind = "learn" | "quiz" | "match" | "apply" | "produce" | "review";
 
+/** Every exercise format a mastered word can resurface as during long-term review — deliberately
+ * wider than the single fixed "translate" format used before, so words you've known for months
+ * don't always show the exact same question. All self-generate their content from the word's own
+ * fields (no per-word authored variants needed), unlike the grammar rules' review formats. Left
+ * out of the quiz/apply gate that drives mastery itself, so that progression stays untouched. */
+export type ReviewFormat = "translate" | "build" | "mc" | "gap" | "multigap" | "confusable";
+const SINGLE_WORD_REVIEW_FORMATS: ReviewFormat[] = ["translate", "build", "mc", "gap"];
+export function pickReviewFormat(): ReviewFormat {
+  return choice(SINGLE_WORD_REVIEW_FORMATS);
+}
+
 export interface LearningQueueItem {
   kind: StageKind;
   words: Word[];
   direction: "en-de" | "de-en";
+  /** Only set when kind === "review" — which format to render this time (see ReviewFormat). */
+  reviewFormat?: ReviewFormat;
 }
 
 const KIND_TO_FORMAT: Record<StageKind, QueueItem["format"]> = {
@@ -21,8 +34,10 @@ const KIND_TO_FORMAT: Record<StageKind, QueueItem["format"]> = {
 };
 
 export function toQueueItem(item: LearningQueueItem): QueueItem {
-  const words = item.kind === "match" ? item.words : [item.words[0]];
-  return { format: KIND_TO_FORMAT[item.kind], words, direction: item.direction };
+  const multiWord = item.kind === "match" || item.reviewFormat === "multigap" || item.reviewFormat === "confusable";
+  const words = multiWord ? item.words : [item.words[0]];
+  const format: QueueItem["format"] = item.kind === "review" ? item.reviewFormat || "translate" : KIND_TO_FORMAT[item.kind];
+  return { format, words, direction: item.direction };
 }
 
 /** Sessions until a word resurfaces, indexed by consecutive successful long-term reviews. */
@@ -59,12 +74,16 @@ export function kindForStage(stage: LearningStage): Exclude<StageKind, "match" |
 export const APPLY_REQUIRED_STREAK = 2;
 
 /**
- * Typed production (Schreiben / long-term review) always shows German and asks for English —
- * you never have to type German, only recognize it. Recognition tasks (MC) have no typing, so
- * they keep testing both directions for well-rounded comprehension.
+ * Typed production (Schreiben, and review's "translate" format) always shows German and asks for
+ * English — you never have to type German, only recognize it. Recognition tasks (MC) have no
+ * typing, so they keep testing both directions for well-rounded comprehension — including when MC
+ * shows up as a review format, so it doesn't lose the word2trans/gapsentence variety it has at the
+ * normal quiz stage. Build/gap/multigap/confusable ignore direction entirely, so it's irrelevant
+ * for those review formats.
  */
-export function directionForKind(kind: StageKind): "en-de" | "de-en" {
-  if (kind === "produce" || kind === "review") return "de-en";
+export function directionForKind(kind: StageKind, reviewFormat?: ReviewFormat): "en-de" | "de-en" {
+  if (kind === "produce") return "de-en";
+  if (kind === "review") return reviewFormat && reviewFormat !== "translate" ? pickDirection("mixed") : "de-en";
   return pickDirection("mixed");
 }
 
@@ -161,7 +180,33 @@ export function buildInitialQueue(batch: LearningBatch, getState: (id: string) =
   const { groups, remaining } = popMatchGroups(shuffle(quizWords));
   groups.forEach((group) => items.push({ kind: "match", words: group, direction: directionForKind("match") }));
 
-  batch.reviewWords.forEach((word) => items.push({ kind: "review", words: [word], direction: directionForKind("review") }));
+  // Review-due words get varied formats instead of always "translate": at most one confusable
+  // pair per session (only when BOTH pair members are already mastered, so whichever one gets
+  // quizzed has a valid stage to transition from), the rest occasionally grouped into multigap
+  // pairs, and otherwise a random single-word format — see pickReviewFormat().
+  const reviewPool = shuffle(batch.reviewWords.slice());
+  const usedIds = new Set<string>();
+  for (const [a, b] of CONFUSABLE_PAIRS) {
+    if (usedIds.has(a.id) || usedIds.has(b.id)) continue;
+    const aIsDue = reviewPool.some((w) => w.id === a.id);
+    const bIsDue = reviewPool.some((w) => w.id === b.id);
+    if (!aIsDue && !bIsDue) continue;
+    if (getState(a.id).stage !== 4 || getState(b.id).stage !== 4) continue;
+    items.push({ kind: "review", words: [a, b], direction: directionForKind("review", "confusable"), reviewFormat: "confusable" });
+    usedIds.add(a.id);
+    usedIds.add(b.id);
+    break;
+  }
+
+  const remainingReview = reviewPool.filter((w) => !usedIds.has(w.id));
+  while (remainingReview.length >= 2 && Math.random() < 0.35) {
+    const pairWords = [remainingReview.shift()!, remainingReview.shift()!];
+    items.push({ kind: "review", words: pairWords, direction: directionForKind("review", "multigap"), reviewFormat: "multigap" });
+  }
+  remainingReview.forEach((word) => {
+    const fmt = pickReviewFormat();
+    items.push({ kind: "review", words: [word], direction: directionForKind("review", fmt), reviewFormat: fmt });
+  });
 
   return { queue: shuffle(items), matchPool: remaining };
 }

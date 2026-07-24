@@ -5,15 +5,18 @@ import { choice } from "@/lib/utils";
 import { FeedbackPanel, useLetterShortcuts } from "@/components/exercises/shared";
 import { CategoryBadge, type GrammarExerciseProps } from "./shared";
 
-export default function GrammarMcExercise({ rule, onAnswered, onNext }: GrammarExerciseProps) {
-  const variant = useMemo(() => choice(rule.mc), [rule]);
+/** Cloze multiple choice: same sentence-with-a-blank idea as Gap, but recognition (pick the right
+ * form from options) instead of typing — a different cognitive task testing the same rule. */
+export default function GrammarConjugateExercise({ rule, onAnswered, onNext }: GrammarExerciseProps) {
+  const variant = useMemo(() => choice(rule.conjugate), [rule]);
   const [chosen, setChosen] = useState<number | null>(null);
+  const [before, after] = variant.template.split("___");
 
   function select(i: number) {
     if (chosen !== null) return;
     setChosen(i);
     const isCorrect = i === variant.correctIndex;
-    onAnswered([{ ruleId: rule.id, format: "g-mc", result: isCorrect ? "correct" : "incorrect", errorType: isCorrect ? null : "wrong", hintsUsed: 0 }]);
+    onAnswered([{ ruleId: rule.id, format: "g-conjugate", result: isCorrect ? "correct" : "incorrect", errorType: isCorrect ? null : "wrong", hintsUsed: 0 }]);
   }
 
   useLetterShortcuts(variant.options.length, select, chosen !== null);
@@ -23,7 +26,14 @@ export default function GrammarMcExercise({ rule, onAnswered, onNext }: GrammarE
   return (
     <>
       <CategoryBadge category={rule.category} />
-      <div className="text-[15px] text-ink mb-3 font-medium">{variant.prompt}</div>
+      <div className="text-[13.5px] text-ink-faint mb-3">Choose the correct form</div>
+      <div className="text-[16px] leading-relaxed mb-3">
+        {before}
+        <span className="inline-block min-w-[70px] border-b-2 border-purple text-purple font-semibold text-center">
+          {result ? variant.options[variant.correctIndex] : "____"}
+        </span>
+        {after}
+      </div>
       <div className="flex flex-col gap-2 mt-1">
         {variant.options.map((o, i) => {
           let cls = "border-line bg-card hover:border-purple/40 hover:bg-purple-light hover:-translate-y-0.5 hover:shadow-md";
@@ -56,7 +66,7 @@ export default function GrammarMcExercise({ rule, onAnswered, onNext }: GrammarE
       </div>
       {result && (
         <FeedbackPanel result={result} onContinue={onNext}>
-          {rule.explanation}
+          {variant.hint} {rule.explanation}
         </FeedbackPanel>
       )}
     </>

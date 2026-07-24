@@ -1,13 +1,25 @@
 import { GRAMMAR_RULES, type GrammarRule } from "./grammar-data";
-import { sample, shuffle } from "./utils";
+import { choice, sample, shuffle } from "./utils";
 import type { AnswerResultKind, LearningStage } from "./types";
 import type { GrammarRuleState } from "./grammarTypes";
 
 export type GrammarStageKind = "learn" | "quiz" | "apply" | "produce" | "review";
 
+/** Every exercise format a mastered rule can resurface as during long-term review — deliberately
+ * wider than the single fixed "g-error" format review used before, so a rule you've known for
+ * months doesn't always show the exact same question. Left out of the quiz/apply/produce gate
+ * that drives mastery itself, so that carefully-tuned progression stays untouched. */
+export type GrammarReviewFormat = "g-error" | "g-mc" | "g-gap" | "g-build" | "g-conjugate" | "g-translate" | "g-transform" | "g-situation";
+const REVIEW_FORMATS: GrammarReviewFormat[] = ["g-error", "g-mc", "g-gap", "g-build", "g-conjugate", "g-translate", "g-transform", "g-situation"];
+export function pickReviewFormat(): GrammarReviewFormat {
+  return choice(REVIEW_FORMATS);
+}
+
 export interface GrammarQueueItem {
   kind: GrammarStageKind;
   rule: GrammarRule;
+  /** Only set when kind === "review" — which of the REVIEW_FORMATS to render this time. */
+  reviewFormat?: GrammarReviewFormat;
 }
 
 /** Maps each stage to the exercise format that tests it, mirroring the vocab engine's one-format-per-stage design. */
@@ -95,7 +107,7 @@ export function buildGrammarBatch(
 
 export function buildGrammarQueue(batch: GrammarBatch, getState: (id: string) => GrammarRuleState): GrammarQueueItem[] {
   const items: GrammarQueueItem[] = batch.activeRules.map((rule) => ({ kind: grammarKindForStage(getState(rule.id).stage), rule }));
-  batch.reviewRules.forEach((rule) => items.push({ kind: "review", rule }));
+  batch.reviewRules.forEach((rule) => items.push({ kind: "review", rule, reviewFormat: pickReviewFormat() }));
   return shuffle(items);
 }
 

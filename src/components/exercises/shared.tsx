@@ -47,6 +47,43 @@ export function useHintShortcut(onTrigger: () => void, disabled: boolean) {
   }, [onTrigger, disabled]);
 }
 
+/** Lets a desktop user build a word-order sentence without a mouse: 1–9 places the Nth
+ * still-available tile (in the order shown, same idea as A–D for multiple choice), Backspace
+ * removes the most recently placed tile, and Enter checks the answer once every tile is placed.
+ * Ignored once answered. */
+export function useTileShortcuts(
+  availableCount: number,
+  onPick: (index: number) => void,
+  onUndo: () => void,
+  onSubmit: () => void,
+  canSubmit: boolean,
+  disabled: boolean
+) {
+  useEffect(() => {
+    if (disabled) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "Backspace") {
+        e.preventDefault();
+        onUndo();
+        return;
+      }
+      if (e.key === "Enter") {
+        if (!canSubmit) return;
+        e.preventDefault();
+        onSubmit();
+        return;
+      }
+      const num = Number(e.key);
+      if (!Number.isInteger(num) || num < 1 || num > 9 || num > availableCount) return;
+      e.preventDefault();
+      onPick(num - 1);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [availableCount, onPick, onUndo, onSubmit, canSubmit, disabled]);
+}
+
 /** Renders a sentence with the target word's occurrence in bold — used everywhere a full English
  * sentence appears in a solution explanation, so the word being learned always stands out. */
 export function boldenWord(sentence: string, word: Word): React.ReactNode {

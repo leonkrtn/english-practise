@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { levenshtein, normalize, shuffle } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
-import { Badge, ContextNote, FeedbackPanel, ExerciseFooter, HintButton, PrimaryButton, DetailRow, boldenWord } from "./shared";
+import { Badge, ContextNote, FeedbackPanel, ExerciseFooter, HintButton, PrimaryButton, DetailRow, boldenWord, useTileShortcuts } from "./shared";
 import type { ExerciseProps } from "./types";
 
 interface Token {
@@ -45,6 +45,16 @@ export default function BuildExercise({ item, onAnswered, onNext }: ExerciseProp
   }
 
   const usedKeys = new Set(placed.map((p) => p.key));
+  const available = shuffled.filter((x) => !usedKeys.has(x.key));
+
+  useTileShortcuts(
+    available.length,
+    (i) => place(available[i]),
+    () => setPlaced((p) => p.slice(0, -1)),
+    () => check(false),
+    placed.length === shuffled.length,
+    !!result
+  );
 
   return (
     <>
@@ -65,19 +75,25 @@ export default function BuildExercise({ item, onAnswered, onNext }: ExerciseProp
         ))}
       </div>
       <div className="flex flex-wrap gap-2">
-        {shuffled.map((x) => (
-          <button
-            key={x.key}
-            onClick={() => place(x)}
-            disabled={usedKeys.has(x.key)}
-            className={
-              "border-[1.5px] border-line bg-card rounded-lg px-3.5 py-2 text-[14.5px] font-semibold select-none transition-all hover:border-blue/40 hover:bg-blue-lighter hover:-translate-y-0.5 hover:shadow-sm " +
-              (usedKeys.has(x.key) ? "opacity-30 pointer-events-none" : "")
-            }
-          >
-            {x.t}
-          </button>
-        ))}
+        {shuffled.map((x) => {
+          const availIdx = available.findIndex((a) => a.key === x.key);
+          return (
+            <button
+              key={x.key}
+              onClick={() => place(x)}
+              disabled={usedKeys.has(x.key)}
+              className={
+                "inline-flex items-center gap-1.5 border-[1.5px] border-line bg-card rounded-lg px-3.5 py-2 text-[14.5px] font-semibold select-none transition-all hover:border-blue/40 hover:bg-blue-lighter hover:-translate-y-0.5 hover:shadow-sm " +
+                (usedKeys.has(x.key) ? "opacity-30 pointer-events-none" : "")
+              }
+            >
+              {availIdx >= 0 && availIdx < 9 && (
+                <span className="text-[10px] font-mono bg-line-soft border border-line rounded px-1 text-ink-faint">{availIdx + 1}</span>
+              )}
+              {x.t}
+            </button>
+          );
+        })}
       </div>
       {!result && (
         <ExerciseFooter>

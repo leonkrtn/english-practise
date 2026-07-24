@@ -277,6 +277,79 @@ totals and category breakdowns. Toggled from the new Settings screen
 grouped by category for browsability, no bulk "block whole category"
 action (blocking is per-rule by design).
 
+## Grammar content depth & review variety
+
+The 25 rules stayed the same ("nicht mehr Themen, sondern mehr Inhalte") but
+each one went from a single hardcoded example of every exercise type to a
+pool of hand-written variants, plus four brand-new exercise types — aimed
+squarely at long-term review, which is where repetition hurt the most: a
+rule stays "mastered" and keeps resurfacing for months, but used to show
+the exact same gap-fill/MC/error/build sentence every single time.
+
+- **Schema** (`src/lib/grammar-data.ts`): `build`, `gap`, `mc`, and `error`
+  went from a single object to an array of variants (`BuildVariant[]`,
+  `GapVariant[]`, etc.) — 2–3 per rule, one kept from before plus new ones.
+  Every exercise component now does `useMemo(() => choice(rule.gap), [rule])`
+  (etc.) instead of reading the field directly, so each attempt picks a
+  random variant. `build`/`translate` reuse the rule's existing 3
+  `examples` directly (each example is already a real `{en, de}`
+  demonstration of the rule) — no separate authoring needed there.
+- **Four new exercise types**, each with 1–3 hand-written variants per
+  rule:
+  - `GrammarConjugateExercise` (`g-conjugate`, "Richtige Form") — a
+    cloze multiple choice: same fill-the-blank sentence as Gap, but pick
+    the right form from options instead of typing it, a different
+    cognitive task (recognition vs. recall) for the same rule.
+  - `GrammarTranslateExercise` (`g-translate`, "Satz übersetzen") — type
+    the full English translation of a German sentence; real production,
+    not just recognition. Graded like Sentence Building (normalized
+    Levenshtein distance), not the word-level `classifyAnswer` used for
+    single-word gaps.
+  - `GrammarTransformExercise` (`g-transform`, "Satz umschreiben") — the
+    most demanding format: given a source sentence and an instruction
+    (e.g. "rewrite in the passive"), type the rewritten sentence with no
+    option list to recognize from at all.
+  - `GrammarSituationExercise` (`g-situation`, "Situations-Auswahl") — two
+    similar, both grammatically valid sentences; pick the one that
+    actually fits a described situation. Tests *when* to use a rule, not
+    just how to form it — the two options for the Zero vs. First
+    Conditional pair, for instance, are both correct English, only one
+    fits the described context.
+- **Review-format rotation** (`grammarLearning.ts`): long-term review
+  (stage 4, "Wiederholung") no longer always renders `GrammarErrorExercise`
+  — `GrammarQueueItem` gained an optional `reviewFormat`, randomly chosen
+  from all 8 formats (`pickReviewFormat()`) every time a review item is
+  built, in both `buildGrammarQueue()` and `startReviewSession()`'s
+  "Gelerntes wiederholen" pool. `GrammarExerciseRouter` renders the right
+  component off `reviewFormat` while `kind` stays `"review"` throughout —
+  the mastery-gating state machine (`grammarNextAfterAnswer`) never
+  branches on which format was shown, only on `kind`, so this is purely a
+  presentation-layer change; the carefully-tuned quiz→apply→produce
+  progression that drives mastery itself is untouched.
+- Same idea on the Vocabulary side (`learning.ts`): stage-4 review used to
+  always be `TranslateExercise`. It's now a random pick among
+  translate/build/mc/gap (`pickReviewFormat()`), applied in both
+  `buildInitialQueue()` and `startReviewSession()`. These all self-generate
+  their content from the word's own fields already, so no new vocab data
+  was needed. Two previously-built-but-unused formats got wired in too:
+  **Fill Multiple Gaps** (occasionally batches 2 due review words into one
+  multigap round instead of 2 separate items) and **Similar Words**
+  (`CONFUSABLE_PAIRS` — only offered when *both* pair members are already
+  mastered, so whichever one the round happens to quiz has a valid stage
+  to transition from; at most one per session, kept as a spice rather than
+  a staple). `directionForKind()` now takes the chosen review format so MC
+  keeps testing both directions (word2trans/gapsentence/de2word) instead
+  of losing that variety whenever it's picked as a review format.
+
+## Number-key sentence building
+
+`useTileShortcuts` (`exercises/shared.tsx`) lets Sentence Building /
+Wortstellung tasks (`BuildExercise`, `GrammarBuildExercise`) be solved
+without a mouse: `1`–`9` places the Nth still-available word tile (in the
+order shown — small number badges appear on each unused tile, same idea as
+the A–D labels on multiple choice), `Backspace` removes the most recently
+placed tile, and `Enter` checks the answer once every tile is placed.
+
 ## Hint tracking
 
 Every Hint button click is now tracked per word (`word_progress.hints_used`,
@@ -887,6 +960,30 @@ Playwright script and inspecting the queue growth directly.
   the review dropdown and a body-focused `Enter` correctly starts a
   filtered review session — zero console errors throughout. `tsc
   --noEmit`, `eslint`, and a clean `next build` all pass.
+- 1–9 keyboard tile-picking (+ Backspace/Enter) on Sentence Building /
+  Wortstellung tasks — see the Number-key sentence building section above.
+  Substantially deeper Grammar content: `build`/`gap`/`mc`/`error` turned
+  into variant arrays (2–3 each, `build`/`translate` reusing the rule's own
+  `examples`), 4 new exercise types (Richtige Form, Satz übersetzen, Satz
+  umschreiben, Situations-Auswahl), and long-term review now rotates
+  randomly across all 8 formats instead of always showing "Fehler finden"
+  — see the Grammar content depth section above; the mastery-gating state
+  machine itself wasn't touched. Vocabulary review got the same rotation
+  (translate/build/mc/gap) plus occasional Fill-Multiple-Gaps pairing and
+  Similar-Words pairing (only once both pair members are already
+  mastered) — previously-built but unused formats now actually show up.
+  A structural content check (every rule has every variant array
+  populated, every MC/conjugate/situation `correctIndex` is in range,
+  every gap template has a blank, every error `wrongWord` is a real single
+  token in its sentence) caught and fixed 2 multi-word `wrongWord` values
+  that would never have matched the single-token tap mechanic. Verified
+  with Playwright against a mocked Supabase backend: sampled 8 fresh
+  Grammar review sessions and observed 3+ distinct new formats rendering
+  correctly (situation, conjugate, translate all confirmed visually), and
+  confirmed pressing `1` then `1` again on a Sentence Building screen
+  correctly places the first two available tiles in order — zero console
+  errors throughout. `tsc --noEmit`, `eslint`, and a clean `next build`
+  all pass.
 
 **Needs a one-time manual step (couldn't be automated — no SQL/DDL or Auth
 config access from this session's tools):**

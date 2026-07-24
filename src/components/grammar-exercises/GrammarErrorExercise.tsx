@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { choice } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
 import { FeedbackPanel } from "@/components/exercises/shared";
 import { CategoryBadge, type GrammarExerciseProps } from "./shared";
@@ -10,19 +11,20 @@ function stripPunct(s: string): string {
 }
 
 export default function GrammarErrorExercise({ rule, onAnswered, onNext }: GrammarExerciseProps) {
-  const tokens = useMemo(() => rule.error.sentence.split(/\s+/), [rule.error.sentence]);
+  const variant = useMemo(() => choice(rule.error), [rule]);
+  const tokens = useMemo(() => variant.sentence.split(/\s+/), [variant]);
   const [chosen, setChosen] = useState<number | null>(null);
 
   function select(i: number) {
     if (chosen !== null) return;
     setChosen(i);
-    const isCorrect = stripPunct(tokens[i]) === stripPunct(rule.error.wrongWord);
+    const isCorrect = stripPunct(tokens[i]) === stripPunct(variant.wrongWord);
     onAnswered([
       { ruleId: rule.id, format: "g-error", result: isCorrect ? "correct" : "incorrect", errorType: isCorrect ? null : "wrong", hintsUsed: 0 },
     ]);
   }
 
-  const correctIdx = tokens.findIndex((t) => stripPunct(t) === stripPunct(rule.error.wrongWord));
+  const correctIdx = tokens.findIndex((t) => stripPunct(t) === stripPunct(variant.wrongWord));
   const result: AnswerResultKind | null = chosen === null ? null : chosen === correctIdx ? "correct" : "incorrect";
 
   return (
@@ -46,7 +48,7 @@ export default function GrammarErrorExercise({ rule, onAnswered, onNext }: Gramm
       {result && (
         <FeedbackPanel result={result} onContinue={onNext}>
           <div className="mb-1.5">
-            <b className="font-semibold text-ink">{rule.error.correctedSentence}</b>
+            <b className="font-semibold text-ink">{variant.correctedSentence}</b>
           </div>
           {rule.explanation}
         </FeedbackPanel>

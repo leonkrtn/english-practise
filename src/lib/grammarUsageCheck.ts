@@ -34,8 +34,12 @@ const CATEGORY_MARKERS: Record<string, string[]> = {
  * bitte prüfen"), not a hard pass/fail gate — unlike the required-word check, which is exact.
  */
 export function textLikelyUsesGrammar(text: string, rule: GrammarRule): boolean {
-  const marker = rule.gap.answer.toLowerCase();
-  if (marker.length > 2 && text.toLowerCase().includes(marker)) return true;
+  const lower = text.toLowerCase();
+  const hasAnswerMarker = rule.gap.some((g) => {
+    const marker = g.answer.toLowerCase();
+    return marker.length > 2 && lower.includes(marker);
+  });
+  if (hasAnswerMarker) return true;
   const fallback = CATEGORY_MARKERS[rule.category] || [];
   return fallback.some((m) => new RegExp("\\b" + escapeRegex(m.trim()), "i").test(text));
 }

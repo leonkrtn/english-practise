@@ -19,6 +19,7 @@ import {
   directionForKind,
   popMatchGroups,
   flushMatchPool,
+  pickReviewFormat as pickVocabReviewFormat,
   MAX_ATTEMPTS_PER_WORD,
   type LearningQueueItem,
 } from "@/lib/learning";
@@ -27,6 +28,7 @@ import {
   buildGrammarQueue,
   grammarNextAfterAnswer,
   grammarInsertionIndex,
+  pickReviewFormat,
   GRAMMAR_MAX_ATTEMPTS,
   type GrammarQueueItem,
 } from "@/lib/grammarLearning";
@@ -240,17 +242,16 @@ export default function AppShell() {
         mode === "vocab" || mode === "mixed"
           ? VOCAB.filter(
               (w) => !store.blockedWordIds.has(w.id) && store.wordState(w.id).stage === 4 && belowThreshold(store.wordState(w.id).score)
-            ).map((w) => ({
-              kind: "review" as const,
-              words: [w],
-              direction: directionForKind("review"),
-            }))
+            ).map((w) => {
+              const fmt = pickVocabReviewFormat();
+              return { kind: "review" as const, words: [w], direction: directionForKind("review", fmt), reviewFormat: fmt };
+            })
           : [];
       const grammarQueueItems: GrammarQueueItem[] =
         mode === "grammar" || mode === "mixed"
           ? GRAMMAR_RULES.filter(
               (r) => !grammarStore.blockedRuleIds.has(r.id) && grammarStore.ruleState(r.id).stage === 4 && belowThreshold(grammarStore.ruleState(r.id).score)
-            ).map((rule) => ({ kind: "review" as const, rule }))
+            ).map((rule) => ({ kind: "review" as const, rule, reviewFormat: pickReviewFormat() }))
           : [];
 
       let queue: UnifiedItem[] = shuffle([
@@ -1027,6 +1028,7 @@ export default function AppShell() {
             ) : (
               <GrammarExerciseRouter
                 kind={currentItem.item.kind}
+                reviewFormat={currentItem.item.reviewFormat}
                 rule={currentItem.item.rule}
                 onAnswered={currentItem.item.kind === "learn" ? onGrammarLearnAcknowledged : onGrammarAnswered}
                 onNext={currentItem.item.kind === "learn" ? NOOP : nextLearningQuestion}

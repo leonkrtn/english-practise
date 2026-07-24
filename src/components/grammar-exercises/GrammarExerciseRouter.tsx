@@ -1,14 +1,22 @@
 "use client";
 
-import type { GrammarStageKind } from "@/lib/grammarLearning";
+import type { GrammarStageKind, GrammarReviewFormat } from "@/lib/grammarLearning";
 import GrammarLearnExercise from "./GrammarLearnExercise";
 import GrammarMcExercise from "./GrammarMcExercise";
 import GrammarGapExercise from "./GrammarGapExercise";
 import GrammarBuildExercise from "./GrammarBuildExercise";
 import GrammarErrorExercise from "./GrammarErrorExercise";
+import GrammarConjugateExercise from "./GrammarConjugateExercise";
+import GrammarTranslateExercise from "./GrammarTranslateExercise";
+import GrammarTransformExercise from "./GrammarTransformExercise";
+import GrammarSituationExercise from "./GrammarSituationExercise";
 import type { GrammarExerciseProps } from "./shared";
 
-export default function GrammarExerciseRouter({ kind, ...props }: GrammarExerciseProps & { kind: GrammarStageKind }) {
+export default function GrammarExerciseRouter({
+  kind,
+  reviewFormat,
+  ...props
+}: GrammarExerciseProps & { kind: GrammarStageKind; reviewFormat?: GrammarReviewFormat }) {
   switch (kind) {
     case "learn":
       return <GrammarLearnExercise {...props} />;
@@ -19,6 +27,23 @@ export default function GrammarExerciseRouter({ kind, ...props }: GrammarExercis
     case "produce":
       return <GrammarBuildExercise {...props} />;
     case "review":
-      return <GrammarErrorExercise {...props} />;
+      switch (reviewFormat) {
+        case "g-mc":
+          return <GrammarMcExercise {...props} />;
+        case "g-gap":
+          return <GrammarGapExercise {...props} />;
+        case "g-build":
+          return <GrammarBuildExercise {...props} />;
+        case "g-conjugate":
+          return <GrammarConjugateExercise {...props} />;
+        case "g-translate":
+          return <GrammarTranslateExercise {...props} />;
+        case "g-transform":
+          return <GrammarTransformExercise {...props} />;
+        case "g-situation":
+          return <GrammarSituationExercise {...props} />;
+        default:
+          return <GrammarErrorExercise {...props} />;
+      }
   }
 }
