@@ -22,7 +22,7 @@ export interface GrammarQueueItem {
   reviewFormat?: GrammarReviewFormat;
 }
 
-/** Maps each stage to the exercise format that tests it, mirroring the vocab engine's one-format-per-stage design. */
+/** Maps each task type to the exercise format that tests it. */
 const KIND_TO_FORMAT: Record<GrammarStageKind, string> = {
   learn: "g-learn",
   quiz: "g-mc",
@@ -35,18 +35,26 @@ export function grammarFormatFor(kind: GrammarStageKind): string {
   return KIND_TO_FORMAT[kind];
 }
 
-export function grammarKindForStage(stage: LearningStage): Exclude<GrammarStageKind, "review"> {
-  switch (stage) {
-    case 0:
-      return "learn";
-    case 1:
-      return "quiz";
-    case 2:
-      return "apply";
-    default:
-      return "produce";
-  }
+const GRAMMAR_ACTIVE_KINDS: Exclude<GrammarStageKind, "learn" | "review">[] = ["quiz", "apply", "produce"];
+
+/**
+ * Which task type to test a rule with. Stage 0 (the very first encounter) is always "learn" —
+ * everything past that picks a random format each time instead of one fixed type per stage, so a
+ * rule doesn't always get tested the same way as it climbs toward mastery. Progression itself
+ * still tracks the rule's real persisted stage (see grammarNextAfterAnswer) — only which format
+ * is shown is randomized.
+ */
+export function pickGrammarKindForStage(stage: LearningStage): Exclude<GrammarStageKind, "review"> {
+  if (stage === 0) return "learn";
+  return choice(GRAMMAR_ACTIVE_KINDS);
 }
+
+/**
+ * How many *consecutive* correct active-learning answers a rule needs at the final pre-mastery
+ * stage before it's trusted as mastered — mirrors the vocab engine's APPLY_REQUIRED_STREAK, so a
+ * single lucky correct answer doesn't promote a rule to mastery on its own.
+ */
+export const GRAMMAR_MASTERY_REQUIRED_STREAK = 3;
 
 const REVIEW_INTERVALS = [2, 3, 5, 8, 13, 21];
 export function grammarReviewInterval(streak: number): number {
@@ -106,7 +114,7 @@ export function buildGrammarBatch(
 }
 
 export function buildGrammarQueue(batch: GrammarBatch, getState: (id: string) => GrammarRuleState): GrammarQueueItem[] {
-  const items: GrammarQueueItem[] = batch.activeRules.map((rule) => ({ kind: grammarKindForStage(getState(rule.id).stage), rule }));
+  const items: GrammarQueueItem[] = batch.activeRules.map((rule) => ({ kind: pickGrammarKindForStage(getState(rule.id).stage), rule }));
   batch.reviewRules.forEach((rule) => items.push({ kind: "review", rule, reviewFormat: pickReviewFormat() }));
   return shuffle(items);
 }
@@ -118,36 +126,53 @@ export interface GrammarStageOutcome {
   nextKind: GrammarStageKind | null;
 }
 
+/**
+ * Computes a rule's next learning stage after an answer, and which task (if any) should follow
+ * up later in the same session. `currentStage` is the rule's actual persisted stage — since the
+ * task format shown (`kind`) is now picked randomly rather than implied by the stage (see
+ * pickGrammarKindForStage), progression has to read the real stage instead of inferring it from
+ * which format happened to be tested this time.
+ */
 export function grammarNextAfterAnswer(
   kind: GrammarStageKind,
+  currentStage: LearningStage,
   reviewStreak: number,
   result: AnswerResultKind,
   totalPracticeSessions: number
 ): GrammarStageOutcome {
   if (kind === "learn") {
-    return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: "quiz" };
+    return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: pickGrammarKindForStage(1) };
   }
   if (kind === "review") {
     if (result === "correct") {
       const rs = reviewStreak + 1;
       return { stage: 4, reviewStreak: rs, dueAtSession: totalPracticeSessions + grammarReviewInterval(rs), nextKind: null };
     }
-    return { stage: 3, reviewStreak: 0, dueAtSession: null, nextKind: "produce" };
+    // Forgetting a mastered rule sends it all the way back to the bottom of active learning, not
+    // straight to "produce" — re-earning mastery means climbing the whole ladder again, not one
+    // lucky sentence.
+    return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: pickGrammarKindForStage(1) };
   }
 
-  const taskStage: Record<"quiz" | "apply" | "produce", LearningStage> = { quiz: 1, apply: 2, produce: 3 };
-  const current = taskStage[kind];
-
+  // Active learning — quiz/apply/produce. The format shown no longer implies the stage, so
+  // promotion and demotion both key off the rule's real persisted stage.
   if (result === "correct") {
-    const newStage = (current + 1) as LearningStage;
-    if (newStage >= 4) {
-      return { stage: 4, reviewStreak: 0, dueAtSession: totalPracticeSessions + grammarReviewInterval(0), nextKind: null };
+    if (currentStage >= 3) {
+      // Final step before mastery: needs GRAMMAR_MASTERY_REQUIRED_STREAK consecutive correct
+      // answers, reusing the reviewStreak field as that counter.
+      const streak = reviewStreak + 1;
+      if (streak >= GRAMMAR_MASTERY_REQUIRED_STREAK) {
+        return { stage: 4, reviewStreak: 0, dueAtSession: totalPracticeSessions + grammarReviewInterval(0), nextKind: null };
+      }
+      return { stage: 3, reviewStreak: streak, dueAtSession: null, nextKind: pickGrammarKindForStage(3) };
     }
-    return { stage: newStage, reviewStreak: 0, dueAtSession: null, nextKind: grammarKindForStage(newStage) };
+    const newStage = (currentStage + 1) as LearningStage;
+    return { stage: newStage, reviewStreak: 0, dueAtSession: null, nextKind: pickGrammarKindForStage(newStage) };
   }
 
-  const newStage = Math.max(1, current - 1) as LearningStage;
-  return { stage: newStage, reviewStreak: 0, dueAtSession: null, nextKind: grammarKindForStage(newStage) };
+  // Any wrong active-learning answer knocks the rule straight back to stage 1 — no partial
+  // credit for progress already made, regardless of which stage it fell at.
+  return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: pickGrammarKindForStage(1) };
 }
 
 /** Where in the (growing) queue a follow-up task should be inserted — same spacing rule as the vocab engine. */

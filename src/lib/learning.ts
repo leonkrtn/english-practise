@@ -47,31 +47,27 @@ export function reviewInterval(streak: number): number {
   return REVIEW_INTERVALS[Math.min(Math.max(streak, 0), REVIEW_INTERVALS.length - 1)];
 }
 
-export function kindForStage(stage: LearningStage): Exclude<StageKind, "match" | "review" | "produce"> {
-  switch (stage) {
-    case 0:
-      return "learn";
-    case 1:
-      return "quiz";
-    default:
-      // "apply" is the final active-learning gate before mastery — see APPLY_REQUIRED_STREAK
-      // below for why one correct answer here isn't enough on its own. Also the graceful
-      // landing spot for any word a previous version of the app already left sitting at stage 3
-      // (the old "produce"/write-a-full-sentence stage, since removed as a vocabulary task).
-      return "apply";
-  }
+const ACTIVE_KINDS: Exclude<StageKind, "learn" | "review" | "match" | "produce">[] = ["quiz", "apply"];
+
+/**
+ * Which task type to test a word with. Stage 0 (the very first encounter) is always "learn" —
+ * everything past that picks a random format each time instead of one fixed type being tied to
+ * a given stage, so a word doesn't always get quizzed the same way as it climbs toward mastery.
+ * Progression itself still tracks the word's real persisted stage (see nextAfterAnswer) — only
+ * which format is shown is randomized.
+ */
+export function pickKindForStage(stage: LearningStage): Exclude<StageKind, "match" | "review"> {
+  if (stage === 0) return "learn";
+  return choice(ACTIVE_KINDS);
 }
 
 /**
- * How many *consecutive* correct "apply" (Einbauen) answers a word needs before it's trusted as
- * mastered. Removing the old "produce" (write-a-full-sentence) stage shortened the path to
- * "gelernt" from 3 real tests (quiz, apply, produce) down to 2 (quiz, apply) — words were being
- * marked known noticeably too fast. Requiring apply to be answered correctly twice (spaced apart
- * within the session, not back-to-back, via insertionIndex) restores that lost rigor without
- * bringing back a free-writing task: a single lucky/careless correct answer no longer promotes a
- * word to mastery on its own, but repeating the whole "produce" stage type wasn't needed either.
+ * How many *consecutive* correct active-learning answers a word needs at the final pre-mastery
+ * stage before it's trusted as mastered. A single lucky/careless correct answer no longer
+ * promotes a word to mastery on its own — it has to hold up across several (spaced apart within
+ * the session, not back-to-back, via insertionIndex).
  */
-export const APPLY_REQUIRED_STREAK = 2;
+export const APPLY_REQUIRED_STREAK = 3;
 
 /**
  * Typed production (Schreiben, and review's "translate" format) always shows German and asks for
@@ -172,7 +168,7 @@ export function buildInitialQueue(batch: LearningBatch, getState: (id: string) =
   const items: LearningQueueItem[] = [];
 
   batch.activeWords.forEach((word) => {
-    const kind = kindForStage(getState(word.id).stage);
+    const kind = pickKindForStage(getState(word.id).stage);
     if (kind === "quiz") quizWords.push(word);
     else items.push({ kind, words: [word], direction: directionForKind(kind) });
   });
@@ -218,62 +214,55 @@ export interface StageOutcome {
   nextKind: StageKind | null;
 }
 
-/** Computes a word's next learning stage after an answer, and which task (if any) should follow up later in the same session. */
+/**
+ * Computes a word's next learning stage after an answer, and which task (if any) should follow
+ * up later in the same session. `currentStage` is the word's actual persisted stage — since the
+ * task format shown (`kind`) is now picked randomly rather than implied by the stage (see
+ * pickKindForStage), progression has to read the real stage instead of inferring it from which
+ * format happened to be tested this time.
+ */
 export function nextAfterAnswer(
   kind: StageKind,
+  currentStage: LearningStage,
   reviewStreak: number,
   result: AnswerResultKind,
   totalPracticeSessions: number
 ): StageOutcome {
   if (kind === "learn") {
-    return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: "quiz" };
+    return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: pickKindForStage(1) };
   }
   if (kind === "review") {
     if (result === "correct") {
       const rs = reviewStreak + 1;
       return { stage: 4, reviewStreak: rs, dueAtSession: totalPracticeSessions + reviewInterval(rs), nextKind: null };
     }
-    // A failed long-term review demotes back to the "apply" gate rather than the old
-    // "produce"/write-a-full-sentence stage, since that's no longer part of the vocab pipeline.
-    return { stage: 2, reviewStreak: 0, dueAtSession: null, nextKind: "apply" };
+    // Forgetting a mastered word sends it all the way back to the bottom of active learning, not
+    // partway back in — re-earning mastery means climbing the whole ladder again, not one quick
+    // reconfirmation.
+    return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: pickKindForStage(1) };
   }
 
-  if (kind === "apply") {
-    // Needs APPLY_REQUIRED_STREAK consecutive correct answers before promoting to mastery —
-    // reuses the reviewStreak field as that counter (otherwise unused below stage 4). Any
-    // failure resets the streak and demotes all the way back to "quiz", same severity as before
-    // this stage existed, so a careless slip doesn't just cost one extra rep.
-    if (result === "correct") {
+  // Active learning — quiz/match/apply (and any stray legacy "produce" item left in-flight from
+  // before that stage was removed). The format shown no longer implies the stage, so promotion
+  // and demotion both key off the word's real persisted stage.
+  if (result === "correct") {
+    if (currentStage >= 3) {
+      // Final step before mastery: needs APPLY_REQUIRED_STREAK consecutive correct answers,
+      // reusing the reviewStreak field as that counter. A single correct answer here no longer
+      // promotes to mastery on its own.
       const streak = reviewStreak + 1;
       if (streak >= APPLY_REQUIRED_STREAK) {
         return { stage: 4, reviewStreak: 0, dueAtSession: totalPracticeSessions + reviewInterval(0), nextKind: null };
       }
-      return { stage: 2, reviewStreak: streak, dueAtSession: null, nextKind: "apply" };
+      return { stage: 3, reviewStreak: streak, dueAtSession: null, nextKind: pickKindForStage(3) };
     }
-    return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: "quiz" };
+    const newStage = (currentStage + 1) as LearningStage;
+    return { stage: newStage, reviewStreak: 0, dueAtSession: null, nextKind: pickKindForStage(newStage) };
   }
 
-  if (kind === "produce") {
-    // No longer produced by kindForStage — kept only so a stray in-flight queue item from before
-    // this stage was removed (a session already open in a browser tab during deploy) still
-    // resolves to something instead of crashing.
-    if (result === "correct") {
-      return { stage: 4, reviewStreak: 0, dueAtSession: totalPracticeSessions + reviewInterval(0), nextKind: null };
-    }
-    return { stage: 2, reviewStreak: 0, dueAtSession: null, nextKind: "apply" };
-  }
-
-  // "match" is a group-testing variant of "quiz" — same stage-transition rules apply.
-  const taskStage: Record<"quiz" | "match", LearningStage> = { quiz: 1, match: 1 };
-  const current = taskStage[kind];
-
-  if (result === "correct") {
-    const newStage = (current + 1) as LearningStage;
-    return { stage: newStage, reviewStreak: 0, dueAtSession: null, nextKind: kindForStage(newStage) };
-  }
-
-  const newStage = Math.max(1, current - 1) as LearningStage;
-  return { stage: newStage, reviewStreak: 0, dueAtSession: null, nextKind: kindForStage(newStage) };
+  // Any wrong active-learning answer knocks the word straight back to stage 1 — no partial
+  // credit for progress already made, regardless of which stage it fell at.
+  return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: pickKindForStage(1) };
 }
 
 /** Where in the (growing) queue a follow-up task should be inserted — a few items ahead, never right next, so repeats are spaced out. */

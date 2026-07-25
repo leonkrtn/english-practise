@@ -543,8 +543,8 @@ export default function AppShell() {
         const word = item.words.find((w) => w.id === entry.wordId);
         if (!word) return;
         const key = "v:" + entry.wordId;
-        const priorReviewStreak = store.wordState(entry.wordId).reviewStreak;
-        const outcome = nextAfterAnswer(item.kind, priorReviewStreak, entry.result, store.totalPracticeSessions);
+        const priorState = store.wordState(entry.wordId);
+        const outcome = nextAfterAnswer(item.kind, priorState.stage, priorState.reviewStreak, entry.result, store.totalPracticeSessions);
 
         store.setLearningStage(entry.wordId, outcome.stage, outcome.reviewStreak, outcome.dueAtSession);
         store.updateWord(entry.wordId, entry.result, entry.hintsUsed);
@@ -589,8 +589,8 @@ export default function AppShell() {
 
       entries.forEach((entry) => {
         const key = "g:" + entry.ruleId;
-        const priorReviewStreak = grammarStore.ruleState(entry.ruleId).reviewStreak;
-        const outcome = grammarNextAfterAnswer(item.kind, priorReviewStreak, entry.result, grammarStore.totalPracticeSessions);
+        const priorState = grammarStore.ruleState(entry.ruleId);
+        const outcome = grammarNextAfterAnswer(item.kind, priorState.stage, priorState.reviewStreak, entry.result, grammarStore.totalPracticeSessions);
 
         grammarStore.setLearningStage(entry.ruleId, outcome.stage, outcome.reviewStreak, outcome.dueAtSession);
         grammarStore.updateRule(entry.ruleId, entry.result, entry.hintsUsed);
