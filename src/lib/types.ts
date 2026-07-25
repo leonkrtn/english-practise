@@ -61,6 +61,18 @@ export interface SessionRecord {
   format: string;
 }
 
+/** One completed graded test. Kept apart from SessionRecord because a test is scored on the
+ * Portuguese 0-20 scale and deliberately leaves the learning stages untouched. */
+export interface TestRecord {
+  date: number;
+  scope: "vocab" | "grammar" | "both";
+  total: number;
+  correct: number;
+  accuracy: number;
+  grade: number;
+  durationSeconds: number;
+}
+
 export type Direction = "en-de" | "de-en" | "mixed";
 export type ExerciseFormat =
   | "mixed"

@@ -1,10 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
-import { PartyPopper } from "lucide-react";
+import { useEffect, useMemo } from "react";
+import { ArrowUpRight, PartyPopper, Sparkles, Zap } from "lucide-react";
 import { VOCAB_BY_ID } from "@/lib/vocab";
 import { GRAMMAR_RULES_BY_ID } from "@/lib/grammar-data";
 import { useStore } from "@/lib/store";
+import { levelProgress } from "@/lib/gamification";
+import { useCountUp } from "@/lib/useCountUp";
+import { BadgeMedal } from "@/components/BadgeIcon";
+import type { Badge } from "@/lib/gamification";
 import type { ResultEntry } from "@/lib/types";
 import type { GrammarResultEntry } from "@/lib/grammarTypes";
 
@@ -24,6 +28,13 @@ export interface SummaryStats {
   wordsInProgress?: number;
   rulesMastered?: number;
   rulesInProgress?: number;
+  /** XP this session paid out, and the total the learner had before it — together they're what
+   * makes a level-up during the session visible on this screen. */
+  xpEarned: number;
+  xpBefore: number;
+  bestCombo: number;
+  /** Badges unlocked by this session, filled in by AppShell once progress has been persisted. */
+  newBadges?: Badge[];
 }
 
 export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: SummaryStats; onHome: () => void; onRepeat: (wordIds: string[]) => void }) {
@@ -60,57 +71,141 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
     [stats.grammarResults]
   );
 
+  const shownAccuracy = useCountUp(stats.accuracy, 1000);
+  const shownXp = useCountUp(stats.xpEarned, 900);
+
+  const before = levelProgress(stats.xpBefore);
+  const after = levelProgress(stats.xpBefore + stats.xpEarned);
+  const leveledUp = after.level > before.level;
+
+  // Enter goes home, R repeats the mistakes — same two actions as the buttons, so finishing a
+  // session and starting the follow-up drill never needs the mouse.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      const activeTag = (document.activeElement as HTMLElement | null)?.tagName;
+      if (e.key === "Enter") {
+        if (activeTag === "BUTTON" || activeTag === "A") return;
+        e.preventDefault();
+        onHome();
+        return;
+      }
+      if (e.key.toLowerCase() === "r" && wrongWordIds.length > 0) {
+        e.preventDefault();
+        onRepeat(wrongWordIds);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onHome, onRepeat, wrongWordIds]);
+
   return (
-    <section className="animate-fade-in">
-      <div className="text-center py-9 px-5">
-        <div className="text-[52px] font-extrabold tracking-tight text-blue">{stats.accuracy}%</div>
-        <div className="text-[15px] text-ink-faint mt-1">
-          {stats.total} questions · {stats.newWordsCount} new
+    <section className="animate-fade-in pb-4">
+      <div className="text-center py-8 px-5">
+        <div className="text-[52px] font-extrabold tracking-tight text-blue tabular-nums leading-none">{shownAccuracy}%</div>
+        <div className="text-[15px] text-ink-faint mt-1.5">
+          {stats.total} Fragen · {stats.newWordsCount} neu
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-2.5 my-6">
-        <SStat value={stats.correct} label="Correct" color="text-green" />
-        <SStat value={stats.almost} label="Almost" color="text-amber" />
-        <SStat value={stats.incorrect} label="Incorrect" color="text-red" />
+
+      {/* The reward block, deliberately directly under the headline number: XP earned, where that
+          leaves the level bar, and the session's best combo. */}
+      <div className="bg-gradient-to-br from-ink to-ink/80 text-white rounded-2xl p-4 mb-4">
+        <div className="flex items-center gap-3">
+          <span className="w-11 h-11 rounded-full bg-white/15 flex items-center justify-center shrink-0">
+            <Sparkles size={19} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-[19px] font-extrabold tabular-nums leading-none">+{shownXp} XP</div>
+            <div className="text-[11.5px] text-white/70 mt-1">
+              Level {after.level} · {after.title}
+            </div>
+          </div>
+          {stats.bestCombo >= 3 && (
+            <div className="flex items-center gap-1 text-[12px] font-bold bg-white/15 rounded-full px-2.5 py-1 shrink-0">
+              <Zap size={12} fill="currentColor" /> {stats.bestCombo}x Combo
+            </div>
+          )}
+        </div>
+        <div className="mt-3">
+          <div className="relative h-1.5 rounded-full bg-white/20 overflow-hidden">
+            <div className="h-full rounded-full bg-white transition-[width] duration-1000 ease-out" style={{ width: after.pct + "%" }} />
+          </div>
+          <div className="flex items-center justify-between mt-1.5 text-[11px] text-white/60 tabular-nums">
+            <span>
+              {after.intoLevel} / {after.levelSpan} XP
+            </span>
+            <span>noch {after.remaining} bis Level {after.level + 1}</span>
+          </div>
+        </div>
+        {leveledUp && (
+          <div className="mt-3 pt-3 border-t border-white/15 flex items-center gap-2 text-[13px] font-semibold animate-pop-in">
+            <ArrowUpRight size={15} />
+            Level {before.level} → {after.level}: {after.title}
+          </div>
+        )}
       </div>
 
-      {(stats.wordsMastered !== undefined ||
-        stats.wordsInProgress !== undefined ||
-        stats.rulesMastered !== undefined ||
-        stats.rulesInProgress !== undefined) && (
-        <div className="flex flex-wrap gap-2.5 mb-7">
+      <div className="grid grid-cols-3 gap-2.5 mb-4">
+        <SStat value={stats.correct} label="Richtig" color="text-green" />
+        <SStat value={stats.almost} label="Fast" color="text-amber" />
+        <SStat value={stats.incorrect} label="Falsch" color="text-red" />
+      </div>
+
+      {(!!stats.wordsMastered || !!stats.wordsInProgress || !!stats.rulesMastered || !!stats.rulesInProgress) && (
+        <div className="flex flex-wrap gap-2.5 mb-4">
           {!!stats.wordsMastered && (
             <div className="flex-1 min-w-[45%] bg-green-light border border-green/20 rounded-xl px-4 py-3.5 text-center">
-              <div className="text-[19px] font-bold text-green">{stats.wordsMastered}</div>
+              <div className="text-[19px] font-bold text-green tabular-nums">{stats.wordsMastered}</div>
               <div className="text-[12px] text-[#0d7a4f] mt-0.5">{stats.wordsMastered === 1 ? "Wort gelernt" : "Wörter gelernt"}</div>
             </div>
           )}
           {!!stats.wordsInProgress && (
             <div className="flex-1 min-w-[45%] bg-blue-light border border-blue/20 rounded-xl px-4 py-3.5 text-center">
-              <div className="text-[19px] font-bold text-blue-dark">{stats.wordsInProgress}</div>
+              <div className="text-[19px] font-bold text-blue-dark tabular-nums">{stats.wordsInProgress}</div>
               <div className="text-[12px] text-blue-dark mt-0.5">Wörter in Arbeit</div>
             </div>
           )}
           {!!stats.rulesMastered && (
             <div className="flex-1 min-w-[45%] bg-green-light border border-green/20 rounded-xl px-4 py-3.5 text-center">
-              <div className="text-[19px] font-bold text-green">{stats.rulesMastered}</div>
+              <div className="text-[19px] font-bold text-green tabular-nums">{stats.rulesMastered}</div>
               <div className="text-[12px] text-[#0d7a4f] mt-0.5">{stats.rulesMastered === 1 ? "Regel gelernt" : "Regeln gelernt"}</div>
             </div>
           )}
           {!!stats.rulesInProgress && (
             <div className="flex-1 min-w-[45%] bg-purple-light border border-purple/20 rounded-xl px-4 py-3.5 text-center">
-              <div className="text-[19px] font-bold text-purple">{stats.rulesInProgress}</div>
+              <div className="text-[19px] font-bold text-purple tabular-nums">{stats.rulesInProgress}</div>
               <div className="text-[12px] text-purple mt-0.5">Regeln in Arbeit</div>
             </div>
           )}
         </div>
       )}
-      <div className="mb-7">
+
+      {!!stats.newBadges?.length && (
+        <div className="bg-card border border-amber/30 rounded-2xl p-4 shadow-[0_2px_10px_-4px_rgba(232,161,46,0.35)] mb-4">
+          <div className="text-[13px] font-semibold text-ink mb-3">Neu freigeschaltet</div>
+          <div className="flex flex-col gap-2.5">
+            {stats.newBadges.map((b) => (
+              <div key={b.id} className="flex items-center gap-3 animate-pop-in">
+                <BadgeMedal badge={b} earned size={36} />
+                <div className="min-w-0">
+                  <div className="text-[13px] font-semibold text-ink">{b.title}</div>
+                  <div className="text-[11.5px] text-ink-faint">{b.description}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mb-6">
         <h2 className="text-xl font-semibold tracking-tight mb-3.5">Personal Review</h2>
         {wrongWordIds.length === 0 && wrongRuleIds.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-16 px-5 text-ink-faint text-sm">
+          <div className="flex flex-col items-center gap-2 py-12 px-5 text-ink-faint text-sm">
             <PartyPopper size={22} className="text-blue" />
-            Perfect session — no mistakes to review!
+            Perfekte Session — nichts zu wiederholen!
           </div>
         ) : (
           <>
@@ -142,18 +237,19 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
             </div>
             {topError && (
               <p className="text-ink-soft text-[15px] mt-3.5 mb-1">
-                Most common issue: <b>{topError[0]}</b>
+                Häufigster Fehler: <b>{topError[0]}</b>
               </p>
             )}
             {weakestFormat && (
               <p className="text-ink-soft text-[15px] m-0">
-                Weakest format: <b>{weakestFormat}</b> ({Math.round(weakestAcc * 100)}% correct)
+                Schwächstes Format: <b>{weakestFormat}</b> ({Math.round(weakestAcc * 100)}% richtig)
               </p>
             )}
           </>
         )}
       </div>
-      <div className="flex gap-2.5 mt-6">
+
+      <div className="flex gap-2.5">
         <button onClick={onHome} className="flex-1 rounded-full bg-line-soft hover:bg-line text-ink font-semibold py-3.5 text-[15px] transition-colors">
           Home
         </button>
@@ -162,7 +258,7 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
             onClick={() => onRepeat(wrongWordIds)}
             className="flex-1 rounded-full bg-blue hover:bg-blue-dark text-white font-semibold py-3.5 text-[15px] transition-colors"
           >
-            Repeat Mistakes
+            Fehler wiederholen
           </button>
         )}
       </div>
@@ -171,9 +267,10 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
 }
 
 function SStat({ value, label, color }: { value: number; label: string; color: string }) {
+  const shown = useCountUp(value, 700);
   return (
     <div className="text-center px-2 py-3.5 bg-card border border-line-soft rounded-xl">
-      <div className={"text-[19px] font-bold " + color}>{value}</div>
+      <div className={"text-[19px] font-bold tabular-nums " + color}>{shown}</div>
       <div className="text-[11px] text-ink-faint mt-0.5">{label}</div>
     </div>
   );

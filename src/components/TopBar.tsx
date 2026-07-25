@@ -3,9 +3,11 @@
 import { BarChart3, Flag, Keyboard, LogOut, ScrollText, Settings, Volume2, VolumeX } from "lucide-react";
 import type { Screen } from "./AppShell";
 import { useSoundMuted } from "@/lib/sound";
+import LevelPill from "./LevelPill";
 
 export default function TopBar({
   screen,
+  xp,
   goHome,
   goList,
   goStats,
@@ -15,6 +17,7 @@ export default function TopBar({
   onLogout,
 }: {
   screen: Screen;
+  xp: number;
   goHome: () => void;
   goList: () => void;
   goStats: () => void;
@@ -25,12 +28,15 @@ export default function TopBar({
 }) {
   const [muted, toggleMuted] = useSoundMuted();
   return (
-    <div className="shrink-0 flex items-center justify-between py-2.5 border-b border-line-soft">
-      <button onClick={goHome} aria-label="Home" className="flex items-center">
-        <span className="text-[19px] font-extrabold tracking-tight bg-gradient-to-r from-blue via-blue-dark to-purple bg-clip-text text-transparent">
-          PRACTISE
-        </span>
-      </button>
+    <div className="shrink-0 flex items-center justify-between gap-2 py-2.5 border-b border-line-soft">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <button onClick={goHome} aria-label="Home" className="flex items-center shrink-0">
+          <span className="text-[19px] font-extrabold tracking-tight bg-gradient-to-r from-blue via-blue-dark to-purple bg-clip-text text-transparent">
+            PRACTISE
+          </span>
+        </button>
+        <LevelPill xp={xp} onClick={goStats} />
+      </div>
       <div className="flex items-center gap-1">
         <IconButton onClick={toggleMuted} title={muted ? "Sound aktivieren" : "Sound stummschalten"}>
           {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}

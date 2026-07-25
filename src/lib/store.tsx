@@ -2,16 +2,19 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { isAuthError, supabase } from "./supabase";
-import { blankWordState, type FormatStat, type SessionRecord, type WordState, type AnswerResultKind, type LearningStage } from "./types";
+import { blankWordState, type FormatStat, type SessionRecord, type TestRecord, type WordState, type AnswerResultKind, type LearningStage } from "./types";
 
 interface StoreShape {
   words: Record<string, WordState>;
   formatStats: Record<string, FormatStat>;
   sessionHistory: SessionRecord[];
+  testHistory: TestRecord[];
   totalPracticeSessions: number;
   goalStartedAt: number | null;
   goalBaselineTotal: number | null;
   blockedWordIds: Set<string>;
+  xp: number;
+  badgeIds: Set<string>;
 }
 
 interface StoreApi {
@@ -20,18 +23,24 @@ interface StoreApi {
   words: Record<string, WordState>;
   formatStats: Record<string, FormatStat>;
   sessionHistory: SessionRecord[];
+  testHistory: TestRecord[];
   totalPracticeSessions: number;
   goalStartedAt: number | null;
   goalBaselineTotal: number | null;
   blockedWordIds: Set<string>;
+  xp: number;
+  badgeIds: Set<string>;
   wordState: (id: string) => WordState;
   updateWord: (id: string, result: AnswerResultKind, hintsUsed?: number) => void;
   recordFormatStat: (format: string, result: AnswerResultKind) => void;
   toggleFavorite: (id: string) => boolean;
   recordSession: (session: SessionRecord) => void;
+  recordTest: (test: TestRecord) => void;
   setLearningStage: (id: string, stage: LearningStage, reviewStreak: number, dueAtSession: number | null) => void;
   startGoalIfNeeded: (baselineTotal: number) => void;
   setWordBlocked: (id: string, blocked: boolean) => void;
+  addXp: (amount: number) => void;
+  unlockBadges: (ids: string[]) => void;
 }
 
 const StoreContext = createContext<StoreApi | null>(null);
@@ -44,10 +53,13 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     words: {},
     formatStats: {},
     sessionHistory: [],
+    testHistory: [],
     totalPracticeSessions: 0,
     goalStartedAt: null,
     goalBaselineTotal: null,
     blockedWordIds: new Set(),
+    xp: 0,
+    badgeIds: new Set(),
   });
 
   useEffect(() => {
@@ -59,7 +71,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
         // avoids a race where a token that's expired-but-not-yet-refreshed (e.g. after
         // the tab was suspended in the background) causes the very first requests to 401.
         await supabase.auth.getSession();
-        const [wp, fs, sh, meta] = await Promise.all([
+        const [wp, fs, sh, th, meta] = await Promise.all([
           supabase.from("word_progress").select("*").eq("user_id", userId),
           supabase.from("format_stats").select("*").eq("user_id", userId),
           supabase
@@ -68,11 +80,15 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
             .eq("user_id", userId)
             .order("occurred_at", { ascending: true })
             .limit(200),
+          supabase.from("test_history").select("*").eq("user_id", userId).order("occurred_at", { ascending: true }).limit(100),
           supabase.from("app_meta").select("*").eq("user_id", userId).maybeSingle(),
         ]);
         if (wp.error) throw wp.error;
         if (fs.error) throw fs.error;
         if (sh.error) throw sh.error;
+        // Tests are a later addition — an account whose database hasn't run migration 0009 yet
+        // should still load its vocabulary progress rather than fall into the error screen.
+        if (th.error) console.error("test_history unavailable", th.error);
 
         const words: Record<string, WordState> = {};
         (wp.data || []).forEach((row) => {
@@ -111,15 +127,28 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
           format: row.format,
         }));
 
+        const testHistory: TestRecord[] = (th.data || []).map((row) => ({
+          date: new Date(row.occurred_at).getTime(),
+          scope: row.scope,
+          total: row.total,
+          correct: row.correct,
+          accuracy: row.accuracy,
+          grade: Number(row.grade),
+          durationSeconds: row.duration_seconds || 0,
+        }));
+
         if (cancelled) return;
         setState({
           words,
           formatStats,
           sessionHistory,
+          testHistory,
           totalPracticeSessions: meta.data ? meta.data.total_practice_sessions : 0,
           goalStartedAt: meta.data?.goal_started_at ? new Date(meta.data.goal_started_at).getTime() : null,
           goalBaselineTotal: meta.data?.goal_baseline_total ?? null,
           blockedWordIds: new Set(meta.data?.blocked_word_ids || []),
+          xp: meta.data?.xp ?? 0,
+          badgeIds: new Set(meta.data?.badge_ids || []),
         });
         setReady(true);
       } catch (e) {
@@ -296,6 +325,69 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     [userId]
   );
 
+  const recordTest = useCallback(
+    (test: TestRecord) => {
+      setState((prev) => {
+        supabase
+          .from("test_history")
+          .insert({
+            user_id: userId,
+            occurred_at: new Date(test.date).toISOString(),
+            scope: test.scope,
+            total: test.total,
+            correct: test.correct,
+            accuracy: test.accuracy,
+            grade: test.grade,
+            duration_seconds: test.durationSeconds,
+          })
+          .then(({ error: err }) => {
+            if (err) console.error("recordTest", err);
+          });
+        return { ...prev, testHistory: [...prev.testHistory, test] };
+      });
+    },
+    [userId]
+  );
+
+  // Deliberately called once per finished session/test with the whole payout, not once per answer:
+  // XP is displayed live from the session's own running total, so persisting it mid-session would
+  // only add a database write per question without changing anything the learner sees.
+  const addXp = useCallback(
+    (amount: number) => {
+      if (amount <= 0) return;
+      setState((prev) => {
+        const xp = prev.xp + amount;
+        supabase
+          .from("app_meta")
+          .upsert({ user_id: userId, xp }, { onConflict: "user_id" })
+          .then(({ error: err }) => {
+            if (err) console.error("addXp", err);
+          });
+        return { ...prev, xp };
+      });
+    },
+    [userId]
+  );
+
+  const unlockBadges = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      setState((prev) => {
+        const next = new Set(prev.badgeIds);
+        ids.forEach((id) => next.add(id));
+        if (next.size === prev.badgeIds.size) return prev;
+        supabase
+          .from("app_meta")
+          .upsert({ user_id: userId, badge_ids: [...next] }, { onConflict: "user_id" })
+          .then(({ error: err }) => {
+            if (err) console.error("unlockBadges", err);
+          });
+        return { ...prev, badgeIds: next };
+      });
+    },
+    [userId]
+  );
+
   const startGoalIfNeeded = useCallback(
     (baselineTotal: number) => {
       setState((prev) => {
@@ -340,18 +432,24 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     words: state.words,
     formatStats: state.formatStats,
     sessionHistory: state.sessionHistory,
+    testHistory: state.testHistory,
     totalPracticeSessions: state.totalPracticeSessions,
     goalStartedAt: state.goalStartedAt,
     goalBaselineTotal: state.goalBaselineTotal,
     blockedWordIds: state.blockedWordIds,
+    xp: state.xp,
+    badgeIds: state.badgeIds,
     wordState,
     updateWord,
     recordFormatStat,
     toggleFavorite,
     recordSession,
+    recordTest,
     setLearningStage,
     startGoalIfNeeded,
     setWordBlocked,
+    addXp,
+    unlockBadges,
   };
 
   return <StoreContext.Provider value={api}>{children}</StoreContext.Provider>;

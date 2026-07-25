@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { useAuth } from "@/lib/auth";
 import { VOCAB, VOCAB_BY_ID, VOCAB_BY_EN, type Word } from "@/lib/vocab";
-import { GRAMMAR_RULES, type GrammarRule } from "@/lib/grammar-data";
-import { WRITING_TOPICS, WRITING_MIN_WORDS, WRITING_MIN_RULES, type WritingTopic } from "@/lib/writingTopics";
+import { GRAMMAR_RULES } from "@/lib/grammar-data";
+import { WRITING_TOPICS, type WritingTopic } from "@/lib/writingTopics";
 import { CLAUSE_PAIRS, type ClausePair } from "@/lib/connectors-data";
 import { READING_TEXTS, eligibleGapIds as computeEligibleGapIds, type ReadingText } from "@/lib/financeReading";
 import type { QueueItem } from "@/lib/sessionLogic";
@@ -34,12 +34,25 @@ import {
 } from "@/lib/grammarLearning";
 import { sample, shuffle } from "@/lib/utils";
 import { toggleMuted } from "@/lib/sound";
-import type { ResultEntry } from "@/lib/types";
+import {
+  BADGES_BY_ID,
+  comboTier,
+  newlyEarnedBadges,
+  xpForAnswer,
+  xpForTest,
+  XP_ITEM_MASTERED,
+  XP_SESSION_COMPLETE,
+  type Badge,
+} from "@/lib/gamification";
+import { buildBadgeSnapshot } from "@/lib/progressStats";
+import { buildTest, gradeTest, scoreAnswer, type TestAnswer, type TestQuestion, type TestScope, type TestLength } from "@/lib/testMode";
+import type { AnswerResultKind, ResultEntry } from "@/lib/types";
 import type { GrammarResultEntry } from "@/lib/grammarTypes";
 import ExerciseRouter from "@/components/exercises/ExerciseRouter";
 import GrammarExerciseRouter from "@/components/grammar-exercises/GrammarExerciseRouter";
 import TopBar from "./TopBar";
 import Modal from "./Modal";
+import Confetti from "./Confetti";
 import ShortcutsHelp from "./ShortcutsHelp";
 import HomeScreen from "./screens/HomeScreen";
 import SessionScreen from "./screens/SessionScreen";
@@ -49,11 +62,12 @@ import WordDetailScreen from "./screens/WordDetailScreen";
 import StatsScreen from "./screens/StatsScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import GoalScreen from "./screens/GoalScreen";
-import WritingScreen, { type WritingCheckResult } from "./screens/WritingScreen";
 import ReadingScreen, { type ReadingCheckResult } from "./screens/ReadingScreen";
 import ConnectorLearnScreen, { type ConnectorLearnResult } from "./screens/ConnectorLearnScreen";
 import LinkingEssayScreen, { type LinkingEssayResult, MIN_CATEGORIES as LINKING_ESSAY_MIN_CATEGORIES } from "./screens/LinkingEssayScreen";
 import LinkingExercise, { type LinkingResult } from "./exercises/LinkingExercise";
+import TestScreen from "./screens/TestScreen";
+import TestResultScreen, { type TestResult } from "./screens/TestResultScreen";
 
 export type Screen =
   | "home"
@@ -63,13 +77,16 @@ export type Screen =
   | "stats"
   | "detail"
   | "settings"
-  | "writing"
   | "linking"
   | "linking-learn"
   | "linking-essay"
   | "goal"
-  | "reading";
-export type SessionMode = "vocab" | "grammar" | "mixed" | "writing" | "linking" | "reading";
+  | "reading"
+  | "test"
+  | "test-result";
+export type SessionMode = "vocab" | "grammar" | "linking" | "reading" | "test";
+/** The two modes that run through the adaptive stage engine — everything else is its own flow. */
+export type LearningMode = "vocab" | "grammar";
 export type LinkingSubMode = "combine" | "learn" | "essay";
 /** Options for the "Gelerntes wiederholen" dropdown on Home: restrict the review pool to items
  * below a score-based mastery percentage (null = no restriction) and/or cap how many are drawn
@@ -85,14 +102,6 @@ interface QuickSessionState {
   results: ResultEntry[];
 }
 
-/** Free-writing exercise: one topic, a fixed set of already-learned words/rules the writer must
- * work in, checked at the end via LanguageTool rather than the stage engine. */
-export interface WritingSessionState {
-  topic: WritingTopic;
-  requiredWords: Word[];
-  requiredRules: GrammarRule[];
-}
-
 /** Sentence-combining drill: a queue of clause pairs, each checked independently (connector used?
  * + LanguageTool) rather than progressing through the stage engine. */
 interface LinkingSessionState {
@@ -106,6 +115,16 @@ interface LinkingSessionState {
 interface ReadingSessionState {
   text: ReadingText;
   eligibleGapIds: Set<string>;
+}
+
+/** A graded exam in progress. Answers are keyed by question id (not index) so the learner can jump
+ * around the paper and revise earlier answers without anything shifting underneath them. */
+interface TestSessionState {
+  scope: TestScope;
+  questions: TestQuestion[];
+  answers: Record<string, TestAnswer>;
+  index: number;
+  startedAt: number;
 }
 
 const LINKING_BATCH_SIZE = 6;
@@ -124,6 +143,13 @@ interface LearningSessionState {
   matchPool: Word[];
   /** Set only for a Speed Round: the timestamp the session auto-finishes at. */
   speedEndsAt: number | null;
+  /** Current run of consecutive correct answers, and the longest such run this session. */
+  combo: number;
+  bestCombo: number;
+  /** XP banked so far. Committed to the store in one write when the session ends. */
+  xpEarned: number;
+  /** The last award, re-keyed per answer so the floating "+N XP" in the header replays. */
+  lastXp: { amount: number; key: number } | null;
 }
 
 const SPEED_ROUND_MS = 60000;
@@ -153,13 +179,25 @@ export default function AppShell() {
   const [homeLinkingSubMode, setHomeLinkingSubMode] = useState<LinkingSubMode>("combine");
   const [quickSession, setQuickSession] = useState<QuickSessionState | null>(null);
   const [learningSession, setLearningSession] = useState<LearningSessionState | null>(null);
-  const [writingSession, setWritingSession] = useState<WritingSessionState | null>(null);
   const [linkingSession, setLinkingSession] = useState<LinkingSessionState | null>(null);
   const [readingSession, setReadingSession] = useState<ReadingSessionState | null>(null);
+  const [testSession, setTestSession] = useState<TestSessionState | null>(null);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [linkingEssayTopic, setLinkingEssayTopic] = useState<WritingTopic | null>(null);
   const [summary, setSummary] = useState<SummaryStats | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
+  // Bumped whenever something worth celebrating happens (combo tier reached, item mastered,
+  // exam passed). Confetti keys off the counter, so repeat celebrations replay cleanly.
+  const [celebrate, setCelebrate] = useState(0);
+  // Longest combo of the session that just ended — fed into the badge snapshot below, which is why
+  // it lives in state (a ref wouldn't re-trigger the evaluation).
+  const [lastBestCombo, setLastBestCombo] = useState(0);
+  // Which badges were already unlocked when the current session/test began. Everything unlocked
+  // since is what the summary celebrates — captured at start rather than accumulated as the
+  // session runs, so "new" stays a pure comparison against a fixed point instead of state that
+  // has to be appended to and cleared at exactly the right moments.
+  const [badgeBaseline, setBadgeBaseline] = useState<ReadonlySet<string>>(() => new Set());
 
   // Starts the 5-week basics goal's clock exactly once, snapshotting current combined progress
   // as the baseline so pace can be computed as (current - baseline) / days elapsed. Runs once per
@@ -174,21 +212,76 @@ export default function AppShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.goalStartedAt]);
 
-  // ---------- Primary flow: the adaptive learning-stage engine (vocab, grammar, or both) ----------
+  // ---------- Badges ----------
+
+  // Evaluated continuously rather than at the end of each session, for two reasons: progress
+  // writes are asynchronous (checking inside endLearningSession would read pre-update counts and
+  // miss the very word that earned the badge), and some conditions — a streak ticking over at
+  // midnight, a level-up from banked XP — aren't tied to a session ending at all.
+  const badgesEarnedNow = useMemo(() => {
+    if (!store.ready || !grammarStore.ready) return [];
+    const snapshot = buildBadgeSnapshot({
+      words: store.words,
+      blockedWordIds: store.blockedWordIds,
+      rules: grammarStore.rules,
+      blockedRuleIds: grammarStore.blockedRuleIds,
+      sessionHistory: store.sessionHistory,
+      grammarSessionHistory: grammarStore.sessionHistory,
+      testHistory: store.testHistory,
+      xp: store.xp,
+      bestCombo: lastBestCombo,
+    });
+    return newlyEarnedBadges(snapshot, store.badgeIds);
+  }, [
+    store.ready,
+    grammarStore.ready,
+    store.words,
+    store.blockedWordIds,
+    store.badgeIds,
+    store.xp,
+    store.sessionHistory,
+    store.testHistory,
+    grammarStore.rules,
+    grammarStore.blockedRuleIds,
+    grammarStore.sessionHistory,
+    lastBestCombo,
+  ]);
+
+  // Persisting is the only side effect here; what the summary shows is derived from the store
+  // below, so this effect neither owns nor duplicates that list.
+  const unlockBadges = store.unlockBadges;
+  useEffect(() => {
+    if (badgesEarnedNow.length === 0) return;
+    unlockBadges(badgesEarnedNow.map((b) => b.id));
+  }, [badgesEarnedNow, unlockBadges]);
+
+  /** Badges unlocked since the current session/test started — what the summary/result celebrates. */
+  const newBadges: Badge[] = useMemo(
+    () => [...store.badgeIds].filter((id) => !badgeBaseline.has(id)).map((id) => BADGES_BY_ID[id]).filter(Boolean),
+    [store.badgeIds, badgeBaseline]
+  );
+
+  /** Called by every "start something" path: freezes the badge baseline so the run that follows
+   * can report exactly what it earned. */
+  const beginRun = useCallback(() => {
+    setBadgeBaseline(new Set(store.badgeIds));
+  }, [store.badgeIds]);
+
+  // ---------- Primary flow: the adaptive learning-stage engine (vocab or grammar) ----------
 
   const startLearningSession = useCallback(
-    (mode: SessionMode, includeReview: boolean = true) => {
+    (mode: LearningMode, includeReview: boolean = true) => {
+      beginRun();
       let vocabQueue: LearningQueueItem[] = [];
       let matchPool: Word[] = [];
       let grammarQueueItems: GrammarQueueItem[] = [];
 
-      if (mode === "vocab" || mode === "mixed") {
+      if (mode === "vocab") {
         const batch = buildLearningBatch(store.wordState, store.totalPracticeSessions, store.blockedWordIds, includeReview);
         const built = buildInitialQueue(batch, store.wordState);
         vocabQueue = built.queue;
         matchPool = built.matchPool;
-      }
-      if (mode === "grammar" || mode === "mixed") {
+      } else {
         const gBatch = buildGrammarBatch(grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds, includeReview);
         grammarQueueItems = buildGrammarQueue(gBatch, grammarStore.ruleState);
       }
@@ -222,10 +315,14 @@ export default function AppShell() {
         masteredItemIds: new Set(),
         matchPool,
         speedEndsAt: null,
+        combo: 0,
+        bestCombo: 0,
+        xpEarned: 0,
+        lastXp: null,
       });
       setScreen("session");
     },
-    [store.wordState, store.totalPracticeSessions, store.blockedWordIds, grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds]
+    [beginRun, store.wordState, store.totalPracticeSessions, store.blockedWordIds, grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds]
   );
 
   // Drills exclusively every word/rule that has already reached stage 4 ("gelernt"), using the
@@ -234,12 +331,13 @@ export default function AppShell() {
   // growing/interleaved session machinery as startLearningSession, just seeded differently: every
   // already-mastered item at once instead of an adaptive ~10-word batch.
   const startReviewSession = useCallback(
-    (mode: SessionMode, options?: ReviewOptions) => {
+    (mode: LearningMode, options?: ReviewOptions) => {
+      beginRun();
       const maxAccuracy = options?.maxAccuracy ?? null;
       const belowThreshold = (score: number) => maxAccuracy === null || score * 20 < maxAccuracy;
 
       const vocabQueue: LearningQueueItem[] =
-        mode === "vocab" || mode === "mixed"
+        mode === "vocab"
           ? VOCAB.filter(
               (w) => !store.blockedWordIds.has(w.id) && store.wordState(w.id).stage === 4 && belowThreshold(store.wordState(w.id).score)
             ).map((w) => {
@@ -248,7 +346,7 @@ export default function AppShell() {
             })
           : [];
       const grammarQueueItems: GrammarQueueItem[] =
-        mode === "grammar" || mode === "mixed"
+        mode === "grammar"
           ? GRAMMAR_RULES.filter(
               (r) => !grammarStore.blockedRuleIds.has(r.id) && grammarStore.ruleState(r.id).stage === 4 && belowThreshold(grammarStore.ruleState(r.id).score)
             ).map((rule) => ({ kind: "review" as const, rule, reviewFormat: pickReviewFormat() }))
@@ -273,10 +371,14 @@ export default function AppShell() {
         masteredItemIds: new Set(),
         matchPool: [],
         speedEndsAt: null,
+        combo: 0,
+        bestCombo: 0,
+        xpEarned: 0,
+        lastXp: null,
       });
       setScreen("session");
     },
-    [store, grammarStore]
+    [beginRun, store, grammarStore]
   );
 
   // Timed, vocabulary-only drill built on the same mastered-word pool + "review" exercise kind as
@@ -284,6 +386,7 @@ export default function AppShell() {
   // that machinery instead of a parallel session type. Auto-finishes via the effect below when
   // speedEndsAt passes; an early exit through the "End session?" modal works exactly like review too.
   const startSpeedRound = useCallback(() => {
+    beginRun();
     const vocabQueue: LearningQueueItem[] = VOCAB.filter((w) => !store.blockedWordIds.has(w.id) && store.wordState(w.id).stage === 4).map((w) => ({
       kind: "review" as const,
       words: [w],
@@ -304,38 +407,75 @@ export default function AppShell() {
       masteredItemIds: new Set(),
       matchPool: [],
       speedEndsAt: Date.now() + SPEED_ROUND_MS,
+      combo: 0,
+      bestCombo: 0,
+      xpEarned: 0,
+      lastXp: null,
     });
     setScreen("session");
-  }, [store]);
+  }, [beginRun, store]);
 
-  // ---------- Writing: free-text exercise checked against required words/grammar + LanguageTool ----------
+  // ---------- Test: a graded exam on the Portuguese 0-20 scale ----------
 
-  const startWritingSession = useCallback(() => {
-    const learnedWords = VOCAB.filter((w) => !store.blockedWordIds.has(w.id) && store.wordState(w.id).stage === 4);
-    const learnedRules = GRAMMAR_RULES.filter((r) => !grammarStore.blockedRuleIds.has(r.id) && grammarStore.ruleState(r.id).stage === 4);
-    if (learnedWords.length < WRITING_MIN_WORDS || learnedRules.length < WRITING_MIN_RULES) return;
-    setWritingSession({
-      topic: sample(WRITING_TOPICS, 1)[0],
-      requiredWords: sample(learnedWords, WRITING_MIN_WORDS),
-      requiredRules: sample(learnedRules, WRITING_MIN_RULES),
-    });
-    setScreen("writing");
-  }, [store, grammarStore]);
-
-  const finishWriting = useCallback(
-    (result: WritingCheckResult) => {
-      const allWordsUsed = result.requiredWordsUsed === result.requiredWordsTotal;
-      const errorCount = result.issues.length;
-      const correct = allWordsUsed && errorCount === 0 ? 1 : 0;
-      const almost = allWordsUsed && errorCount > 0 ? 1 : 0;
-      const incorrect = allWordsUsed ? 0 : 1;
-      const accuracy = correct ? 100 : almost ? 60 : 0;
-      grammarStore.recordSession({ date: Date.now(), total: 1, correct, almost, incorrect, accuracy, format: "writing" });
-      setWritingSession(null);
-      setScreen("home");
+  const startTest = useCallback(
+    (scope: TestScope, length: TestLength) => {
+      beginRun();
+      const questions = buildTest(scope, length, store.wordState, store.blockedWordIds, grammarStore.ruleState, grammarStore.blockedRuleIds);
+      if (questions.length === 0) return;
+      setTestSession({ scope, questions, answers: {}, index: 0, startedAt: Date.now() });
+      setTestResult(null);
+      setScreen("test");
     },
-    [grammarStore]
+    [beginRun, store.wordState, store.blockedWordIds, grammarStore.ruleState, grammarStore.blockedRuleIds]
   );
+
+  // Marks the paper and files the result. Deliberately does NOT call updateWord/setLearningStage:
+  // a test measures where the learner stands, and letting it move stages would mean the act of
+  // measuring changes what's being measured (and would hand out mastery for lucky guesses).
+  const finishTest = useCallback(
+    (session: TestSessionState) => {
+      const points = session.questions.reduce((sum, q) => sum + scoreAnswer(q, session.answers[q.id]), 0);
+      const grade = gradeTest(points, session.questions.length);
+      const durationSeconds = Math.max(0, Math.round((Date.now() - session.startedAt) / 1000));
+      const xpEarned = xpForTest(grade.grade, session.questions.length);
+
+      store.recordTest({
+        date: Date.now(),
+        scope: session.scope,
+        total: grade.total,
+        // Whole questions answered fully correctly — the halves that "almost" answers earn live in
+        // the grade itself, and a "correct" count with a .5 in it would only read as a bug.
+        correct: session.questions.filter((q) => scoreAnswer(q, session.answers[q.id]) === 1).length,
+        accuracy: grade.accuracy,
+        grade: grade.grade,
+        durationSeconds,
+      });
+      store.addXp(xpEarned);
+      if (grade.passed) setCelebrate((c) => c + 1);
+
+      setTestResult({
+        grade,
+        questions: session.questions,
+        answers: session.answers,
+        durationSeconds,
+        xpEarned,
+        // Filled in by the badge effect above once the recorded test has landed in the store; the
+        // result screen re-renders with them, so a badge earned by this very test still shows up.
+        newBadges: [],
+      });
+      setTestSession(null);
+      setScreen("test-result");
+    },
+    [store]
+  );
+
+  const answerTestQuestion = useCallback((questionId: string, answer: TestAnswer) => {
+    setTestSession((prev) => (prev ? { ...prev, answers: { ...prev.answers, [questionId]: answer } } : prev));
+  }, []);
+
+  const navigateTest = useCallback((index: number) => {
+    setTestSession((prev) => (prev && index >= 0 && index < prev.questions.length ? { ...prev, index } : prev));
+  }, []);
 
   // ---------- Reading: multi-gap finance texts, mixing finance vocabulary with mastered words ----------
 
@@ -359,10 +499,11 @@ export default function AppShell() {
       for (let i = 0; i < correct; i++) grammarStore.recordFormatStat("reading", "correct");
       for (let i = 0; i < incorrect; i++) grammarStore.recordFormatStat("reading", "incorrect");
       grammarStore.recordSession({ date: Date.now(), total, correct, almost: 0, incorrect, accuracy, format: "reading" });
+      store.addXp(correct * 10 + XP_SESSION_COMPLETE);
       setReadingSession(null);
       setScreen("home");
     },
-    [grammarStore]
+    [grammarStore, store]
   );
 
   // ---------- Linking: sentence-combining drill (clause pair + connector + LanguageTool check) ----------
@@ -387,10 +528,11 @@ export default function AppShell() {
       const total = s.results.length || 1;
       const accuracy = Math.round((correct / total) * 100);
       grammarStore.recordSession({ date: Date.now(), total, correct, almost, incorrect, accuracy, format: "linking" });
+      store.addXp(correct * 10 + almost * 4 + XP_SESSION_COMPLETE);
       setLinkingSession(null);
       setScreen("home");
     },
-    [grammarStore]
+    [grammarStore, store]
   );
 
   const onLinkingAnswered = useCallback(
@@ -424,9 +566,10 @@ export default function AppShell() {
       const incorrect = total - correct;
       const accuracy = Math.round((correct / total) * 100);
       grammarStore.recordSession({ date: Date.now(), total, correct, almost: 0, incorrect, accuracy, format: "linking-vocab" });
+      store.addXp(correct * 10 + XP_SESSION_COMPLETE);
       setScreen("home");
     },
-    [grammarStore]
+    [grammarStore, store]
   );
 
   // ---------- Linking: free-form essay requiring connectors from several categories, no fixed clauses ----------
@@ -445,10 +588,11 @@ export default function AppShell() {
       const incorrect = !enoughCategories && errorCount > 0 ? 1 : 0;
       const accuracy = correct ? 100 : almost ? 60 : 0;
       grammarStore.recordSession({ date: Date.now(), total: 1, correct, almost, incorrect, accuracy, format: "linking-essay" });
+      store.addXp(correct ? 80 : almost ? 45 : 20);
       setLinkingEssayTopic(null);
       setScreen("home");
     },
-    [grammarStore]
+    [grammarStore, store]
   );
 
   const endLearningSession = useCallback(
@@ -484,6 +628,15 @@ export default function AppShell() {
         grammarStore.recordSession({ date: Date.now(), total: gTotal, correct: gCorrect, almost: gAlmost, incorrect: gIncorrect, accuracy: Math.round((gCorrect / gTotal) * 100), format: "g-learn" });
       }
 
+      // Completing a session pays a flat bonus on top of the per-answer XP — finishing what you
+      // started is the habit worth rewarding, independent of how well it went. An empty session
+      // (opened and immediately abandoned) earns nothing.
+      const answered = s.vocabResults.length + s.grammarResults.length;
+      const xpEarned = answered > 0 ? s.xpEarned + XP_SESSION_COMPLETE : 0;
+      const xpBefore = store.xp;
+      store.addXp(xpEarned);
+      setLastBestCombo(s.bestCombo);
+
       const masteredArr = [...s.masteredItemIds];
       const finishedArr = [...s.finishedItemIds];
       setSummary({
@@ -499,6 +652,9 @@ export default function AppShell() {
         wordsInProgress: finishedArr.filter((id) => id.startsWith("v:")).length - masteredArr.filter((id) => id.startsWith("v:")).length,
         rulesMastered: masteredArr.filter((id) => id.startsWith("g:")).length,
         rulesInProgress: finishedArr.filter((id) => id.startsWith("g:")).length - masteredArr.filter((id) => id.startsWith("g:")).length,
+        xpEarned,
+        xpBefore,
+        bestCombo: s.bestCombo,
       });
       setLearningSession(null);
       setScreen("summary");
@@ -530,6 +686,30 @@ export default function AppShell() {
 
   const currentItem = learningSession ? learningSession.queue[learningSession.index] : null;
 
+  /**
+   * Runs one answer through the reward layer: extends or breaks the combo, prices the answer at the
+   * multiplier that was on screen when it was given, and fires confetti when a new combo tier is
+   * reached or an item is mastered. Pure — it takes and returns the reward slice of the session so
+   * the two advance* functions below can fold it into their own state update.
+   */
+  const applyReward = useCallback(
+    (reward: { combo: number; bestCombo: number; xpEarned: number }, result: AnswerResultKind, mastered: boolean) => {
+      const comboBefore = reward.combo;
+      const gained = xpForAnswer(result, comboBefore) + (mastered ? XP_ITEM_MASTERED : 0);
+      const combo = result === "correct" ? comboBefore + 1 : 0;
+      // Only the moment a *new* tier is unlocked is worth celebrating, not every answer inside it.
+      const tierUp = result === "correct" && comboTier(combo)?.min === combo;
+      if (tierUp || mastered) setCelebrate((c) => c + 1);
+      return {
+        combo,
+        bestCombo: Math.max(reward.bestCombo, combo),
+        xpEarned: reward.xpEarned + gained,
+        gained,
+      };
+    },
+    []
+  );
+
   /** Pure: computes the queue/attempts/results after one vocab answer, from a known-fresh session snapshot. */
   const advanceVocab = useCallback(
     (session: LearningSessionState, item: LearningQueueItem, entries: ResultEntry[]): LearningSessionState => {
@@ -538,6 +718,8 @@ export default function AppShell() {
       const attempts = { ...session.attempts };
       const finishedItemIds = new Set(session.finishedItemIds);
       const masteredItemIds = new Set(session.masteredItemIds);
+      let reward = { combo: session.combo, bestCombo: session.bestCombo, xpEarned: session.xpEarned };
+      let gainedTotal = 0;
 
       entries.forEach((entry) => {
         const word = item.words.find((w) => w.id === entry.wordId);
@@ -552,6 +734,7 @@ export default function AppShell() {
 
         attempts[key] = (attempts[key] || 0) + 1;
 
+        let mastered = false;
         if (outcome.nextKind && attempts[key] < MAX_ATTEMPTS_PER_WORD) {
           if (outcome.nextKind === "quiz") {
             matchPool = [...matchPool, word];
@@ -562,8 +745,15 @@ export default function AppShell() {
           }
         } else {
           finishedItemIds.add(key);
-          if (outcome.stage === 4) masteredItemIds.add(key);
+          if (outcome.stage === 4) {
+            masteredItemIds.add(key);
+            mastered = true;
+          }
         }
+
+        const next = applyReward(reward, entry.result, mastered);
+        gainedTotal += next.gained;
+        reward = { combo: next.combo, bestCombo: next.bestCombo, xpEarned: next.xpEarned };
       });
 
       const { groups, remaining } = popMatchGroups(matchPool);
@@ -574,9 +764,19 @@ export default function AppShell() {
       });
       matchPool = remaining;
 
-      return { ...session, vocabResults: [...session.vocabResults, ...entries], attempts, queue, matchPool, finishedItemIds, masteredItemIds };
+      return {
+        ...session,
+        vocabResults: [...session.vocabResults, ...entries],
+        attempts,
+        queue,
+        matchPool,
+        finishedItemIds,
+        masteredItemIds,
+        ...reward,
+        lastXp: gainedTotal > 0 ? { amount: gainedTotal, key: session.vocabResults.length + session.grammarResults.length + 1 } : session.lastXp,
+      };
     },
-    [store]
+    [store, applyReward]
   );
 
   /** Pure: computes the queue/attempts/results after one grammar answer, from a known-fresh session snapshot. */
@@ -586,6 +786,8 @@ export default function AppShell() {
       const attempts = { ...session.attempts };
       const finishedItemIds = new Set(session.finishedItemIds);
       const masteredItemIds = new Set(session.masteredItemIds);
+      let reward = { combo: session.combo, bestCombo: session.bestCombo, xpEarned: session.xpEarned };
+      let gainedTotal = 0;
 
       entries.forEach((entry) => {
         const key = "g:" + entry.ruleId;
@@ -598,19 +800,36 @@ export default function AppShell() {
 
         attempts[key] = (attempts[key] || 0) + 1;
 
+        let mastered = false;
         if (outcome.nextKind && attempts[key] < GRAMMAR_MAX_ATTEMPTS) {
           const nextItem: GrammarQueueItem = { kind: outcome.nextKind, rule: item.rule };
           const insertAt = grammarInsertionIndex(session.index, queue.length);
           queue = [...queue.slice(0, insertAt), { domain: "grammar", item: nextItem }, ...queue.slice(insertAt)];
         } else {
           finishedItemIds.add(key);
-          if (outcome.stage === 4) masteredItemIds.add(key);
+          if (outcome.stage === 4) {
+            masteredItemIds.add(key);
+            mastered = true;
+          }
         }
+
+        const next = applyReward(reward, entry.result, mastered);
+        gainedTotal += next.gained;
+        reward = { combo: next.combo, bestCombo: next.bestCombo, xpEarned: next.xpEarned };
       });
 
-      return { ...session, grammarResults: [...session.grammarResults, ...entries], attempts, queue, finishedItemIds, masteredItemIds };
+      return {
+        ...session,
+        grammarResults: [...session.grammarResults, ...entries],
+        attempts,
+        queue,
+        finishedItemIds,
+        masteredItemIds,
+        ...reward,
+        lastXp: gainedTotal > 0 ? { amount: gainedTotal, key: session.vocabResults.length + session.grammarResults.length + 1 } : session.lastXp,
+      };
     },
-    [grammarStore]
+    [grammarStore, applyReward]
   );
 
   // Records the answer (grows the queue with a follow-up task) but does NOT advance the index —
@@ -700,6 +919,7 @@ export default function AppShell() {
   // ---------- Secondary flow: quick single-pass vocab drills (repeat mistakes / practice a word) ----------
 
   const startWithWords = useCallback((words: Word[]) => {
+    beginRun();
     const queue: QueueItem[] = words.map((w) => ({
       format: SIMPLE_FORMATS[Math.floor(Math.random() * SIMPLE_FORMATS.length)],
       words: [w],
@@ -707,7 +927,7 @@ export default function AppShell() {
     }));
     setQuickSession({ queue, index: 0, results: [] });
     setScreen("session");
-  }, []);
+  }, [beginRun]);
 
   const onQuickAnswered = useCallback(
     (entries: ResultEntry[]) => {
@@ -729,9 +949,12 @@ export default function AppShell() {
       const accuracy = Math.round((correct / total) * 100);
       const newWordsCount = s.results.filter((r) => store.wordState(r.wordId).timesSeen === 1).length;
 
-      store.recordSession({ date: Date.now(), total, correct, almost, incorrect, accuracy, format: "mixed" });
+      store.recordSession({ date: Date.now(), total, correct, almost, incorrect, accuracy, format: "quick" });
+      const xpEarned = s.results.length > 0 ? correct * 10 + almost * 4 + incorrect + XP_SESSION_COMPLETE : 0;
+      const xpBefore = store.xp;
+      store.addXp(xpEarned);
 
-      setSummary({ correct, almost, incorrect, total, accuracy, newWordsCount, results: s.results });
+      setSummary({ correct, almost, incorrect, total, accuracy, newWordsCount, results: s.results, xpEarned, xpBefore, bestCombo: 0 });
       setQuickSession(null);
       setScreen("summary");
     },
@@ -758,21 +981,11 @@ export default function AppShell() {
 
   // ---------- Navigation ----------
 
-  function goHome() {
-    setScreen("home");
-  }
-  function goList() {
-    setScreen("list");
-  }
-  function goStats() {
-    setScreen("stats");
-  }
-  function goSettings() {
-    setScreen("settings");
-  }
-  function goGoal() {
-    setScreen("goal");
-  }
+  const goHome = useCallback(() => setScreen("home"), []);
+  const goList = useCallback(() => setScreen("list"), []);
+  const goStats = useCallback(() => setScreen("stats"), []);
+  const goSettings = useCallback(() => setScreen("settings"), []);
+  const goGoal = useCallback(() => setScreen("goal"), []);
 
   // Shared by the "End session?" modal's Confirm button and the Escape/Enter keyboard path below,
   // so both ways of confirming an early exit stay in sync.
@@ -781,7 +994,13 @@ export default function AppShell() {
     if (learningSession) endLearningSession(learningSession);
     else if (quickSession) endQuickSession(quickSession);
     else if (linkingSession) finishLinking(linkingSession);
-  }, [learningSession, quickSession, linkingSession, endLearningSession, endQuickSession, finishLinking]);
+    else if (testSession) {
+      // An abandoned exam is not graded — a partial paper would produce a grade that says nothing
+      // about the learner, and filing it would drag the "best grade" record down for no reason.
+      setTestSession(null);
+      setScreen("home");
+    }
+  }, [learningSession, quickSession, linkingSession, testSession, endLearningSession, endQuickSession, finishLinking]);
 
   // Escape is the one key that always makes sense regardless of screen — it's the keyboard
   // equivalent of whatever "leave this" affordance is already on screen (the exit-confirm modal
@@ -799,11 +1018,8 @@ export default function AppShell() {
     switch (screen) {
       case "session":
       case "linking":
+      case "test":
         setModalOpen(true);
-        return;
-      case "writing":
-        setWritingSession(null);
-        setScreen("home");
         return;
       case "reading":
         setReadingSession(null);
@@ -822,15 +1038,25 @@ export default function AppShell() {
       case "home":
         return;
       default:
-        setScreen("home");
+        goHome();
     }
-  }, [shortcutsHelpOpen, modalOpen, screen]);
+  }, [shortcutsHelpOpen, modalOpen, screen, goHome]);
+
+  /** True while something is in progress that leaving would discard. */
+  const isRunActive = screen === "session" || screen === "linking" || screen === "test" || screen === "reading" || screen === "linking-essay";
+
+  const currentWordId =
+    learningSession && currentItem?.domain === "vocab"
+      ? currentItem.item.words[0]?.id ?? null
+      : quickSession
+      ? quickSession.queue[quickSession.index]?.words[0]?.id ?? null
+      : null;
 
   // Global desktop shortcuts so the basic app functions (navigate, mute, exit, see this list) never
   // require a mouse. Bails out while the user is typing in a text field so none of these single
   // letters get swallowed mid-answer — Escape is the one exception, since it never types a
-  // character. Per-screen shortcuts (Home's mode/session keys, exercises' A–D/hint, Word List's "/")
-  // live next to the state they act on instead of here.
+  // character. Per-screen shortcuts (Home's mode/session keys, exercises' A–D/hint, Word List's "/",
+  // Stats' tabs) live next to the state they act on instead of here.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -853,13 +1079,49 @@ export default function AppShell() {
         return;
       }
       if (shortcutsHelpOpen) {
-        if (e.key.toLowerCase() === "h") setShortcutsHelpOpen(false);
+        if (e.key.toLowerCase() === "h" || e.key === "?") setShortcutsHelpOpen(false);
         return;
       }
 
       const target = e.target as HTMLElement | null;
       const isTyping = !!target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
       if (isTyping) return;
+
+      // Session-only keys, checked first so they win over the navigation letters below on the one
+      // screen where reaching for the star or the exclude button by hand is the real friction.
+      if (screen === "session" && currentWordId) {
+        if (e.key.toLowerCase() === "f") {
+          e.preventDefault();
+          store.toggleFavorite(currentWordId);
+          return;
+        }
+        if (e.key.toLowerCase() === "x") {
+          e.preventDefault();
+          if (window.confirm("Dieses Wort für immer aus dem Training ausschließen?")) {
+            if (learningSession) blockWordAndAdvance(currentWordId);
+            else if (quickSession) blockWordAndAdvanceQuick(currentWordId);
+          }
+          return;
+        }
+      }
+
+      // Mute and the shortcut sheet are always safe — they change nothing you'd lose.
+      switch (e.key.toLowerCase()) {
+        case "m":
+          e.preventDefault();
+          toggleMuted();
+          return;
+        case "h":
+        case "?":
+          e.preventDefault();
+          setShortcutsHelpOpen(true);
+          return;
+      }
+
+      // Navigation, on the other hand, walks away from whatever is running. There's no route back
+      // into a half-finished session or exam, so a stray "w" used to silently throw one away —
+      // during a test that means an ungraded paper. Escape (which confirms first) stays the way out.
+      if (isRunActive) return;
 
       switch (e.key.toLowerCase()) {
         case "g":
@@ -878,29 +1140,40 @@ export default function AppShell() {
           e.preventDefault();
           goSettings();
           break;
-        case "m":
-          e.preventDefault();
-          toggleMuted();
-          break;
-        case "h":
-          e.preventDefault();
-          setShortcutsHelpOpen(true);
-          break;
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleEscape, modalOpen, shortcutsHelpOpen, confirmEndSession]);
+  }, [
+    handleEscape,
+    modalOpen,
+    shortcutsHelpOpen,
+    confirmEndSession,
+    screen,
+    isRunActive,
+    currentWordId,
+    learningSession,
+    quickSession,
+    blockWordAndAdvance,
+    blockWordAndAdvanceQuick,
+    store,
+    goGoal,
+    goList,
+    goStats,
+    goSettings,
+  ]);
 
   const activeMode: "learning" | "quick" | null = learningSession ? "learning" : quickSession ? "quick" : null;
-  const currentWordId =
-    activeMode === "learning" && currentItem?.domain === "vocab"
-      ? currentItem.item.words[0]?.id ?? null
-      : activeMode === "quick" && quickSession
-      ? quickSession.queue[quickSession.index]?.words[0]?.id ?? null
-      : null;
   const favorite = currentWordId ? store.wordState(currentWordId).favorite : false;
   const showFavorite = currentItem?.domain === "vocab" && currentItem.item.kind !== "match";
+
+  // The badge effect can only fill these in after the finishing session/test has landed in the
+  // store, so the celebration screens read them from here rather than from their own frozen props.
+  const summaryWithBadges = useMemo(() => (summary ? { ...summary, newBadges } : null), [summary, newBadges]);
+  const testResultWithBadges = useMemo(() => (testResult ? { ...testResult, newBadges } : null), [testResult, newBadges]);
+
+  const isFullHeightScreen =
+    screen === "session" || screen === "linking" || screen === "linking-learn" || screen === "linking-essay" || screen === "reading" || screen === "test";
 
   return (
     <div
@@ -909,6 +1182,7 @@ export default function AppShell() {
     >
       <TopBar
         screen={screen}
+        xp={store.xp}
         goHome={goHome}
         goList={goList}
         goStats={goStats}
@@ -920,14 +1194,7 @@ export default function AppShell() {
       <main
         className={
           "flex-1 min-h-0 py-3 flex flex-col overscroll-x-none [-webkit-overflow-scrolling:touch] " +
-          (screen === "session" ||
-          screen === "writing" ||
-          screen === "linking" ||
-          screen === "linking-learn" ||
-          screen === "linking-essay" ||
-          screen === "reading"
-            ? "overflow-hidden"
-            : "overflow-y-auto overflow-x-hidden")
+          (isFullHeightScreen ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden")
         }
       >
         {screen === "home" && (
@@ -936,19 +1203,10 @@ export default function AppShell() {
             onModeChange={setHomeMode}
             linkingSubMode={homeLinkingSubMode}
             onLinkingSubModeChange={setHomeLinkingSubMode}
-            onStart={(mode, includeReview, linkingSubMode) =>
-              mode === "writing"
-                ? startWritingSession()
-                : mode === "linking"
-                ? linkingSubMode === "learn"
-                  ? startConnectorLearn()
-                  : linkingSubMode === "essay"
-                  ? startLinkingEssay()
-                  : startLinkingSession()
-                : mode === "reading"
-                ? startReadingSession()
-                : startLearningSession(mode, includeReview)
-            }
+            onStartLearning={startLearningSession}
+            onStartLinking={(subMode) => (subMode === "learn" ? startConnectorLearn() : subMode === "essay" ? startLinkingEssay() : startLinkingSession())}
+            onStartReading={startReadingSession}
+            onStartTest={startTest}
             onReview={startReviewSession}
             onSpeedRound={startSpeedRound}
             onGoal={goGoal}
@@ -967,19 +1225,6 @@ export default function AppShell() {
           >
             <LinkingExercise pair={linkingSession.queue[linkingSession.index]} onAnswered={onLinkingAnswered} onNext={nextLinkingQuestion} />
           </SessionScreen>
-        )}
-
-        {screen === "writing" && writingSession && (
-          <WritingScreen
-            topic={writingSession.topic}
-            requiredWords={writingSession.requiredWords}
-            requiredRules={writingSession.requiredRules}
-            onExit={() => {
-              setWritingSession(null);
-              setScreen("home");
-            }}
-            onFinish={finishWriting}
-          />
         )}
 
         {screen === "reading" && readingSession && (
@@ -1007,6 +1252,31 @@ export default function AppShell() {
           />
         )}
 
+        {screen === "test" && testSession && (
+          <TestScreen
+            questions={testSession.questions}
+            answers={testSession.answers}
+            index={testSession.index}
+            startedAt={testSession.startedAt}
+            onAnswer={answerTestQuestion}
+            onNavigate={navigateTest}
+            onSubmit={() => finishTest(testSession)}
+            onExit={() => setModalOpen(true)}
+          />
+        )}
+
+        {screen === "test-result" && testResultWithBadges && (
+          <TestResultScreen
+            result={testResultWithBadges}
+            onHome={goHome}
+            onRetry={() => {
+              setTestResult(null);
+              setHomeMode("test");
+              setScreen("home");
+            }}
+          />
+        )}
+
         {screen === "session" && activeMode === "learning" && learningSession && currentItem && (
           <SessionScreen
             renderKey={`${learningSession.index}-${currentItem.domain}-${currentItem.domain === "vocab" ? currentItem.item.words[0].id : currentItem.item.rule.id}-${currentItem.item.kind}`}
@@ -1015,6 +1285,10 @@ export default function AppShell() {
             favorite={favorite}
             showFavorite={showFavorite}
             timerLabel={speedSecondsLeft !== null ? `0:${String(speedSecondsLeft).padStart(2, "0")}` : undefined}
+            showRewards
+            combo={learningSession.combo}
+            sessionXp={learningSession.xpEarned}
+            xpPop={learningSession.lastXp}
             onExit={() => setModalOpen(true)}
             onToggleFav={() => currentWordId && store.toggleFavorite(currentWordId)}
             onBlock={currentWordId ? () => blockWordAndAdvance(currentWordId) : undefined}
@@ -1051,9 +1325,9 @@ export default function AppShell() {
           </SessionScreen>
         )}
 
-        {screen === "summary" && summary && (
+        {screen === "summary" && summaryWithBadges && (
           <SummaryScreen
-            stats={summary}
+            stats={summaryWithBadges}
             onHome={goHome}
             onRepeat={(ids) => startWithWords(ids.map((id) => VOCAB_BY_ID[id]))}
           />
@@ -1085,12 +1359,19 @@ export default function AppShell() {
 
       <Modal
         open={modalOpen}
-        title="End session?"
-        body="Your progress so far will be saved, but the session will end early."
+        title={screen === "test" ? "Test abbrechen?" : "End session?"}
+        body={
+          screen === "test"
+            ? "Der Test wird verworfen und nicht benotet."
+            : "Your progress so far will be saved, but the session will end early."
+        }
         onCancel={() => setModalOpen(false)}
         onConfirm={confirmEndSession}
       />
       <ShortcutsHelp open={shortcutsHelpOpen} onClose={() => setShortcutsHelpOpen(false)} />
+      {/* Every unlocked badge is worth its own burst, so the count is folded into the trigger
+          rather than needing a state update from the badge evaluation itself. */}
+      <Confetti trigger={celebrate + store.badgeIds.size} />
     </div>
   );
 }

@@ -1,15 +1,36 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BookMarked, BookOpen, Blocks, ChevronUp, Flag, Flame, Heart, Lightbulb, Link2, Newspaper, PenLine, Repeat, Shuffle, Target, Timer, TrendingDown } from "lucide-react";
+import {
+  BookMarked,
+  BookOpen,
+  Blocks,
+  ChevronUp,
+  Flag,
+  Flame,
+  GraduationCap,
+  Heart,
+  Lightbulb,
+  Link2,
+  Newspaper,
+  PenLine,
+  Repeat,
+  Sparkles,
+  Target,
+  Timer,
+  TrendingDown,
+  Trophy,
+} from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { VOCAB, VOCAB_BY_ID } from "@/lib/vocab";
 import { activeGrammarRules } from "@/lib/grammarLearning";
 import { needsIntensification } from "@/lib/intensify";
-import { WRITING_MIN_RULES, WRITING_MIN_WORDS } from "@/lib/writingTopics";
 import { computeGoalStatus } from "@/lib/goal";
-import type { SessionMode, LinkingSubMode, ReviewOptions } from "@/components/AppShell";
+import { computeStreak, DAY_MS } from "@/lib/progressStats";
+import { levelProgress } from "@/lib/gamification";
+import { BAND_STYLES, bandForGrade, TEST_LENGTH_OPTIONS, TEST_SCOPE_OPTIONS, type TestLength, type TestScope } from "@/lib/testMode";
+import type { SessionMode, LearningMode, LinkingSubMode, ReviewOptions } from "@/components/AppShell";
 import type { SessionRecord } from "@/lib/types";
 import type { GrammarSessionRecord } from "@/lib/grammarTypes";
 
@@ -49,24 +70,6 @@ const MODES: {
     ring: ["#8b5cf6", "#6d3fd4"],
   },
   {
-    val: "mixed",
-    label: "Mixed",
-    icon: Shuffle,
-    grad: "from-blue to-purple",
-    tint: "bg-gradient-to-br from-blue-light to-purple-light text-blue-dark",
-    glow: "shadow-[0_10px_24px_-8px_rgba(99,90,230,0.45)]",
-    ring: ["#0071e3", "#8b5cf6"],
-  },
-  {
-    val: "writing",
-    label: "Writing",
-    icon: PenLine,
-    grad: "from-amber to-amber-dark",
-    tint: "bg-amber-light text-amber",
-    glow: "shadow-[0_10px_24px_-8px_rgba(232,161,46,0.5)]",
-    ring: ["#e8a12e", "#c9860f"],
-  },
-  {
     val: "linking",
     label: "Linking",
     icon: Link2,
@@ -84,6 +87,25 @@ const MODES: {
     glow: "shadow-[0_10px_24px_-8px_rgba(232,72,58,0.5)]",
     ring: ["#e8483a", "#c23325"],
   },
+  {
+    val: "test",
+    label: "Test",
+    icon: GraduationCap,
+    grad: "from-ink to-ink/70",
+    tint: "bg-line-soft text-ink",
+    glow: "shadow-[0_10px_24px_-8px_rgba(15,23,42,0.55)]",
+    ring: ["#1d1d1f", "#48484f"],
+  },
+];
+
+/** The two modes that run the adaptive stage engine — the only ones with a review pool, a
+ * "Session-Inhalt" choice, or a learned/total progress ring. */
+const LEARNING_MODES: SessionMode[] = ["vocab", "grammar"];
+const isLearningMode = (m: SessionMode): m is LearningMode => LEARNING_MODES.includes(m);
+
+const SESSION_CONTENT_OPTIONS: { val: boolean; label: string; hint: string }[] = [
+  { val: true, label: "Neu + Wiederholung", hint: "Neue Inhalte, gemischt mit fälligen Wiederholungen" },
+  { val: false, label: "Nur Neues lernen", hint: "Ausschließlich noch nicht gelernte Inhalte" },
 ];
 
 const REVIEW_ACCURACY_OPTIONS: { val: number | null; label: string }[] = [
@@ -97,26 +119,6 @@ const REVIEW_LIMIT_OPTIONS: { val: number | null; label: string }[] = [
   { val: 20, label: "20" },
   { val: 10, label: "10" },
 ];
-
-const DAY_MS = 86400000;
-
-/** Consecutive calendar days (ending today or yesterday) with at least one completed session. */
-function computeStreak(dates: number[]): number {
-  if (!dates.length) return 0;
-  const days = new Set(dates.map((d) => Math.floor(d / DAY_MS)));
-  const today = Math.floor(Date.now() / DAY_MS);
-  let cursor = today;
-  if (!days.has(cursor)) {
-    if (days.has(cursor - 1)) cursor -= 1;
-    else return 0;
-  }
-  let streak = 0;
-  while (days.has(cursor)) {
-    streak++;
-    cursor--;
-  }
-  return streak;
-}
 
 function buildActivityCells(dates: number[]): { day: number; count: number }[] {
   const days = 14;
@@ -147,7 +149,10 @@ export default function HomeScreen({
   onModeChange,
   linkingSubMode,
   onLinkingSubModeChange,
-  onStart,
+  onStartLearning,
+  onStartLinking,
+  onStartReading,
+  onStartTest,
   onReview,
   onSpeedRound,
   onGoal,
@@ -156,17 +161,24 @@ export default function HomeScreen({
   onModeChange: (mode: SessionMode) => void;
   linkingSubMode: LinkingSubMode;
   onLinkingSubModeChange: (mode: LinkingSubMode) => void;
-  onStart: (mode: SessionMode, includeReview?: boolean, linkingSubMode?: LinkingSubMode) => void;
-  onReview: (mode: SessionMode, options?: ReviewOptions) => void;
+  onStartLearning: (mode: LearningMode, includeReview: boolean) => void;
+  onStartLinking: (subMode: LinkingSubMode) => void;
+  onStartReading: () => void;
+  onStartTest: (scope: TestScope, length: TestLength) => void;
+  onReview: (mode: LearningMode, options?: ReviewOptions) => void;
   onSpeedRound: () => void;
   onGoal: () => void;
 }) {
   const store = useStore();
   const grammarStore = useGrammarStore();
   const [includeReview, setIncludeReview] = useState(true);
-  const [reviewMenuOpen, setReviewMenuOpen] = useState(false);
+  // Exactly one dropdown may be open at a time — they share the same slot above the sticky footer,
+  // so tracking which one is open (rather than a boolean per menu) makes overlap impossible.
+  const [openMenu, setOpenMenu] = useState<"review" | "start" | null>(null);
   const [reviewMaxAccuracy, setReviewMaxAccuracy] = useState<number | null>(null);
   const [reviewLimit, setReviewLimit] = useState<number | null>(null);
+  const [testScope, setTestScope] = useState<TestScope>("both");
+  const [testLength, setTestLength] = useState<TestLength>(25);
 
   const activeVocabTotal = useMemo(() => VOCAB.length - store.blockedWordIds.size, [store.blockedWordIds]);
 
@@ -261,23 +273,7 @@ export default function HomeScreen({
     return rows.sort((a, b) => b.date - a.date).slice(0, 6);
   }, [store.sessionHistory, grammarStore.sessionHistory]);
 
-  const stats =
-    mode === "grammar"
-      ? grammarStats
-      : mode === "mixed"
-      ? {
-          learned: vocabStats.learned + grammarStats.learned,
-          total: vocabStats.total + grammarStats.total,
-          sessions: Math.max(vocabStats.sessions, grammarStats.sessions),
-          accuracy: Math.round((vocabStats.accuracy + grammarStats.accuracy) / 2),
-        }
-      : vocabStats;
-
-  const writingSessionsCount = useMemo(
-    () => grammarStore.sessionHistory.filter((s) => s.format === "writing").length,
-    [grammarStore.sessionHistory]
-  );
-  const writingEligible = vocabStats.learned >= WRITING_MIN_WORDS && grammarStats.learned >= WRITING_MIN_RULES;
+  const stats = mode === "grammar" ? grammarStats : vocabStats;
 
   const linkingSessionsCount = useMemo(
     () => grammarStore.sessionHistory.filter((s) => LINKING_FORMATS.includes(s.format)).length,
@@ -306,17 +302,29 @@ export default function HomeScreen({
     return total ? Math.round((s.correct / total) * 100) : 0;
   }, [grammarStore.formatStats]);
 
+  const testStats = useMemo(() => {
+    const history = store.testHistory;
+    if (history.length === 0) return { count: 0, best: null as number | null, average: null as number | null, last: null as number | null };
+    const grades = history.map((t) => t.grade);
+    return {
+      count: history.length,
+      best: Math.max(...grades),
+      average: Math.round((grades.reduce((a, b) => a + b, 0) / grades.length) * 10) / 10,
+      last: history[history.length - 1].grade,
+    };
+  }, [store.testHistory]);
+
   // How many of the currently mastered words/rules pass the accuracy filter picked in the review
   // dropdown — recomputed live as the filter changes so the dropdown always shows an accurate count.
   const reviewMatchCount = useMemo(() => {
     const belowThreshold = (score: number) => reviewMaxAccuracy === null || score * 20 < reviewMaxAccuracy;
     let count = 0;
-    if (mode === "vocab" || mode === "mixed") {
+    if (mode === "vocab") {
       Object.entries(store.words).forEach(([id, w]) => {
         if (!store.blockedWordIds.has(id) && w.stage === 4 && belowThreshold(w.score)) count++;
       });
     }
-    if (mode === "grammar" || mode === "mixed") {
+    if (mode === "grammar") {
       activeRules.forEach((r) => {
         const s = grammarStore.rules[r.id];
         if (s && s.stage === 4 && belowThreshold(s.score)) count++;
@@ -327,14 +335,36 @@ export default function HomeScreen({
 
   const active = MODES.find((m) => m.val === mode)!;
   const progressPct = stats.total ? Math.round((stats.learned / stats.total) * 100) : 0;
+  const showReviewButton = isLearningMode(mode) && stats.learned > 0;
+  // Only the modes with something to configure get the split "Start ▾" affordance; the rest keep a
+  // plain full-width button rather than a chevron that opens an empty panel.
+  const hasStartOptions = isLearningMode(mode) || mode === "test";
 
-  // Home's own no-mouse shortcuts: 1–6 pick a mode tile (same left-to-right order as MODES), R
-  // opens the review-filter dropdown, Enter either starts a session or — while that dropdown is
-  // open — confirms it instead, mirroring each control's own disabled state so the shortcut never
-  // does something the equivalent click couldn't.
+  function start() {
+    setOpenMenu(null);
+    if (mode === "test") onStartTest(testScope, testLength);
+    else if (mode === "linking") onStartLinking(linkingSubMode);
+    else if (mode === "reading") onStartReading();
+    else onStartLearning(mode, includeReview);
+  }
+
+  // Home's own no-mouse shortcuts: 1-5 pick a mode tile (same left-to-right order as MODES),
+  // R opens the review-filter dropdown, C the start-options dropdown, Q the speed round, and Enter
+  // either starts a session or — while a dropdown is open — confirms it instead. Each shortcut
+  // mirrors its control's own disabled state, so it can never do something the click couldn't.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Escape closes an open dropdown. Handled here rather than in AppShell's global Escape path,
+      // which deliberately does nothing on Home — but a panel covering the screen with a
+      // click-catching backdrop still has to be dismissible from the keyboard.
+      if (e.key === "Escape") {
+        if (openMenu === null) return;
+        e.preventDefault();
+        setOpenMenu(null);
+        return;
+      }
+
       const target = e.target as HTMLElement | null;
       if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
 
@@ -342,13 +372,25 @@ export default function HomeScreen({
       if (Number.isInteger(num) && num >= 1 && num <= MODES.length) {
         e.preventDefault();
         onModeChange(MODES[num - 1].val);
+        setOpenMenu(null);
         return;
       }
-      if (e.key.toLowerCase() === "r") {
-        if (mode === "writing" || mode === "linking" || mode === "reading" || stats.learned === 0) return;
-        e.preventDefault();
-        setReviewMenuOpen((v) => !v);
-        return;
+      switch (e.key.toLowerCase()) {
+        case "r":
+          if (!showReviewButton) return;
+          e.preventDefault();
+          setOpenMenu((m) => (m === "review" ? null : "review"));
+          return;
+        case "c":
+          if (!hasStartOptions) return;
+          e.preventDefault();
+          setOpenMenu((m) => (m === "start" ? null : "start"));
+          return;
+        case "q":
+          if (mode !== "vocab" || vocabStats.learned === 0) return;
+          e.preventDefault();
+          onSpeedRound();
+          return;
       }
       if (e.key === "Enter") {
         // A focused button already reacts to its own Enter (e.g. tabbing to one of the dropdown's
@@ -356,34 +398,20 @@ export default function HomeScreen({
         // owns it.
         const activeTag = (document.activeElement as HTMLElement | null)?.tagName;
         if (activeTag === "BUTTON" || activeTag === "A") return;
-        if (reviewMenuOpen) {
-          if (reviewMatchCount === 0) return;
+        if (openMenu === "review") {
+          if (reviewMatchCount === 0 || !isLearningMode(mode)) return;
           e.preventDefault();
-          setReviewMenuOpen(false);
+          setOpenMenu(null);
           onReview(mode, { maxAccuracy: reviewMaxAccuracy, limit: reviewLimit });
           return;
         }
-        if (mode === "writing" && !writingEligible) return;
         e.preventDefault();
-        onStart(mode, includeReview, linkingSubMode);
+        start();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    mode,
-    stats.learned,
-    reviewMenuOpen,
-    reviewMatchCount,
-    reviewMaxAccuracy,
-    reviewLimit,
-    onReview,
-    onModeChange,
-    onStart,
-    includeReview,
-    linkingSubMode,
-    writingEligible,
-  ]);
+  });
 
   return (
     <section className="flex flex-col pb-1">
@@ -412,272 +440,175 @@ export default function HomeScreen({
       )}
 
       <div className="lg:grid lg:grid-cols-[1.35fr_1fr] lg:gap-6 lg:items-start">
-      <div>
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5 mt-1">
-        {MODES.map((m) => {
-          const Icon = m.icon;
-          const isActive = mode === m.val;
-          return (
-            <button
-              key={m.val}
-              onClick={() => onModeChange(m.val)}
-              className={
-                "flex flex-col items-center gap-1.5 rounded-2xl px-1.5 py-3.5 text-center transition-all duration-200 " +
-                (isActive
-                  ? `bg-gradient-to-br ${m.grad} text-white ${m.glow} scale-[1.02]`
-                  : "bg-card border border-line-soft text-ink-soft hover:border-line hover:-translate-y-0.5 hover:shadow-md")
-              }
-            >
-              <span
-                className={
-                  "w-8 h-8 rounded-full flex items-center justify-center transition-colors " + (isActive ? "bg-white/20" : m.tint)
-                }
-              >
-                <Icon size={16} />
-              </span>
-              <span className="text-[12px] font-semibold">{m.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {mode === "linking" && (
-        <div className="grid grid-cols-3 gap-2 mb-5">
-          {LINKING_SUB_MODES.map((sm) => {
-            const Icon = sm.icon;
-            const isActive = linkingSubMode === sm.val;
-            return (
-              <button
-                key={sm.val}
-                onClick={() => onLinkingSubModeChange(sm.val)}
-                className={
-                  "flex flex-col items-center gap-1 rounded-xl px-1.5 py-2.5 text-center transition-all " +
-                  (isActive ? "bg-green-light border-[1.5px] border-green text-[#0d7a4f]" : "bg-card border-[1.5px] border-line-soft text-ink-soft hover:border-line")
-                }
-              >
-                <Icon size={15} />
-                <span className="text-[11px] font-semibold leading-tight">{sm.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {mode === "writing" ? (
-        <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm">
-          <div className="flex items-center gap-4 mb-1">
-            <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 bg-amber-light text-amber">
-              <PenLine size={22} />
-            </span>
-            <div className="flex-1 flex flex-col gap-2.5 min-w-0">
-              <StatRow icon={<Repeat size={14} />} value={writingSessionsCount} label="Texte geschrieben" tint="bg-blue-light text-blue" />
-              <StatRow icon={<Flame size={14} />} value={streak} label={streak === 1 ? "Tag Streak" : "Tage Streak"} tint="bg-red-light text-red" />
-            </div>
+        <div>
+          {/* Three per row on a phone (5 labels across ~360px would clip), five once there's room. */}
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-5 mt-1">
+            {MODES.map((m) => {
+              const Icon = m.icon;
+              const isActive = mode === m.val;
+              return (
+                <button
+                  key={m.val}
+                  onClick={() => {
+                    onModeChange(m.val);
+                    setOpenMenu(null);
+                  }}
+                  className={
+                    "flex flex-col items-center gap-1.5 rounded-2xl px-1.5 py-3.5 text-center transition-all duration-200 " +
+                    (isActive
+                      ? `bg-gradient-to-br ${m.grad} text-white ${m.glow} scale-[1.02]`
+                      : "bg-card border border-line-soft text-ink-soft hover:border-line hover:-translate-y-0.5 hover:shadow-md")
+                  }
+                >
+                  <span className={"w-8 h-8 rounded-full flex items-center justify-center transition-colors " + (isActive ? "bg-white/20" : m.tint)}>
+                    <Icon size={16} />
+                  </span>
+                  <span className="text-[11.5px] font-semibold">{m.label}</span>
+                </button>
+              );
+            })}
           </div>
-          {!writingEligible && (
-            <div className="mt-3 pt-3 border-t border-line-soft text-[12.5px] text-ink-soft leading-relaxed">
-              Lerne zuerst mindestens {WRITING_MIN_WORDS} Wörter und {WRITING_MIN_RULES} Grammatikregeln, um schreiben zu können ({vocabStats.learned}
-              /{WRITING_MIN_WORDS} Wörter, {grammarStats.learned}/{WRITING_MIN_RULES} Regeln gelernt).
+
+          {mode === "linking" && (
+            <div className="grid grid-cols-3 gap-2 mb-5">
+              {LINKING_SUB_MODES.map((sm) => {
+                const Icon = sm.icon;
+                const isActive = linkingSubMode === sm.val;
+                return (
+                  <button
+                    key={sm.val}
+                    onClick={() => onLinkingSubModeChange(sm.val)}
+                    className={
+                      "flex flex-col items-center gap-1 rounded-xl px-1.5 py-2.5 text-center transition-all " +
+                      (isActive
+                        ? "bg-green-light border-[1.5px] border-green text-[#0d7a4f]"
+                        : "bg-card border-[1.5px] border-line-soft text-ink-soft hover:border-line")
+                    }
+                  >
+                    <Icon size={15} />
+                    <span className="text-[11px] font-semibold leading-tight">{sm.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {mode === "linking" ? (
+            <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm flex items-center gap-4">
+              <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 bg-green-light text-green">
+                <Link2 size={22} />
+              </span>
+              <div className="flex-1 flex flex-col gap-2.5 min-w-0">
+                <StatRow icon={<Repeat size={14} />} value={linkingSessionsCount} label="Sessions" tint="bg-blue-light text-blue" />
+                <StatRow icon={<Target size={14} />} value={`${linkingAccuracy}%`} label="Genauigkeit" tint="bg-amber-light text-amber" />
+                <StatRow icon={<Flame size={14} />} value={streak} label={streak === 1 ? "Tag Streak" : "Tage Streak"} tint="bg-red-light text-red" />
+              </div>
+            </div>
+          ) : mode === "reading" ? (
+            <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm flex items-center gap-4">
+              <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 bg-red-light text-red">
+                <Newspaper size={22} />
+              </span>
+              <div className="flex-1 flex flex-col gap-2.5 min-w-0">
+                <StatRow icon={<Repeat size={14} />} value={readingSessionsCount} label="Texte gelesen" tint="bg-blue-light text-blue" />
+                <StatRow icon={<Target size={14} />} value={`${readingAccuracy}%`} label="Genauigkeit" tint="bg-amber-light text-amber" />
+                <StatRow icon={<Flame size={14} />} value={streak} label={streak === 1 ? "Tag Streak" : "Tage Streak"} tint="bg-red-light text-red" />
+              </div>
+            </div>
+          ) : mode === "test" ? (
+            <TestOverviewCard stats={testStats} streak={streak} scope={testScope} length={testLength} />
+          ) : (
+            <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm flex items-center gap-4">
+              <ProgressRing pct={progressPct} from={active.ring[0]} to={active.ring[1]}>
+                <span className="text-[19px] font-bold tracking-tight leading-none">{stats.learned}</span>
+                <span className="text-[10px] text-ink-faint mt-0.5">/ {stats.total}</span>
+              </ProgressRing>
+              <div className="flex-1 flex flex-col gap-2.5 min-w-0">
+                <StatRow icon={<Repeat size={14} />} value={stats.sessions} label="Sessions" tint="bg-blue-light text-blue" />
+                <StatRow icon={<Target size={14} />} value={`${stats.accuracy}%`} label="Genauigkeit" tint="bg-amber-light text-amber" />
+                <StatRow icon={<Flame size={14} />} value={streak} label={streak === 1 ? "Tag Streak" : "Tage Streak"} tint="bg-red-light text-red" />
+              </div>
+            </div>
+          )}
+
+          {mode === "vocab" && (
+            <div className="flex flex-col gap-2.5 mt-3">
+              <MiniBar label="Verbs" learned={wordTypeBreakdown.verbsLearned} total={wordTypeBreakdown.verbsTotal} grad="from-blue to-blue-dark" />
+              <MiniBar label="Adjectives" learned={wordTypeBreakdown.adjLearned} total={wordTypeBreakdown.adjTotal} grad="from-purple to-purple-dark" />
+              <div className="grid grid-cols-3 gap-2.5">
+                <StatChip icon={<Heart size={14} />} value={wordTypeBreakdown.favorites} label="Favoriten" tint="bg-red-light text-red" />
+                <StatChip icon={<TrendingDown size={14} />} value={wordTypeBreakdown.difficult} label="Schwierig" tint="bg-amber-light text-amber" />
+                <StatChip icon={<Lightbulb size={14} />} value={wordTypeBreakdown.intensify} label="Intensivieren" tint="bg-amber-light text-amber" />
+              </div>
+            </div>
+          )}
+
+          {mode === "grammar" && grammarCategoryBreakdown.length > 0 && (
+            <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm mt-3">
+              <div className="text-[13px] font-semibold text-ink mb-3">Nach Kategorie</div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+                {grammarCategoryBreakdown.map(([category, c]) => (
+                  <div key={category} className="flex items-center justify-between gap-2 text-[12px]">
+                    <span className="text-ink-soft truncate">{category}</span>
+                    <span className="text-ink-faint font-semibold tabular-nums shrink-0">
+                      {c.learned}/{c.total}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
-      ) : mode === "linking" ? (
-        <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm flex items-center gap-4">
-          <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 bg-green-light text-green">
-            <Link2 size={22} />
-          </span>
-          <div className="flex-1 flex flex-col gap-2.5 min-w-0">
-            <StatRow icon={<Repeat size={14} />} value={linkingSessionsCount} label="Sessions" tint="bg-blue-light text-blue" />
-            <StatRow icon={<Target size={14} />} value={`${linkingAccuracy}%`} label="Genauigkeit" tint="bg-amber-light text-amber" />
-            <StatRow icon={<Flame size={14} />} value={streak} label={streak === 1 ? "Tag Streak" : "Tage Streak"} tint="bg-red-light text-red" />
-          </div>
-        </div>
-      ) : mode === "reading" ? (
-        <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm flex items-center gap-4">
-          <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 bg-red-light text-red">
-            <Newspaper size={22} />
-          </span>
-          <div className="flex-1 flex flex-col gap-2.5 min-w-0">
-            <StatRow icon={<Repeat size={14} />} value={readingSessionsCount} label="Texte gelesen" tint="bg-blue-light text-blue" />
-            <StatRow icon={<Target size={14} />} value={`${readingAccuracy}%`} label="Genauigkeit" tint="bg-amber-light text-amber" />
-            <StatRow icon={<Flame size={14} />} value={streak} label={streak === 1 ? "Tag Streak" : "Tage Streak"} tint="bg-red-light text-red" />
-          </div>
-        </div>
-      ) : (
-        <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm flex items-center gap-4">
-          <ProgressRing pct={progressPct} from={active.ring[0]} to={active.ring[1]}>
-            <span className="text-[19px] font-bold tracking-tight leading-none">{stats.learned}</span>
-            <span className="text-[10px] text-ink-faint mt-0.5">/ {stats.total}</span>
-          </ProgressRing>
-          <div className="flex-1 flex flex-col gap-2.5 min-w-0">
-            <StatRow icon={<Repeat size={14} />} value={stats.sessions} label="Sessions" tint="bg-blue-light text-blue" />
-            <StatRow icon={<Target size={14} />} value={`${stats.accuracy}%`} label="Genauigkeit" tint="bg-amber-light text-amber" />
-            <StatRow icon={<Flame size={14} />} value={streak} label={streak === 1 ? "Tag Streak" : "Tage Streak"} tint="bg-red-light text-red" />
-          </div>
-        </div>
-      )}
 
-      {(mode === "vocab" || mode === "grammar") && (
-        <div className="flex items-center justify-between gap-3 bg-card border border-line-soft rounded-2xl px-4 py-3 shadow-sm mt-3">
-          <span className="text-[13px] font-semibold text-ink-soft">Session-Inhalt</span>
-          <select
-            value={includeReview ? "both" : "new"}
-            onChange={(e) => setIncludeReview(e.target.value === "both")}
-            className="text-[13px] font-semibold bg-bg border border-line rounded-full pl-3 pr-2 py-1.5 outline-none focus:border-blue cursor-pointer"
-          >
-            <option value="both">Neu + Wiederholung</option>
-            <option value="new">Nur Neues lernen</option>
-          </select>
-        </div>
-      )}
+        <div className="flex flex-col gap-3 mt-3 lg:mt-0">
+          <LevelCard xp={store.xp} badgesEarned={store.badgeIds.size} />
+          <ActivityStrip dates={allDates} />
 
-      {mode === "mixed" && (
-        <div className="flex flex-col gap-2.5 mt-3">
-          <MiniBar label="Vocabulary" learned={vocabStats.learned} total={vocabStats.total} grad="from-blue to-blue-dark" />
-          <MiniBar label="Grammar" learned={grammarStats.learned} total={grammarStats.total} grad="from-purple to-purple-dark" />
-        </div>
-      )}
-
-      {mode === "vocab" && (
-        <div className="flex flex-col gap-2.5 mt-3">
-          <MiniBar label="Verbs" learned={wordTypeBreakdown.verbsLearned} total={wordTypeBreakdown.verbsTotal} grad="from-blue to-blue-dark" />
-          <MiniBar
-            label="Adjectives"
-            learned={wordTypeBreakdown.adjLearned}
-            total={wordTypeBreakdown.adjTotal}
-            grad="from-purple to-purple-dark"
-          />
-          <div className="grid grid-cols-3 gap-2.5">
-            <StatChip icon={<Heart size={14} />} value={wordTypeBreakdown.favorites} label="Favoriten" tint="bg-red-light text-red" />
-            <StatChip icon={<TrendingDown size={14} />} value={wordTypeBreakdown.difficult} label="Schwierig" tint="bg-amber-light text-amber" />
-            <StatChip icon={<Lightbulb size={14} />} value={wordTypeBreakdown.intensify} label="Intensivieren" tint="bg-amber-light text-amber" />
-          </div>
-        </div>
-      )}
-
-      {mode === "grammar" && grammarCategoryBreakdown.length > 0 && (
-        <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm mt-3">
-          <div className="text-[13px] font-semibold text-ink mb-3">Nach Kategorie</div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-            {grammarCategoryBreakdown.map(([category, c]) => (
-              <div key={category} className="flex items-center justify-between gap-2 text-[12px]">
-                <span className="text-ink-soft truncate">{category}</span>
-                <span className="text-ink-faint font-semibold tabular-nums shrink-0">
-                  {c.learned}/{c.total}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      </div>
-
-      <div className="flex flex-col gap-3 mt-3 lg:mt-0">
-      <ActivityStrip dates={allDates} />
-
-      {recentSessions.length > 0 && (
-        <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm">
-          <div className="text-[13px] font-semibold text-ink mb-1">Letzte Sessions</div>
-          <div className="flex flex-col">
-            {recentSessions.map((s, i) => (
-              <div key={i} className="flex items-center justify-between py-2.5 border-b border-line-soft last:border-0">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span
-                    className={
-                      "w-2 h-2 rounded-full shrink-0 " +
-                      (s.format === "writing"
-                        ? "bg-amber"
-                        : LINKING_FORMATS.includes(s.format)
-                        ? "bg-green"
-                        : s.format === "reading"
-                        ? "bg-red"
-                        : s.format === "speed"
-                        ? "bg-red"
-                        : s.domain === "vocab"
-                        ? "bg-blue"
-                        : "bg-purple")
-                    }
-                  />
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-semibold text-ink">
-                      {s.format === "writing"
-                        ? "Writing"
-                        : s.format === "linking"
-                        ? "Linking"
-                        : s.format === "linking-vocab"
-                        ? "Bindewörter"
-                        : s.format === "linking-essay"
-                        ? "Linking-Essay"
-                        : s.format === "reading"
-                        ? "Reading"
-                        : s.format === "speed"
-                        ? "Speed-Runde"
-                        : s.domain === "vocab"
-                        ? "Vocabulary"
-                        : "Grammar"}
+          {recentSessions.length > 0 && (
+            <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm">
+              <div className="text-[13px] font-semibold text-ink mb-1">Letzte Sessions</div>
+              <div className="flex flex-col">
+                {recentSessions.map((s, i) => (
+                  <div key={i} className="flex items-center justify-between py-2.5 border-b border-line-soft last:border-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className={"w-2 h-2 rounded-full shrink-0 " + sessionDotClass(s.format, s.domain)} />
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-semibold text-ink">{sessionLabel(s.format, s.domain)}</div>
+                        <div className="text-[11px] text-ink-faint">{formatRelativeDate(s.date)}</div>
+                      </div>
                     </div>
-                    <div className="text-[11px] text-ink-faint">{formatRelativeDate(s.date)}</div>
+                    <div className="text-right shrink-0">
+                      <div className="text-[13px] font-bold tabular-nums">{s.accuracy}%</div>
+                      <div className="text-[11px] text-ink-faint tabular-nums">
+                        {s.correct}/{s.total}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-[13px] font-bold tabular-nums">{s.accuracy}%</div>
-                  <div className="text-[11px] text-ink-faint tabular-nums">
-                    {s.correct}/{s.total}
-                  </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
-      )}
-      </div>
       </div>
 
       <div className="sticky bottom-0 pt-4 pb-2 -mx-5 px-5 bg-gradient-to-t from-bg from-65% to-transparent flex flex-col gap-2 lg:flex-row lg:gap-3">
-        {mode !== "writing" && mode !== "linking" && mode !== "reading" && stats.learned > 0 && (
+        {showReviewButton && (
           <div className="relative w-full lg:flex-1">
-            {reviewMenuOpen && (
+            {openMenu === "review" && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setReviewMenuOpen(false)} />
+                <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />
                 <div className="absolute bottom-full mb-2 left-0 right-0 z-20 bg-card border border-line-soft rounded-2xl p-3.5 shadow-[0_-10px_30px_-10px_rgba(15,23,42,0.25)] animate-fade-in">
                   <div className="text-[12px] font-semibold text-ink-soft mb-1.5">Wie gut gekonnt?</div>
-                  <div className="flex gap-1.5 mb-3">
-                    {REVIEW_ACCURACY_OPTIONS.map((o) => (
-                      <button
-                        key={String(o.val)}
-                        onClick={() => setReviewMaxAccuracy(o.val)}
-                        className={
-                          "flex-1 text-[12.5px] font-semibold px-2 py-1.5 rounded-full border transition-colors " +
-                          (reviewMaxAccuracy === o.val ? "bg-ink text-white border-ink" : "border-line bg-bg text-ink-soft hover:bg-line-soft")
-                        }
-                      >
-                        {o.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="text-[12px] font-semibold text-ink-soft mb-1.5">Wie viele?</div>
-                  <div className="flex gap-1.5 mb-3.5">
-                    {REVIEW_LIMIT_OPTIONS.map((o) => (
-                      <button
-                        key={String(o.val)}
-                        onClick={() => setReviewLimit(o.val)}
-                        className={
-                          "flex-1 text-[12.5px] font-semibold px-2 py-1.5 rounded-full border transition-colors " +
-                          (reviewLimit === o.val ? "bg-ink text-white border-ink" : "border-line bg-bg text-ink-soft hover:bg-line-soft")
-                        }
-                      >
-                        {o.label}
-                      </button>
-                    ))}
-                  </div>
+                  <ChipRow options={REVIEW_ACCURACY_OPTIONS} value={reviewMaxAccuracy} onChange={setReviewMaxAccuracy} />
+                  <div className="text-[12px] font-semibold text-ink-soft mb-1.5 mt-3">Wie viele?</div>
+                  <ChipRow options={REVIEW_LIMIT_OPTIONS} value={reviewLimit} onChange={setReviewLimit} />
                   <button
                     onClick={() => {
-                      setReviewMenuOpen(false);
-                      onReview(mode, { maxAccuracy: reviewMaxAccuracy, limit: reviewLimit });
+                      setOpenMenu(null);
+                      if (isLearningMode(mode)) onReview(mode, { maxAccuracy: reviewMaxAccuracy, limit: reviewLimit });
                     }}
                     disabled={reviewMatchCount === 0}
-                    className="w-full rounded-full bg-gradient-to-r from-blue to-blue-dark hover:brightness-110 disabled:opacity-40 disabled:pointer-events-none text-white font-semibold py-2.5 text-[13.5px] transition-all active:scale-[0.97]"
+                    className="mt-3.5 w-full rounded-full bg-gradient-to-r from-blue to-blue-dark hover:brightness-110 disabled:opacity-40 disabled:pointer-events-none text-white font-semibold py-2.5 text-[13.5px] transition-all active:scale-[0.97]"
                   >
                     Wiederholung starten ({reviewMatchCount})
                   </button>
@@ -685,14 +616,15 @@ export default function HomeScreen({
               </>
             )}
             <button
-              onClick={() => setReviewMenuOpen((v) => !v)}
+              onClick={() => setOpenMenu((m) => (m === "review" ? null : "review"))}
               className="w-full rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:-translate-y-0.5 text-ink font-semibold py-3 text-[14px] transition-all active:scale-[0.97] flex items-center justify-center gap-1.5"
             >
               Gelerntes wiederholen ({stats.learned})
-              <ChevronUp size={14} className={"transition-transform " + (reviewMenuOpen ? "rotate-180" : "")} />
+              <ChevronUp size={14} className={"transition-transform " + (openMenu === "review" ? "rotate-180" : "")} />
             </button>
           </div>
         )}
+
         {mode === "vocab" && vocabStats.learned > 0 && (
           <button
             onClick={onSpeedRound}
@@ -701,19 +633,222 @@ export default function HomeScreen({
             <Timer size={15} /> Speed-Runde (60s)
           </button>
         )}
-        <button
-          onClick={() => onStart(mode, includeReview, linkingSubMode)}
-          disabled={mode === "writing" && !writingEligible}
-          className={
-            "w-full lg:flex-1 rounded-full bg-gradient-to-r text-white font-semibold py-4 text-[16px] transition-all duration-200 active:scale-[0.97] hover:brightness-110 shadow-[0_14px_30px_-10px_rgba(15,23,42,0.4)] disabled:opacity-40 disabled:pointer-events-none disabled:shadow-none " +
-            active.grad
-          }
-        >
-          Start Session
-        </button>
+
+        {/* Split primary button: the wide half starts straight away, the chevron half opens the
+            options panel. Same dropdown pattern as "Gelerntes wiederholen" — moved off the page
+            body so the settings are one click away without permanently occupying a card. */}
+        <div className="relative w-full lg:flex-1">
+          {openMenu === "start" && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />
+              <div className="absolute bottom-full mb-2 left-0 right-0 z-20 bg-card border border-line-soft rounded-2xl p-3.5 shadow-[0_-10px_30px_-10px_rgba(15,23,42,0.25)] animate-fade-in">
+                {mode === "test" ? (
+                  <>
+                    <div className="text-[12px] font-semibold text-ink-soft mb-1.5">Was wird geprüft?</div>
+                    <ChipRow options={TEST_SCOPE_OPTIONS} value={testScope} onChange={setTestScope} />
+                    <div className="text-[12px] font-semibold text-ink-soft mb-1.5 mt-3">Wie viele Fragen?</div>
+                    <ChipRow
+                      options={TEST_LENGTH_OPTIONS.map((l) => ({ val: l, label: String(l) }))}
+                      value={testLength}
+                      onChange={setTestLength}
+                    />
+                    <p className="text-[11.5px] text-ink-faint leading-relaxed mt-3">
+                      Kein Feedback während des Tests. Die Note zählt nicht in den Lernfortschritt.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-[12px] font-semibold text-ink-soft mb-1.5">Session-Inhalt</div>
+                    <div className="flex flex-col gap-1.5">
+                      {SESSION_CONTENT_OPTIONS.map((o) => (
+                        <button
+                          key={String(o.val)}
+                          onClick={() => setIncludeReview(o.val)}
+                          className={
+                            "text-left rounded-xl border px-3 py-2 transition-colors " +
+                            (includeReview === o.val ? "bg-ink text-white border-ink" : "border-line bg-bg text-ink-soft hover:bg-line-soft")
+                          }
+                        >
+                          <div className="text-[13px] font-semibold">{o.label}</div>
+                          <div className={"text-[11.5px] " + (includeReview === o.val ? "text-white/70" : "text-ink-faint")}>{o.hint}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+          <div className={"flex w-full rounded-full overflow-hidden shadow-[0_14px_30px_-10px_rgba(15,23,42,0.4)] bg-gradient-to-r " + active.grad}>
+            <button
+              onClick={start}
+              className="flex-1 text-white font-semibold py-4 text-[16px] transition-all duration-200 active:scale-[0.97] hover:brightness-110"
+            >
+              {mode === "test" ? `Test starten (${testLength})` : "Start Session"}
+            </button>
+            {hasStartOptions && (
+              <button
+                onClick={() => setOpenMenu((m) => (m === "start" ? null : "start"))}
+                aria-label={mode === "test" ? "Test-Optionen" : "Session-Inhalt wählen"}
+                title={mode === "test" ? "Test-Optionen (C)" : "Session-Inhalt (C)"}
+                className="px-4 text-white border-l border-white/25 transition-all hover:brightness-110 active:scale-[0.97] flex items-center"
+              >
+                <ChevronUp size={16} className={"transition-transform " + (openMenu === "start" ? "rotate-180" : "")} />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </section>
   );
+}
+
+/** Shared chip picker used by every dropdown here, so the review filters, the test scope and the
+ * test length all look and behave identically. */
+function ChipRow<T extends string | number | boolean | null>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { val: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex gap-1.5">
+      {options.map((o) => (
+        <button
+          key={String(o.val)}
+          onClick={() => onChange(o.val)}
+          className={
+            "flex-1 text-[12.5px] font-semibold px-2 py-1.5 rounded-full border transition-colors " +
+            (value === o.val ? "bg-ink text-white border-ink" : "border-line bg-bg text-ink-soft hover:bg-line-soft")
+          }
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function TestOverviewCard({
+  stats,
+  streak,
+  scope,
+  length,
+}: {
+  stats: { count: number; best: number | null; average: number | null; last: number | null };
+  streak: number;
+  scope: TestScope;
+  length: TestLength;
+}) {
+  const bestBand = stats.best !== null ? bandForGrade(stats.best) : null;
+  const scopeLabel = TEST_SCOPE_OPTIONS.find((o) => o.val === scope)!.label;
+  return (
+    <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm">
+      <div className="flex items-center gap-4">
+        <span
+          className={
+            "w-14 h-14 rounded-full flex items-center justify-center shrink-0 " +
+            (bestBand ? BAND_STYLES[bestBand.band].tint + " " + BAND_STYLES[bestBand.band].text : "bg-line-soft text-ink-soft")
+          }
+        >
+          {stats.best !== null ? (
+            <span className="text-[19px] font-extrabold tabular-nums tracking-tight">{stats.best.toFixed(0)}</span>
+          ) : (
+            <GraduationCap size={22} />
+          )}
+        </span>
+        <div className="flex-1 flex flex-col gap-2.5 min-w-0">
+          <StatRow icon={<Repeat size={14} />} value={stats.count} label={stats.count === 1 ? "Test" : "Tests"} tint="bg-blue-light text-blue" />
+          <StatRow
+            icon={<Trophy size={14} />}
+            value={stats.best !== null ? `${stats.best.toFixed(1)} / 20` : "—"}
+            label="Beste Note"
+            tint="bg-amber-light text-amber"
+          />
+          <StatRow
+            icon={<Target size={14} />}
+            value={stats.average !== null ? stats.average.toFixed(1) : "—"}
+            label={stats.last !== null ? `Ø · zuletzt ${stats.last.toFixed(1)}` : "Durchschnitt"}
+            tint="bg-green-light text-green"
+          />
+        </div>
+      </div>
+      <div className="mt-3 pt-3 border-t border-line-soft flex items-center justify-between gap-3 text-[12px]">
+        <span className="text-ink-faint">
+          Nächster Test: <b className="text-ink-soft font-semibold">{scopeLabel}</b> · {length} Fragen
+        </span>
+        <span className="flex items-center gap-1 text-ink-faint shrink-0">
+          <Flame size={12} className="text-red" /> {streak}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** Level, XP to the next one, and badges collected — the running reward summary, sitting in the
+ * same column as the activity strip so Home always opens on visible evidence of progress. */
+function LevelCard({ xp, badgesEarned }: { xp: number; badgesEarned: number }) {
+  const p = levelProgress(xp);
+  return (
+    <div className="bg-gradient-to-br from-ink to-ink/80 text-white rounded-2xl p-4 shadow-sm">
+      <div className="flex items-center gap-3">
+        <span className="w-11 h-11 rounded-full bg-white/15 flex items-center justify-center shrink-0 text-[17px] font-extrabold tabular-nums">
+          {p.level}
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="text-[14px] font-bold truncate">{p.title}</div>
+          <div className="text-[11.5px] text-white/70 tabular-nums">{xp} XP gesamt</div>
+        </div>
+        <div className="flex items-center gap-1 text-[12px] font-semibold text-white/85 shrink-0">
+          <Trophy size={13} /> {badgesEarned}
+        </div>
+      </div>
+      <div className="mt-3">
+        <div className="h-1.5 rounded-full bg-white/20 overflow-hidden">
+          <div className="h-full rounded-full bg-white transition-[width] duration-700" style={{ width: p.pct + "%" }} />
+        </div>
+        <div className="flex items-center justify-between mt-1.5 text-[11px] text-white/60 tabular-nums">
+          <span className="flex items-center gap-1">
+            <Sparkles size={10} /> {p.intoLevel} / {p.levelSpan} XP
+          </span>
+          <span>noch {p.remaining} bis Level {p.level + 1}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function sessionDotClass(format: string, domain: "vocab" | "grammar"): string {
+  if (LINKING_FORMATS.includes(format)) return "bg-green";
+  if (format === "reading" || format === "speed") return "bg-red";
+  if (format === "writing") return "bg-amber";
+  return domain === "vocab" ? "bg-blue" : "bg-purple";
+}
+
+function sessionLabel(format: string, domain: "vocab" | "grammar"): string {
+  switch (format) {
+    case "linking":
+      return "Linking";
+    case "linking-vocab":
+      return "Bindewörter";
+    case "linking-essay":
+      return "Linking-Essay";
+    case "reading":
+      return "Reading";
+    case "speed":
+      return "Speed-Runde";
+    case "quick":
+    case "mixed":
+      return "Schnellübung";
+    // Historic records only — the Writing mode itself was folded into Linking's free-writing task.
+    case "writing":
+      return "Writing";
+    default:
+      return domain === "vocab" ? "Vocabulary" : "Grammar";
+  }
 }
 
 function ProgressRing({
@@ -816,13 +951,7 @@ function ActivityStrip({ dates }: { dates: number[] }) {
             title={`${new Date(c.day * DAY_MS).toLocaleDateString("de-DE")}: ${c.count} Session(s)`}
             className={
               "aspect-square rounded-md " +
-              (c.count === 0
-                ? "bg-line-soft"
-                : c.count === 1
-                ? "bg-blue/45"
-                : c.count === 2
-                ? "bg-blue/75"
-                : "bg-gradient-to-br from-blue to-purple")
+              (c.count === 0 ? "bg-line-soft" : c.count === 1 ? "bg-blue/45" : c.count === 2 ? "bg-blue/75" : "bg-gradient-to-br from-blue to-purple")
             }
           />
         ))}

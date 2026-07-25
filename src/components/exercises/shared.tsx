@@ -244,8 +244,9 @@ export function AnswerInput({
     onKeyDown: (e: React.KeyboardEvent) => {
       // Plain Enter confirms — including in the (2-row) textarea variant, since it's always a
       // single sentence here, never a multi-paragraph text. Shift+Enter still inserts a literal
-      // newline as an escape hatch. The free-writing essay in WritingScreen has its own textarea
-      // and doesn't use this component, so it's unaffected — Enter there just types a newline.
+      // newline as an escape hatch. The free-writing essay in LinkingEssayScreen has its own
+      // textarea and doesn't use this component, so it's unaffected — Enter there just types a
+      // newline.
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         onEnter();

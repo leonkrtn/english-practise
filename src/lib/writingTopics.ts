@@ -4,12 +4,10 @@ export interface WritingTopic {
   hint: string;
 }
 
-export const WRITING_MIN_WORDS = 5;
-export const WRITING_MIN_RULES = 2;
-
-/** 10 base topic templates ("Grundgerüste"). Combined with a fresh random pick of required words
- * and grammar rules on every attempt, so the actual task feels different each time even though
- * the pool of topics itself is fixed. */
+/** 10 base topic templates ("Grundgerüste"), now used by Linking's free-writing task — the
+ * standalone Writing mode it was written for has been folded into that one. Combined with a fresh
+ * random pick of connector categories on every attempt, so the actual task feels different each
+ * time even though the pool of topics itself is fixed. */
 export const WRITING_TOPICS: WritingTopic[] = [
   {
     id: "t1",
