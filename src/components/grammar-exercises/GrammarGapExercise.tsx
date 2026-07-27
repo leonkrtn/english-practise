@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { choice, classifyAnswer } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
 import { AnswerInput, ExerciseFooter, FeedbackPanel, HintButton, KeyBadge, PrimaryButton, useHintShortcut } from "@/components/exercises/shared";
-import { CategoryBadge, type GrammarExerciseProps } from "./shared";
+import { CategoryBadge, Prompt, type GrammarExerciseProps } from "./shared";
 
 export default function GrammarGapExercise({ rule, onAnswered, onNext }: GrammarExerciseProps) {
   const variant = useMemo(() => choice(rule.gap), [rule]);
@@ -27,7 +27,7 @@ export default function GrammarGapExercise({ rule, onAnswered, onNext }: Grammar
   return (
     <>
       <CategoryBadge category={rule.category} />
-      <div className="text-[13.5px] text-ink-faint mb-3">Fill in the missing word</div>
+      <Prompt>Fill in the missing word</Prompt>
       <div className="text-[16px] leading-relaxed mb-3">
         {before}
         <span className="inline-block min-w-[70px] border-b-2 border-blue text-blue font-semibold text-center">{result ? variant.answer : "?"}</span>

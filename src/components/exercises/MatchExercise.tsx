@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { shuffle } from "@/lib/utils";
-import { FeedbackPanel } from "./shared";
+import { Prompt, FeedbackPanel } from "./shared";
 import type { ExerciseProps } from "./types";
 import type { ResultEntry } from "@/lib/types";
 import { playCorrect, playIncorrect } from "@/lib/sound";
@@ -69,25 +69,25 @@ export default function MatchExercise({ item, onAnswered, onNext }: ExerciseProp
 
   return (
     <>
-      <div className="text-[13.5px] text-ink-faint mb-3">Match each English word with its German translation</div>
+      <Prompt>Match each English word with its German translation</Prompt>
       <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           {left.map((x) => (
             <button
               key={x.id}
               onClick={() => clickSide("left", x.id)}
-              className={"border-[1.5px] rounded-[10px] px-3 py-2.5 text-[14px] font-medium text-center transition-all " + itemClasses(x.id, selLeft === x.id)}
+              className={"border-[1.5px] rounded-xl px-4 py-3 text-[15px] font-medium text-center transition-all " + itemClasses(x.id, selLeft === x.id)}
             >
               {x.text}
             </button>
           ))}
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           {right.map((x) => (
             <button
               key={x.id}
               onClick={() => clickSide("right", x.id)}
-              className={"border-[1.5px] rounded-[10px] px-3 py-2.5 text-[14px] font-medium text-center transition-all " + itemClasses(x.id, selRight === x.id)}
+              className={"border-[1.5px] rounded-xl px-4 py-3 text-[15px] font-medium text-center transition-all " + itemClasses(x.id, selRight === x.id)}
             >
               {x.text}
             </button>
@@ -100,7 +100,7 @@ export default function MatchExercise({ item, onAnswered, onNext }: ExerciseProp
             <div className="mb-2 last:mb-0" key={w.id}>
               <b className="font-semibold text-ink">{w.en}</b> → <b className="font-semibold text-ink">{w.de.join(" / ")}</b>
               {wrongIds.has(w.id) && (
-                <Badge className="h-auto inline-block text-[11.5px] font-semibold px-2 py-0.5 rounded-full bg-red-light text-[#b8271b] ml-2">retry</Badge>
+                <Badge className="h-auto inline-block text-[11px] font-semibold px-2 py-1 rounded-full bg-red-light text-[#b8271b] ml-2">retry</Badge>
               )}
             </div>
           ))}

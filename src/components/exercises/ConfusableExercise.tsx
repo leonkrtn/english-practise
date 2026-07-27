@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { choice, findGap, shuffle } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
-import { FeedbackPanel, useLetterShortcuts } from "./shared";
+import { Prompt, FeedbackPanel, useLetterShortcuts } from "./shared";
 import type { ExerciseProps } from "./types";
 import { Badge } from "@/components/ui/badge";
 
@@ -34,19 +34,21 @@ export default function ConfusableExercise({ item, onAnswered, onNext }: Exercis
       </Badge>
       {gap ? (
         <>
-          <div className="text-[14.5px] text-ink-faint mb-5">Choose the word that fits</div>
-          <div className="text-[17px] leading-relaxed mb-1.5">
+          <Prompt>Choose the word that fits</Prompt>
+          <div className="text-[16px] leading-relaxed">
             {target.enSentence.slice(0, gap.index)}
-            <span className="inline-block min-w-[90px] border-b-2 border-blue text-blue font-semibold text-center">____</span>
+            <span className="inline-block min-w-[90px] px-1 border-b-2 border-blue text-blue font-semibold text-center">____</span>
             {target.enSentence.slice(gap.index + gap.matched.length)}
           </div>
         </>
       ) : (
-        <div className="text-[14.5px] text-ink-faint mb-5">
+        <div className="text-[16px] leading-relaxed">
           Which word means: <b className="text-ink font-semibold">{target.de.join(" / ")}</b>?
         </div>
       )}
-      <div className="flex flex-col gap-2.5 mt-2">
+      {/* Both question shapes above end flush, so this single margin sets the distance to the
+          options in either branch instead of each branch carrying its own. */}
+      <div className="flex flex-col gap-2 mt-4">
         {options.map((o, i) => {
           let cls = "border-line bg-card hover:border-[#c7c7cc] hover:bg-blue-lighter";
           let keyCls = "border-line text-ink-faint";
@@ -64,7 +66,7 @@ export default function ConfusableExercise({ item, onAnswered, onNext }: Exercis
               key={i}
               onClick={() => select(i)}
               disabled={chosen !== null}
-              className={"text-left border-[1.5px] rounded-xl px-4 py-3.5 text-[15.5px] font-medium text-ink flex items-center gap-3 transition-colors " + cls}
+              className={"text-left border-[1.5px] rounded-xl px-4 py-3 text-[15px] font-medium text-ink flex items-center gap-3 transition-colors " + cls}
             >
               <span className={"w-[22px] h-[22px] rounded-full border-[1.5px] flex items-center justify-center text-[11px] font-bold shrink-0 " + keyCls}>
                 {String.fromCharCode(65 + i)}

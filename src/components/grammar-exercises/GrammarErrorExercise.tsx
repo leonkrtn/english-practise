@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { choice } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
 import { FeedbackPanel } from "@/components/exercises/shared";
-import { CategoryBadge, type GrammarExerciseProps } from "./shared";
+import { CategoryBadge, Prompt, type GrammarExerciseProps } from "./shared";
 
 function stripPunct(s: string): string {
   return s.replace(/[.,!?;:'"()]/g, "").toLowerCase();
@@ -30,7 +30,7 @@ export default function GrammarErrorExercise({ rule, onAnswered, onNext }: Gramm
   return (
     <>
       <CategoryBadge category={rule.category} />
-      <div className="text-[13.5px] text-ink-faint mb-3">Tap the word that&apos;s wrong in this sentence</div>
+      <Prompt>Tap the word that&apos;s wrong in this sentence</Prompt>
       <div className="flex flex-wrap gap-1.5 text-[16px] leading-relaxed">
         {tokens.map((t, i) => {
           let cls = "hover:bg-purple-light hover:-translate-y-0.5";
@@ -47,7 +47,7 @@ export default function GrammarErrorExercise({ rule, onAnswered, onNext }: Gramm
       </div>
       {result && (
         <FeedbackPanel result={result} onContinue={onNext}>
-          <div className="mb-1.5">
+          <div className="mb-3">
             <b className="font-semibold text-ink">{variant.correctedSentence}</b>
           </div>
           {rule.explanation}

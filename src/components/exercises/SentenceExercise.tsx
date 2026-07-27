@@ -16,6 +16,7 @@ import {
   useHints,
   useHintShortcut,
   DetailRow,
+  Prompt,
   boldenWord,
 } from "./shared";
 import type { ExerciseProps } from "./types";
@@ -60,10 +61,10 @@ export default function SentenceExercise({ item, onAnswered, onNext }: ExerciseP
   return (
     <>
       <Badge word={word} />
-      <div className="text-[13.5px] text-ink-faint mb-3">
+      <Prompt>
         Translate this sentence to {toGerman ? "German" : "English"} — use the word{" "}
         <b className="text-ink font-semibold">{toGerman ? word.en : word.de[0]}</b>
-      </div>
+      </Prompt>
       <div className="text-[16px] leading-relaxed mb-3">{sourceSentence}</div>
       <AnswerInput
         value={value}

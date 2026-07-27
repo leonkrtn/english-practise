@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { classifyAnswer, findGap, type ErrorType } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
-import { AnswerInput, FeedbackPanel, PrimaryButton } from "./shared";
+import { Prompt, AnswerInput, FeedbackPanel, PrimaryButton } from "./shared";
 import type { ExerciseProps } from "./types";
 import type { Word } from "@/lib/vocab";
 
@@ -57,10 +57,10 @@ export default function MultigapExercise({ item, onAnswered, onNext }: ExerciseP
 
   return (
     <>
-      <div className="text-[14.5px] text-ink-faint mb-5">Fill in the missing words</div>
+      <Prompt>Fill in the missing words</Prompt>
       {parts.map((p, i) => (
         <div key={i} className="mb-4 last:mb-0">
-          <div className="text-[17px] leading-relaxed mb-1.5">
+          <div className="text-[16px] leading-relaxed mb-1">
             {p.before}
             <AnswerInput
               value={values[i]}
@@ -77,7 +77,7 @@ export default function MultigapExercise({ item, onAnswered, onNext }: ExerciseP
         </div>
       ))}
       {!statuses && (
-        <div className="flex justify-end mt-6">
+        <div className="flex justify-end mt-5">
           <PrimaryButton onClick={check}>Check All</PrimaryButton>
         </div>
       )}

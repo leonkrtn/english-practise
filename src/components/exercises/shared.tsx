@@ -106,13 +106,20 @@ export function Badge({ word }: { word: Word }) {
   return (
     <span
       className={
-        "inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-3 text-white shadow-sm bg-gradient-to-r " +
+        "inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-4 text-white shadow-sm bg-gradient-to-r " +
         (isAdj ? "from-purple to-purple-dark" : "from-blue to-blue-dark")
       }
     >
       {isAdj ? "Adjective" : "Verb"}
     </span>
   );
+}
+
+/** The one-line instruction that opens every exercise ("Fill in the missing word", "Translate to
+ * German", …). Centralised because it was copy-pasted into sixteen files and had drifted to three
+ * different bottom margins, so consecutive questions in one session shifted their first line. */
+export function Prompt({ children }: { children: React.ReactNode }) {
+  return <div className="text-[13.5px] text-ink-faint mb-3">{children}</div>;
 }
 
 export function ContextNote({ word }: { word: Word }) {
@@ -134,9 +141,11 @@ export function ContextNote({ word }: { word: Word }) {
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  // 4px label→value against 12px row→row: the label reads as belonging to the value beneath it
+  // rather than floating between two blocks, which the previous near-equal 2px/6px pair blurred.
   return (
-    <div className="mb-1.5 last:mb-0">
-      <div className="text-[11.5px] uppercase tracking-wide font-bold text-ink-faint mb-0.5">{label}</div>
+    <div className="mb-3 last:mb-0">
+      <div className="text-[11px] uppercase tracking-wide font-bold text-ink-faint mb-1">{label}</div>
       {children}
     </div>
   );
@@ -145,7 +154,7 @@ export { Row as DetailRow };
 
 const STATUS_MAP: Record<
   AnswerResultKind,
-  { cls: string; icon: React.ReactNode; label: string; bg: string; panelBg: string; btnGrad: string }
+  { cls: string; icon: React.ReactNode; label: string; bg: string; panelBg: string; panelRing: string; btnGrad: string }
 > = {
   correct: {
     cls: "text-[#0d7a4f]",
@@ -153,6 +162,7 @@ const STATUS_MAP: Record<
     label: "Correct",
     bg: "bg-gradient-to-br from-green to-green-dark",
     panelBg: "bg-green-light/50",
+    panelRing: "ring-green/15",
     btnGrad: "from-green to-green-dark",
   },
   almost: {
@@ -161,6 +171,7 @@ const STATUS_MAP: Record<
     label: "Almost — close, but not quite",
     bg: "bg-gradient-to-br from-amber to-amber-dark",
     panelBg: "bg-amber-light/50",
+    panelRing: "ring-amber/20",
     btnGrad: "from-amber to-amber-dark",
   },
   incorrect: {
@@ -169,6 +180,7 @@ const STATUS_MAP: Record<
     label: "Not quite",
     bg: "bg-gradient-to-br from-red to-red-dark",
     panelBg: "bg-red-light/40",
+    panelRing: "ring-red/15",
     btnGrad: "from-blue to-blue-dark",
   },
 };
@@ -185,10 +197,16 @@ function useFeedbackEntrance(result: AnswerResultKind, rootRef: React.RefObject<
   useEffect(() => {
     const scope = createScope({ root: rootRef }).add(() => {
       animate(rootRef.current!, { opacity: [0, 1], duration: motionMs(160), ease: "outQuad" });
+      // opacity has to be animated explicitly: the element ships with an inline `opacity: 0` so it
+      // can't flash before this scope runs, and anime.js only clears the properties it animates —
+      // without this the icon stays invisible and leaves a hole where the status label starts.
+      // Scaling starts from 0.4 rather than 0 so it grows from something visible instead of
+      // materialising out of nothing.
       animate(iconRef.current!, {
-        scale: result === "correct" ? [0, 1.15, 1] : [0.6, 1],
-        rotate: result === "correct" ? [-18, 8, 0] : 0,
-        duration: motionMs(result === "correct" ? 480 : 260),
+        opacity: [0, 1],
+        scale: result === "correct" ? [0.4, 1.12, 1] : [0.7, 1],
+        rotate: result === "correct" ? [-14, 6, 0] : 0,
+        duration: motionMs(result === "correct" ? 460 : 260),
         delay: motionMs(90),
         ease: result === "correct" ? "outElastic(1, .6)" : "outBack",
       });
@@ -230,8 +248,8 @@ export function FeedbackPanel({
   useFeedbackEntrance(result, rootRef, iconRef, bodyRef, btnRef);
 
   return (
-    <div ref={rootRef} className="mt-4 pt-4 border-t border-line-soft" style={{ opacity: 0 }}>
-      <div className={"flex items-center gap-2 text-[15px] font-semibold mb-2.5 " + m.cls}>
+    <div ref={rootRef} className="mt-5 pt-5 border-t border-line-soft" style={{ opacity: 0 }}>
+      <div className={"flex items-center gap-2.5 text-[15px] font-semibold leading-none mb-3 " + m.cls}>
         <span
           ref={iconRef}
           style={{ opacity: 0 }}
@@ -239,9 +257,13 @@ export function FeedbackPanel({
         >
           {m.icon}
         </span>
-        {m.label}
+        <span>{m.label}</span>
       </div>
-      <div ref={bodyRef} style={{ opacity: 0 }} className={"rounded-xl p-3.5 text-sm leading-relaxed text-ink-soft " + m.panelBg}>
+      <div
+        ref={bodyRef}
+        style={{ opacity: 0 }}
+        className={"rounded-xl p-4 text-sm leading-relaxed text-ink-soft ring-1 ring-inset " + m.panelBg + " " + m.panelRing}
+      >
         {children}
       </div>
       <button
@@ -250,7 +272,7 @@ export function FeedbackPanel({
         autoFocus
         onClick={onContinue}
         className={
-          "mt-3 w-full rounded-full text-white font-semibold py-3 text-[15px] transition-all active:scale-[0.97] hover:brightness-110 shadow-[0_10px_22px_-8px_rgba(15,23,42,0.35)] bg-gradient-to-r " +
+          "mt-4 w-full rounded-full text-white font-semibold py-3 text-[15px] transition-[transform,filter] duration-150 ease-out active:scale-[0.97] hover:brightness-110 shadow-[0_10px_22px_-8px_rgba(15,23,42,0.35)] bg-gradient-to-r " +
           m.btnGrad
         }
       >
@@ -287,7 +309,8 @@ export function AnswerInput({
       : "border-red bg-red-light"
     : "border-line bg-bg focus:bg-white focus:border-blue focus:shadow-[0_0_0_4px_rgba(0,113,227,0.12)]";
   const common =
-    "w-full text-[16px] px-3.5 py-3 rounded-xl border-[1.5px] outline-none transition-all font-sans " + statusClasses;
+    "w-full text-[16px] px-4 py-3 rounded-xl border-[1.5px] outline-none transition-[background-color,border-color,box-shadow] duration-150 ease-out font-sans " +
+    statusClasses;
   const props = {
     value,
     disabled,
@@ -333,7 +356,7 @@ export function useHints(word: Word, targetIsGerman: boolean) {
 }
 
 export function ExerciseFooter({ children }: { children: React.ReactNode }) {
-  return <div className="flex justify-between items-center gap-2.5 mt-4">{children}</div>;
+  return <div className="flex justify-between items-center gap-3 mt-5">{children}</div>;
 }
 
 export function HintButton({ onClick, children, id }: { onClick: () => void; children: React.ReactNode; id?: string }) {
@@ -342,7 +365,7 @@ export function HintButton({ onClick, children, id }: { onClick: () => void; chi
       id={id}
       onClick={onClick}
       variant="ghost"
-      className="h-auto inline-flex items-center gap-1 text-[13px] text-ink-faint bg-transparent border border-line rounded-full px-3 py-1.5 hover:bg-blue-lighter hover:border-blue/30 hover:text-blue-dark transition-colors"
+      className="h-auto inline-flex items-center gap-1.5 text-[13px] text-ink-faint bg-transparent border border-line rounded-full px-3 py-2 hover:bg-blue-lighter hover:border-blue/30 hover:text-blue-dark transition-colors duration-150"
     >
       {children}
     </Button>

@@ -16,6 +16,7 @@ import {
   useHints,
   useHintShortcut,
   DetailRow,
+  Prompt,
   boldenWord,
 } from "./shared";
 import type { ExerciseProps } from "./types";
@@ -49,15 +50,17 @@ export default function GapExercise(props: ExerciseProps) {
   return (
     <>
       <Badge word={word} />
-      <div className="text-[13.5px] text-ink-faint mb-3">Fill in the missing word</div>
-      <div className="text-[16px] leading-relaxed mb-1.5">
+      <Prompt>Fill in the missing word</Prompt>
+      <div className="text-[16px] leading-relaxed mb-1">
         {before}
-        <span className="inline-block min-w-[90px] border-b-2 border-blue text-blue font-semibold text-center">
+        <span className="inline-block min-w-[90px] px-1 border-b-2 border-blue text-blue font-semibold text-center">
           {result ? gap.matched : "?"}
         </span>
         {after}
       </div>
-      <div className="text-sm text-ink-faint mb-3">
+      {/* 4px above, 16px below: the meaning hangs off the sentence it explains rather than sitting
+          equidistant between the sentence and the answer field. */}
+      <div className="text-sm text-ink-faint mb-4">
         German meaning: <b className="text-ink font-semibold">{word.de.join(" / ")}</b>
       </div>
       <AnswerInput
@@ -68,7 +71,7 @@ export default function GapExercise(props: ExerciseProps) {
         placeholder="Type the missing word…"
         onEnter={() => check(false)}
       />
-      {reveal && <div className="text-[13px] text-blue-dark bg-blue-light rounded-lg px-3 py-2 mt-2">{reveal}</div>}
+      {reveal && <div className="text-[13px] text-blue-dark bg-blue-light rounded-xl px-4 py-2 mt-2">{reveal}</div>}
       {!result && (
         <ExerciseFooter>
           <div className="flex gap-2">

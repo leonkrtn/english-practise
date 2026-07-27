@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { levenshtein, normalize, shuffle } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
-import { Badge, ContextNote, FeedbackPanel, ExerciseFooter, HintButton, PrimaryButton, DetailRow, boldenWord, useTileShortcuts } from "./shared";
+import { Prompt, Badge, ContextNote, FeedbackPanel, ExerciseFooter, HintButton, PrimaryButton, DetailRow, boldenWord, useTileShortcuts } from "./shared";
 import type { ExerciseProps } from "./types";
 
 interface Token {
@@ -59,16 +59,16 @@ export default function BuildExercise({ item, onAnswered, onNext }: ExerciseProp
   return (
     <>
       <Badge word={word} />
-      <div className="text-[13.5px] text-ink-faint mb-3">
+      <Prompt>
         Reorder the words to build the sentence (word: <b className="text-ink font-semibold">{word.en}</b>)
-      </div>
+      </Prompt>
       <div className="flex flex-wrap gap-2 min-h-[44px] mb-3 p-3 bg-bg rounded-xl border-[1.5px] border-dashed border-line">
         {placed.length === 0 && <span className="text-ink-faint text-[13px]">Tap words below to build the sentence…</span>}
         {placed.map((p) => (
           <button
             key={p.key}
             onClick={() => unplace(p.key)}
-            className="border-[1.5px] border-blue bg-gradient-to-br from-blue to-blue-dark text-white rounded-lg px-3.5 py-2 text-[14.5px] font-semibold shadow-sm transition-transform hover:scale-[1.03]"
+            className="border-[1.5px] border-blue bg-gradient-to-br from-blue to-blue-dark text-white rounded-lg px-3 py-2 text-[15px] font-semibold shadow-sm transition-transform hover:scale-[1.03]"
           >
             {p.t}
           </button>
@@ -83,7 +83,7 @@ export default function BuildExercise({ item, onAnswered, onNext }: ExerciseProp
               onClick={() => place(x)}
               disabled={usedKeys.has(x.key)}
               className={
-                "inline-flex items-center gap-1.5 border-[1.5px] border-line bg-card rounded-lg px-3.5 py-2 text-[14.5px] font-semibold select-none transition-all hover:border-blue/40 hover:bg-blue-lighter hover:-translate-y-0.5 hover:shadow-sm " +
+                "inline-flex items-center gap-1.5 border-[1.5px] border-line bg-card rounded-lg px-3 py-2 text-[15px] font-semibold select-none transition-all hover:border-blue/40 hover:bg-blue-lighter hover:-translate-y-0.5 hover:shadow-sm " +
                 (usedKeys.has(x.key) ? "opacity-30 pointer-events-none" : "")
               }
             >

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { classifyAnswer } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
-import { Badge, ContextNote, FeedbackPanel, AnswerInput, ExerciseFooter, HintButton, HintIcon, KeyBadge, PrimaryButton, useHints, useHintShortcut, DetailRow } from "./shared";
+import { Prompt, Badge, ContextNote, FeedbackPanel, AnswerInput, ExerciseFooter, HintButton, HintIcon, KeyBadge, PrimaryButton, useHints, useHintShortcut, DetailRow } from "./shared";
 import type { ExerciseProps } from "./types";
 
 export default function TranslateExercise({ item, onAnswered, onNext }: ExerciseProps) {
@@ -31,7 +31,7 @@ export default function TranslateExercise({ item, onAnswered, onNext }: Exercise
     <>
       <Badge word={word} />
       <div className="text-[24px] font-bold tracking-tight mb-1 leading-tight">{promptStr}</div>
-      <div className="text-[13.5px] text-ink-faint mb-3">Translate to {toGerman ? "German" : "English"}</div>
+      <Prompt>Translate to {toGerman ? "German" : "English"}</Prompt>
       <AnswerInput
         value={value}
         onChange={setValue}

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { choice, levenshtein, normalize, shuffle } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
 import { ExerciseFooter, FeedbackPanel, HintButton, PrimaryButton, useTileShortcuts } from "@/components/exercises/shared";
-import { CategoryBadge, type GrammarExerciseProps } from "./shared";
+import { CategoryBadge, Prompt, type GrammarExerciseProps } from "./shared";
 
 interface Token {
   t: string;
@@ -59,14 +59,14 @@ export default function GrammarBuildExercise({ rule, onAnswered, onNext }: Gramm
   return (
     <>
       <CategoryBadge category={rule.category} />
-      <div className="text-[13.5px] text-ink-faint mb-3">Put the words in the correct order — {rule.title}</div>
+      <Prompt>Put the words in the correct order — {rule.title}</Prompt>
       <div className="flex flex-wrap gap-2 min-h-[44px] mb-3 p-3 bg-bg rounded-xl border-[1.5px] border-dashed border-line">
         {placed.length === 0 && <span className="text-ink-faint text-[13px]">Tap words below to build the sentence…</span>}
         {placed.map((p) => (
           <button
             key={p.key}
             onClick={() => unplace(p.key)}
-            className="border-[1.5px] border-purple bg-gradient-to-br from-purple to-purple-dark text-white rounded-lg px-3.5 py-2 text-[14.5px] font-semibold shadow-sm transition-transform hover:scale-[1.03]"
+            className="border-[1.5px] border-purple bg-gradient-to-br from-purple to-purple-dark text-white rounded-lg px-3 py-2 text-[15px] font-semibold shadow-sm transition-transform hover:scale-[1.03]"
           >
             {p.t}
           </button>
@@ -81,7 +81,7 @@ export default function GrammarBuildExercise({ rule, onAnswered, onNext }: Gramm
               onClick={() => place(x)}
               disabled={usedKeys.has(x.key)}
               className={
-                "inline-flex items-center gap-1.5 border-[1.5px] border-line bg-card rounded-lg px-3.5 py-2 text-[14.5px] font-semibold select-none transition-all hover:border-purple/40 hover:bg-purple-light hover:-translate-y-0.5 hover:shadow-sm " +
+                "inline-flex items-center gap-1.5 border-[1.5px] border-line bg-card rounded-lg px-3 py-2 text-[15px] font-semibold select-none transition-all hover:border-purple/40 hover:bg-purple-light hover:-translate-y-0.5 hover:shadow-sm " +
                 (usedKeys.has(x.key) ? "opacity-30 pointer-events-none" : "")
               }
             >
@@ -104,7 +104,7 @@ export default function GrammarBuildExercise({ rule, onAnswered, onNext }: Gramm
       )}
       {result && (
         <FeedbackPanel result={result} onContinue={onNext}>
-          <div className="mb-1.5">
+          <div className="mb-3">
             <b className="font-semibold text-ink">{sentence}</b>
           </div>
           {rule.explanation}
