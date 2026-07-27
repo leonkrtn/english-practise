@@ -6,6 +6,7 @@ import { GRAMMAR_RULES } from "@/lib/grammar-data";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { useStore } from "@/lib/store";
 import { VOCAB_BY_ID } from "@/lib/vocab";
+import { Button } from "@/components/ui/button";
 
 export default function SettingsScreen() {
   const store = useStore();
@@ -42,15 +43,16 @@ export default function SettingsScreen() {
         ) : (
           <div className="flex flex-wrap gap-1.5">
             {blockedWords.map((w) => (
-              <button
+              <Button
                 key={w.id}
                 onClick={() => store.setWordBlocked(w.id, false)}
                 title="Wieder zulassen"
-                className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-line-soft bg-card px-3 py-1.5 text-[13px] font-medium text-ink-soft hover:border-red/40 hover:text-red hover:bg-red-light transition-colors"
+                variant="ghost"
+                className="h-auto inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-line-soft bg-card px-3 py-1.5 text-[13px] font-medium text-ink-soft hover:border-red/40 hover:text-red hover:bg-red-light transition-colors"
               >
                 {w.en}
                 <X size={12} />
-              </button>
+              </Button>
             ))}
           </div>
         )}

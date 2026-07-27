@@ -5,6 +5,7 @@ import { choice, findGap, shuffle } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
 import { FeedbackPanel, useLetterShortcuts } from "./shared";
 import type { ExerciseProps } from "./types";
+import { Badge } from "@/components/ui/badge";
 
 export default function ConfusableExercise({ item, onAnswered, onNext }: ExerciseProps) {
   const pair = item.words;
@@ -28,9 +29,9 @@ export default function ConfusableExercise({ item, onAnswered, onNext }: Exercis
 
   return (
     <>
-      <span className="inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-4 text-blue bg-blue-light">
+      <Badge className="h-auto inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-4 text-blue bg-blue-light">
         Similar words
-      </span>
+      </Badge>
       {gap ? (
         <>
           <div className="text-[14.5px] text-ink-faint mb-5">Choose the word that fits</div>

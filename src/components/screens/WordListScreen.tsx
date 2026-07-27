@@ -6,6 +6,9 @@ import { VOCAB } from "@/lib/vocab";
 import { normalize } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { needsIntensification } from "@/lib/intensify";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 const FILTERS = [
   { val: "all", label: "All" },
@@ -58,13 +61,13 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
       <h1 className="text-[24px] font-bold tracking-tight mt-1 mb-3">Words</h1>
       <div className="flex items-center gap-2.5 bg-card border-[1.5px] border-line rounded-xl px-3.5 py-2.5 mb-3">
         <Search size={16} className="text-ink-faint shrink-0" />
-        <input
+        <Input
           ref={searchRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           type="text"
           placeholder="Search English or German… (/)"
-          className="flex-1 border-none bg-transparent text-[15px] outline-none text-ink"
+          className="h-auto flex-1 border-none bg-transparent text-[15px] outline-none text-ink p-0 focus-visible:ring-0 focus-visible:border-transparent"
         />
       </div>
       <div className="flex gap-2 mb-4 flex-wrap">
@@ -93,14 +96,14 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
                 onClick={() => onSelectWord(w.id)}
                 className="flex items-center gap-3 py-3 px-1 border-b border-line-soft cursor-pointer hover:bg-blue-lighter hover:rounded-[10px] transition-colors"
               >
-                <span
+                <Badge
                   className={
-                    "text-[10px] font-bold uppercase rounded-[5px] px-1.5 py-0.5 shrink-0 w-7 text-center " +
+                    "h-auto text-[10px] font-bold uppercase rounded-[5px] px-1.5 py-0.5 shrink-0 w-7 justify-center text-center " +
                     (w.type === "adjective" ? "text-purple bg-purple-light" : "text-blue bg-blue-light")
                   }
                 >
                   {w.type === "verb" ? "V" : "ADJ"}
-                </span>
+                </Badge>
                 <div className="flex-1 min-w-0">
                   <div className="text-[14.5px] font-semibold">{w.en}</div>
                   <div className="text-[12.5px] text-ink-faint">{w.de.join(" / ")}</div>
@@ -112,15 +115,20 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
                 )}
                 {s.stage === 4 && <CircleCheck size={14} className="text-green shrink-0" />}
                 <div className="text-[11px] text-ink-faint whitespace-nowrap">{s.timesSeen ? Math.round(s.score * 20) + "%" : "new"}</div>
-                <button
+                <Button
                   onClick={(e) => {
                     e.stopPropagation();
                     store.toggleFavorite(w.id);
                   }}
-                  className={"bg-transparent border-none shrink-0 flex items-center " + (s.favorite ? "text-amber" : "text-line")}
+                  aria-label={s.favorite ? "Remove favorite" : "Add favorite"}
+                  variant="ghost"
+                  className={
+                    "h-auto w-auto p-0 bg-transparent border-none shrink-0 flex items-center hover:bg-transparent " +
+                    (s.favorite ? "text-amber" : "text-line")
+                  }
                 >
                   <Star size={16} fill={s.favorite ? "currentColor" : "none"} />
-                </button>
+                </Button>
               </div>
             );
           })}

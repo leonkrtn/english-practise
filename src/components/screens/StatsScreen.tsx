@@ -13,6 +13,7 @@ import { levelProgress, BADGES, BADGE_GROUP_LABELS, type BadgeGroup } from "@/li
 import { bandForGrade, BAND_STYLES } from "@/lib/testMode";
 import { TrendLineChart, TrendBarChart } from "@/components/StatCharts";
 import { BadgeCard } from "@/components/BadgeIcon";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const TREND_DAYS = 14;
 
@@ -232,25 +233,23 @@ export default function StatsScreen() {
     <section className="animate-fade-in pb-4">
       <h1 className="text-[26px] font-bold tracking-tight mt-1 mb-4">Statistiken</h1>
 
-      <div className="flex gap-1.5 mb-5 overflow-x-auto -mx-1 px-1 pb-1">
-        {TABS.map((t) => {
-          const Icon = t.icon;
-          const isActive = tab === t.val;
-          return (
-            <button
-              key={t.val}
-              onClick={() => setTab(t.val)}
-              className={
-                "flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12.5px] font-semibold whitespace-nowrap transition-all shrink-0 " +
-                (isActive ? "bg-ink text-white shadow-sm" : "bg-card border border-line-soft text-ink-soft hover:border-line")
-              }
-            >
-              <Icon size={13} />
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+        <TabsList className="w-full h-auto justify-start rounded-none bg-transparent p-0 gap-1.5 mb-5 overflow-x-auto -mx-1 px-1 pb-1">
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            return (
+              <TabsTrigger
+                key={t.val}
+                value={t.val}
+                className="h-auto shrink-0 flex items-center gap-1.5 rounded-full border border-line-soft bg-card px-3.5 py-2 text-[12.5px] font-semibold text-ink-soft whitespace-nowrap transition-all hover:border-line hover:text-ink-soft data-active:border-ink data-active:bg-ink data-active:text-white data-active:shadow-sm"
+              >
+                <Icon size={13} />
+                {t.label}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+      </Tabs>
 
       {tab === "overview" && (
         <>

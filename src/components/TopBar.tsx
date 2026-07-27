@@ -3,6 +3,8 @@
 import { BarChart3, Flag, Keyboard, LogOut, ScrollText, Settings, Volume2, VolumeX } from "lucide-react";
 import type { Screen } from "./AppShell";
 import { useSoundMuted } from "@/lib/sound";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import LevelPill from "./LevelPill";
 
 export default function TopBar({
@@ -76,18 +78,26 @@ function IconButton({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      onClick={onClick}
-      title={title}
-      aria-label={title}
-      className={
-        "w-8 h-8 rounded-full flex items-center justify-center transition-all " +
-        (active
-          ? "bg-gradient-to-br from-blue to-purple text-white shadow-[0_4px_12px_-4px_rgba(0,113,227,0.5)]"
-          : "text-ink-soft hover:bg-line-soft hover:text-ink")
-      }
-    >
-      {children}
-    </button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            onClick={onClick}
+            aria-label={title}
+            variant="ghost"
+            size="icon"
+            className={
+              "rounded-full transition-all " +
+              (active
+                ? "bg-gradient-to-br from-blue to-purple text-white shadow-[0_4px_12px_-4px_rgba(0,113,227,0.5)] hover:from-blue hover:to-purple hover:text-white"
+                : "text-ink-soft hover:bg-line-soft hover:text-ink")
+            }
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{title}</TooltipContent>
+    </Tooltip>
   );
 }

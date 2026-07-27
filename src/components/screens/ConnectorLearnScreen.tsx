@@ -6,6 +6,7 @@ import { buildConnectorQuiz } from "@/lib/connectorQuiz";
 import type { AnswerResultKind } from "@/lib/types";
 import { FeedbackPanel, useLetterShortcuts } from "@/components/exercises/shared";
 import SessionScreen from "./SessionScreen";
+import { Badge } from "@/components/ui/badge";
 
 const NOOP = () => {};
 
@@ -52,9 +53,9 @@ export default function ConnectorLearnScreen({ onExit, onFinish }: { onExit: () 
       onExit={onExit}
       onToggleFav={NOOP}
     >
-      <span className="inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-4 text-white shadow-sm bg-gradient-to-r from-green to-green-dark">
+      <Badge className="h-auto self-start px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-4 text-white shadow-sm bg-gradient-to-r from-green to-green-dark">
         <BookMarked size={11} /> Bindewörter
-      </span>
+      </Badge>
       <div className="text-[14.5px] text-ink-faint mb-1">Welches Wort drückt diese Beziehung aus?</div>
       <div className="text-[22px] font-bold tracking-tight mb-5 leading-tight">{item.category.labelDe}</div>
       <div className="flex flex-col gap-2 mt-1">

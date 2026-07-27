@@ -22,6 +22,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { Button } from "@/components/ui/button";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { VOCAB, VOCAB_BY_ID } from "@/lib/vocab";
 import { activeGrammarRules } from "@/lib/grammarLearning";
@@ -602,36 +603,38 @@ export default function HomeScreen({
                   <ChipRow options={REVIEW_ACCURACY_OPTIONS} value={reviewMaxAccuracy} onChange={setReviewMaxAccuracy} />
                   <div className="text-[12px] font-semibold text-ink-soft mb-1.5 mt-3">Wie viele?</div>
                   <ChipRow options={REVIEW_LIMIT_OPTIONS} value={reviewLimit} onChange={setReviewLimit} />
-                  <button
+                  <Button
                     onClick={() => {
                       setOpenMenu(null);
                       if (isLearningMode(mode)) onReview(mode, { maxAccuracy: reviewMaxAccuracy, limit: reviewLimit });
                     }}
                     disabled={reviewMatchCount === 0}
-                    className="mt-3.5 w-full rounded-full bg-gradient-to-r from-blue to-blue-dark hover:brightness-110 disabled:opacity-40 disabled:pointer-events-none text-white font-semibold py-2.5 text-[13.5px] transition-all active:scale-[0.97]"
+                    className="mt-3.5 h-auto w-full rounded-full bg-gradient-to-r from-blue to-blue-dark hover:brightness-110 hover:bg-none disabled:opacity-40 disabled:pointer-events-none text-white font-semibold py-2.5 text-[13.5px] transition-all active:scale-[0.97]"
                   >
                     Wiederholung starten ({reviewMatchCount})
-                  </button>
+                  </Button>
                 </div>
               </>
             )}
-            <button
+            <Button
               onClick={() => setOpenMenu((m) => (m === "review" ? null : "review"))}
-              className="w-full rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:-translate-y-0.5 text-ink font-semibold py-3 text-[14px] transition-all active:scale-[0.97] flex items-center justify-center gap-1.5"
+              variant="outline"
+              className="h-auto w-full rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:-translate-y-0.5 text-ink font-semibold py-3 text-[14px] transition-all active:scale-[0.97] flex items-center justify-center gap-1.5"
             >
               Gelerntes wiederholen ({stats.learned})
               <ChevronUp size={14} className={"transition-transform " + (openMenu === "review" ? "rotate-180" : "")} />
-            </button>
+            </Button>
           </div>
         )}
 
         {mode === "vocab" && vocabStats.learned > 0 && (
-          <button
+          <Button
             onClick={onSpeedRound}
-            className="w-full lg:flex-1 rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:-translate-y-0.5 text-ink font-semibold py-3 text-[14px] transition-all active:scale-[0.97] flex items-center justify-center gap-1.5"
+            variant="outline"
+            className="h-auto w-full lg:flex-1 rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:-translate-y-0.5 text-ink font-semibold py-3 text-[14px] transition-all active:scale-[0.97] flex items-center justify-center gap-1.5"
           >
             <Timer size={15} /> Speed-Runde (60s)
-          </button>
+          </Button>
         )}
 
         {/* Split primary button: the wide half starts straight away, the chevron half opens the
@@ -680,21 +683,23 @@ export default function HomeScreen({
             </>
           )}
           <div className={"flex w-full rounded-full overflow-hidden shadow-[0_14px_30px_-10px_rgba(15,23,42,0.4)] bg-gradient-to-r " + active.grad}>
-            <button
+            <Button
               onClick={start}
-              className="flex-1 text-white font-semibold py-4 text-[16px] transition-all duration-200 active:scale-[0.97] hover:brightness-110"
+              variant="ghost"
+              className="h-auto flex-1 rounded-none text-white font-semibold py-4 text-[16px] transition-all duration-200 active:scale-[0.97] hover:brightness-110 hover:bg-transparent hover:text-white"
             >
               {mode === "test" ? `Test starten (${testLength})` : "Start Session"}
-            </button>
+            </Button>
             {hasStartOptions && (
-              <button
+              <Button
                 onClick={() => setOpenMenu((m) => (m === "start" ? null : "start"))}
+                variant="ghost"
                 aria-label={mode === "test" ? "Test-Optionen" : "Session-Inhalt wählen"}
                 title={mode === "test" ? "Test-Optionen (C)" : "Session-Inhalt (C)"}
-                className="px-4 text-white border-l border-white/25 transition-all hover:brightness-110 active:scale-[0.97] flex items-center"
+                className="h-auto rounded-none px-4 text-white border-l border-white/25 transition-all hover:brightness-110 hover:bg-transparent hover:text-white active:scale-[0.97] flex items-center"
               >
                 <ChevronUp size={16} className={"transition-transform " + (openMenu === "start" ? "rotate-180" : "")} />
-              </button>
+              </Button>
             )}
           </div>
         </div>

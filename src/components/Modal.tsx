@@ -1,5 +1,8 @@
 "use client";
 
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+
 export default function Modal({
   open,
   title,
@@ -13,21 +16,29 @@ export default function Modal({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  if (!open) return null;
   return (
-    <div className="fixed inset-0 bg-black/35 flex items-center justify-center z-[100] p-5" onClick={onCancel}>
-      <div className="bg-white rounded-[18px] p-6 max-w-[380px] w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-[17px] font-semibold mb-2.5">{title}</h3>
-        <p className="text-sm text-ink-soft leading-relaxed mb-4.5">{body}</p>
-        <div className="flex gap-2.5">
-          <button onClick={onCancel} className="flex-1 rounded-full bg-line-soft hover:bg-line text-ink font-semibold py-3.5 text-[15px] transition-colors">
+    <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
+      <DialogContent showCloseButton={false} className="rounded-[18px] p-6 sm:max-w-[380px]">
+        <DialogHeader>
+          <DialogTitle className="text-[17px] font-semibold">{title}</DialogTitle>
+          <DialogDescription className="text-sm text-ink-soft leading-relaxed">{body}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="mx-0 mb-0 mt-1.5 rounded-none border-t-0 bg-transparent p-0 flex-row gap-2.5">
+          <Button
+            onClick={onCancel}
+            variant="secondary"
+            className="flex-1 h-auto rounded-full bg-line-soft hover:bg-line text-ink font-semibold py-3.5 text-[15px]"
+          >
             Cancel
-          </button>
-          <button onClick={onConfirm} className="flex-1 rounded-full bg-blue hover:bg-blue-dark text-white font-semibold py-3.5 text-[15px] transition-colors">
+          </Button>
+          <Button
+            onClick={onConfirm}
+            className="flex-1 h-auto rounded-full bg-blue hover:bg-blue-dark text-white font-semibold py-3.5 text-[15px]"
+          >
             Confirm
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

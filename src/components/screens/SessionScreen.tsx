@@ -5,6 +5,8 @@ import { Ban, Sparkles, Star, Timer, X, Zap } from "lucide-react";
 import { animate } from "animejs";
 import { comboTier } from "@/lib/gamification";
 import { motionMs } from "@/lib/motion";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /** Fills toward `pct` with a snappy overshoot-then-settle instead of a linear CSS transition —
  * driven by anime.js so it can retarget smoothly mid-flight if `pct` changes again before the
@@ -114,13 +116,22 @@ export default function SessionScreen({
   return (
     <section className="h-full flex flex-col">
       <div className="flex items-center gap-2 mb-2 shrink-0 w-full max-w-2xl mx-auto">
-        <button
-          onClick={onExit}
-          title="End session (Esc)"
-          className="w-8 h-8 rounded-full border border-line bg-card text-ink-soft flex items-center justify-center shrink-0 transition-all hover:bg-line-soft hover:-translate-y-0.5 hover:shadow-sm"
-        >
-          <X size={16} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                onClick={onExit}
+                aria-label="End session (Esc)"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full border-line bg-card text-ink-soft shrink-0 transition-all hover:bg-line-soft hover:text-ink-soft hover:-translate-y-0.5 hover:shadow-sm"
+              />
+            }
+          >
+            <X size={16} />
+          </TooltipTrigger>
+          <TooltipContent>End session (Esc)</TooltipContent>
+        </Tooltip>
         <ProgressBar pct={progressPct} />
         <div className="text-[12.5px] text-ink-faint font-semibold whitespace-nowrap tabular-nums">{progressLabel}</div>
         {timerLabel && (
@@ -129,29 +140,47 @@ export default function SessionScreen({
           </div>
         )}
         {showFavorite && onBlock && (
-          <button
-            onClick={() => {
-              if (window.confirm("Dieses Wort für immer aus dem Training ausschließen?")) onBlock();
-            }}
-            title="Wort ausschließen (X)"
-            className="w-8 h-8 rounded-full border border-line bg-card text-ink-soft flex items-center justify-center shrink-0 transition-all hover:-translate-y-0.5 hover:shadow-sm hover:border-red/40 hover:text-red hover:bg-red-light"
-          >
-            <Ban size={16} />
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  onClick={() => {
+                    if (window.confirm("Dieses Wort für immer aus dem Training ausschließen?")) onBlock();
+                  }}
+                  aria-label="Wort ausschließen (X)"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full border-line bg-card text-ink-soft shrink-0 transition-all hover:-translate-y-0.5 hover:shadow-sm hover:border-red/40 hover:text-red hover:bg-red-light"
+                />
+              }
+            >
+              <Ban size={16} />
+            </TooltipTrigger>
+            <TooltipContent>Wort ausschließen (X)</TooltipContent>
+          </Tooltip>
         )}
         {showFavorite && (
-          <button
-            onClick={onToggleFav}
-            title="Favorit (F)"
-            className={
-              "w-8 h-8 rounded-full border flex items-center justify-center shrink-0 transition-all hover:-translate-y-0.5 hover:shadow-sm " +
-              (favorite
-                ? "bg-gradient-to-br from-amber to-amber-dark border-amber text-white shadow-[0_4px_12px_-4px_rgba(232,161,46,0.5)]"
-                : "border-line bg-card text-ink-soft hover:bg-line-soft")
-            }
-          >
-            <Star size={16} fill={favorite ? "currentColor" : "none"} />
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  onClick={onToggleFav}
+                  aria-label="Favorit (F)"
+                  variant="ghost"
+                  size="icon"
+                  className={
+                    "h-8 w-8 rounded-full shrink-0 transition-all hover:-translate-y-0.5 hover:shadow-sm " +
+                    (favorite
+                      ? "bg-gradient-to-br from-amber to-amber-dark border-amber text-white shadow-[0_4px_12px_-4px_rgba(232,161,46,0.5)] hover:from-amber hover:to-amber-dark hover:text-white"
+                      : "border-line bg-card text-ink-soft hover:bg-line-soft hover:text-ink-soft")
+                  }
+                />
+              }
+            >
+              <Star size={16} fill={favorite ? "currentColor" : "none"} />
+            </TooltipTrigger>
+            <TooltipContent>Favorit (F)</TooltipContent>
+          </Tooltip>
         )}
       </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { X } from "lucide-react";
 import { KeyBadge } from "@/components/exercises/shared";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type Row = { keys: string[]; label: string };
 type Group = { title: string; note?: string; rows: Row[] };
@@ -79,20 +79,12 @@ const GROUPS: Group[] = [
 ];
 
 export default function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () => void }) {
-  if (!open) return null;
   return (
-    <div className="fixed inset-0 bg-black/35 flex items-center justify-center z-[100] p-5" onClick={onClose}>
-      <div className="bg-white rounded-[18px] p-6 max-w-[460px] w-full shadow-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-[17px] font-semibold">Tastenkürzel</h3>
-          <button
-            onClick={onClose}
-            aria-label="Schließen"
-            className="text-ink-faint hover:text-ink w-7 h-7 flex items-center justify-center rounded-full hover:bg-line-soft"
-          >
-            <X size={16} />
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="rounded-[18px] p-6 sm:max-w-[460px] max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-[17px] font-semibold">Tastenkürzel</DialogTitle>
+        </DialogHeader>
         <div className="flex flex-col gap-5">
           {GROUPS.map((g) => (
             <div key={g.title}>
@@ -119,7 +111,7 @@ export default function ShortcutsHelp({ open, onClose }: { open: boolean; onClos
             </div>
           ))}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
