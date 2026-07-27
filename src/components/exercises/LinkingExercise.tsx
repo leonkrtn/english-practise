@@ -8,7 +8,7 @@ import { CONNECTOR_CATEGORIES_BY_ID } from "@/lib/connectors-data";
 import { findUsedConnector } from "@/lib/connectorCheck";
 import { checkText, LanguageToolError, type LanguageToolMatch } from "@/lib/languageTool";
 import { renderHighlighted } from "@/lib/textHighlight";
-import { AnswerInput, ExerciseFooter, FeedbackPanel, HintButton, PrimaryButton } from "./shared";
+import { Prompt, AnswerInput, ExerciseFooter, FeedbackPanel, HintButton, PrimaryButton } from "./shared";
 import { Badge } from "@/components/ui/badge";
 
 export interface LinkingResult {
@@ -58,20 +58,20 @@ export default function LinkingExercise({
 
   return (
     <>
-      <Badge className="h-auto inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-3 text-white shadow-sm bg-gradient-to-r from-blue to-purple">
+      <Badge className="h-auto inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-4 text-white shadow-sm bg-gradient-to-r from-blue to-purple">
         <Link2 size={11} /> {category.labelDe}
       </Badge>
-      <div className="text-[13.5px] text-ink-faint mb-3">Verbinde diese beiden Sätze zu einem natürlichen Satz</div>
+      <Prompt>Verbinde diese beiden Sätze zu einem natürlichen Satz</Prompt>
 
-      <div className="bg-bg rounded-xl p-3.5 text-[15px] leading-relaxed text-ink flex flex-col gap-1.5 mb-3">
+      <div className="bg-bg rounded-xl p-4 text-[15px] leading-relaxed text-ink flex flex-col gap-2 mb-3">
         <div>{pair.a}</div>
         <div>{pair.b}</div>
       </div>
 
       {showHint && (
-        <div className="flex flex-wrap gap-1.5 mb-3">
+        <div className="flex flex-wrap gap-2 mb-3">
           {category.connectors.map((c) => (
-            <span key={c} className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-blue-light text-blue-dark">
+            <span key={c} className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-blue-light text-blue-dark">
               {c}
             </span>
           ))}
@@ -89,7 +89,7 @@ export default function LinkingExercise({
       />
 
       {error && (
-        <div className="flex items-start gap-2 rounded-xl bg-red-light text-[#b8271b] text-[13px] px-3.5 py-3 mt-3">
+        <div className="flex items-start gap-2 rounded-xl bg-red-light text-[#b8271b] text-[13px] px-4 py-3 mt-3">
           <AlertCircle size={16} className="shrink-0 mt-0.5" />
           {error}
         </div>
@@ -114,34 +114,34 @@ export default function LinkingExercise({
 
       {outcome && (
         <FeedbackPanel result={outcome.result} onContinue={onNext}>
-          <div className="mb-2.5">
+          <div className="mb-3">
             {outcome.connector ? (
-              <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[#0d7a4f] mb-1.5">
+              <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[#0d7a4f] mb-1">
                 <Check size={14} /> Bindewort erkannt: &quot;{outcome.connector}&quot;
               </div>
             ) : outcome.matches.length === 0 ? (
-              <div className="text-[13px] font-semibold text-[#96690f] mb-1.5">
+              <div className="text-[13px] font-semibold text-[#96690f] mb-1">
                 Grammatikalisch einwandfrei! Kein {category.labelDe}-Bindewort aus unserer Liste erkannt — für mehr Übung versuch es mal mit:{" "}
                 {category.connectors.slice(0, 4).join(", ")}…
               </div>
             ) : (
-              <div className="text-[13px] font-semibold text-[#b8271b] mb-1.5">
+              <div className="text-[13px] font-semibold text-[#b8271b] mb-1">
                 Kein passendes {category.labelDe}-Bindewort gefunden — versuch es mit: {category.connectors.slice(0, 4).join(", ")}…
               </div>
             )}
             <div className="bg-white rounded-lg p-3 leading-relaxed">{renderHighlighted(text, outcome.matches)}</div>
           </div>
           {outcome.matches.length > 0 && (
-            <div className="flex flex-col gap-1.5 mb-2.5">
+            <div className="flex flex-col gap-2 mb-3">
               {outcome.matches.map((m, i) => (
-                <div key={i} className="text-[12.5px]">
+                <div key={i} className="text-[13px]">
                   <b className="font-semibold">{m.ruleCategory}:</b> {m.message}
                   {m.replacements.length > 0 && <> → {m.replacements.join(", ")}</>}
                 </div>
               ))}
             </div>
           )}
-          <div className="text-[12px] uppercase tracking-wide font-bold text-ink-faint mb-1">So könnte es auch klingen</div>
+          <div className="text-[11px] uppercase tracking-wide font-bold text-ink-faint mb-1">So könnte es auch klingen</div>
           <div className="italic">{pair.model}</div>
         </FeedbackPanel>
       )}

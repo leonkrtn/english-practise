@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { choice, levenshtein, normalize } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
 import { AnswerInput, ExerciseFooter, FeedbackPanel, HintButton, PrimaryButton } from "@/components/exercises/shared";
-import { CategoryBadge, type GrammarExerciseProps } from "./shared";
+import { CategoryBadge, Prompt, type GrammarExerciseProps } from "./shared";
 
 /** Real production, not just recognition: type the full English translation of a German sentence
  * that demonstrates this rule. Graded the same way as Sentence Building — normalized Levenshtein
@@ -30,7 +30,7 @@ export default function GrammarTranslateExercise({ rule, onAnswered, onNext }: G
   return (
     <>
       <CategoryBadge category={rule.category} />
-      <div className="text-[13.5px] text-ink-faint mb-2">Translate into English</div>
+      <Prompt>Translate into English</Prompt>
       <div className="text-[18px] font-semibold tracking-tight mb-3">{variant.de}</div>
       <AnswerInput value={value} onChange={setValue} status={result} disabled={!!result} placeholder="Type the English translation…" onEnter={() => check(false)} textarea />
       {!result && (
@@ -41,7 +41,7 @@ export default function GrammarTranslateExercise({ rule, onAnswered, onNext }: G
       )}
       {result && (
         <FeedbackPanel result={result} onContinue={onNext}>
-          <div className="mb-1.5">
+          <div className="mb-3">
             <b className="font-semibold text-ink">{variant.en}</b>
           </div>
           {rule.explanation}

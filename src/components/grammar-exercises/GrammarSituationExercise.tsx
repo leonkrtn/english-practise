@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { choice } from "@/lib/utils";
 import { FeedbackPanel, useLetterShortcuts } from "@/components/exercises/shared";
-import { CategoryBadge, type GrammarExerciseProps } from "./shared";
+import { CategoryBadge, Prompt, type GrammarExerciseProps } from "./shared";
 
 /** Meaning-first recognition: two similar, both-grammatical sentences, but only one actually fits
  * the described situation — tests when to use a rule, not just how to form it correctly. */
@@ -26,9 +26,9 @@ export default function GrammarSituationExercise({ rule, onAnswered, onNext }: G
   return (
     <>
       <CategoryBadge category={rule.category} />
-      <div className="text-[13.5px] text-ink-faint mb-1">Which sentence fits this situation?</div>
-      <div className="text-[15px] text-ink mb-3 font-medium leading-relaxed">{variant.situation}</div>
-      <div className="flex flex-col gap-2 mt-1">
+      <Prompt>Which sentence fits this situation?</Prompt>
+      <div className="text-[16px] text-ink font-medium leading-relaxed">{variant.situation}</div>
+      <div className="flex flex-col gap-2 mt-4">
         {options.map((o, i) => {
           let cls = "border-line bg-card hover:border-purple/40 hover:bg-purple-light hover:-translate-y-0.5 hover:shadow-md";
           let keyCls = "border-line text-ink-faint bg-bg";
@@ -48,7 +48,7 @@ export default function GrammarSituationExercise({ rule, onAnswered, onNext }: G
               key={i}
               onClick={() => select(i)}
               disabled={chosen !== null}
-              className={"text-left border-[1.5px] rounded-xl px-3.5 py-3 text-[14.5px] font-medium text-ink flex items-center gap-3 transition-all " + cls}
+              className={"text-left border-[1.5px] rounded-xl px-4 py-3 text-[15px] font-medium text-ink flex items-center gap-3 transition-all " + cls}
             >
               <span className={"w-[22px] h-[22px] rounded-full border-[1.5px] flex items-center justify-center text-[11px] font-bold shrink-0 transition-colors " + keyCls}>
                 {String.fromCharCode(65 + i)}

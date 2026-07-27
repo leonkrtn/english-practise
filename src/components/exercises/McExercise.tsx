@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { VOCAB } from "@/lib/vocab";
 import { choice, findGap, sample, shuffle } from "@/lib/utils";
-import { Badge, ContextNote, FeedbackPanel, useLetterShortcuts } from "./shared";
+import { Prompt, Badge, ContextNote, FeedbackPanel, useLetterShortcuts } from "./shared";
 import type { ExerciseProps } from "./types";
 
 export default function McExercise({ item, onAnswered, onNext }: ExerciseProps) {
@@ -59,7 +59,7 @@ export default function McExercise({ item, onAnswered, onNext }: ExerciseProps) 
       <>
         <Badge word={word} />
         <div className="text-[24px] font-bold tracking-tight mb-1 leading-tight">{word.en}</div>
-        <div className="text-[13.5px] text-ink-faint mb-3">Choose the correct German translation</div>
+        <Prompt>Choose the correct German translation</Prompt>
       </>
     );
   } else if (built.variant === "de2word") {
@@ -67,17 +67,17 @@ export default function McExercise({ item, onAnswered, onNext }: ExerciseProps) 
       <>
         <Badge word={word} />
         <div className="text-[24px] font-bold tracking-tight mb-1 leading-tight">{word.de[0]}</div>
-        <div className="text-[13.5px] text-ink-faint mb-3">Choose the correct English word</div>
+        <Prompt>Choose the correct English word</Prompt>
       </>
     );
   } else {
     promptNode = (
       <>
         <Badge word={word} />
-        <div className="text-[13.5px] text-ink-faint mb-3">Choose the word that fits the sentence</div>
-        <div className="text-[16px] leading-relaxed mb-1.5">
+        <Prompt>Choose the word that fits the sentence</Prompt>
+        <div className="text-[16px] leading-relaxed">
           {built.gapInfo!.before}
-          <span className="inline-block min-w-[90px] border-b-2 border-blue text-blue font-semibold text-center">____</span>
+          <span className="inline-block min-w-[90px] px-1 border-b-2 border-blue text-blue font-semibold text-center">____</span>
           {built.gapInfo!.after}
         </div>
       </>
@@ -89,7 +89,9 @@ export default function McExercise({ item, onAnswered, onNext }: ExerciseProps) 
   return (
     <>
       {promptNode}
-      <div className="flex flex-col gap-2 mt-1">
+      {/* The gap above the options is owned here alone, so every question shape (plain word,
+          gapped sentence, …) drops its list at the same distance from the prompt. */}
+      <div className="flex flex-col gap-2 mt-4">
         {built.options.map((o, i) => {
           let cls = "border-line bg-card hover:border-blue/40 hover:bg-blue-lighter hover:-translate-y-0.5 hover:shadow-md";
           let keyCls = "border-line text-ink-faint bg-bg";
@@ -109,7 +111,7 @@ export default function McExercise({ item, onAnswered, onNext }: ExerciseProps) 
               key={i}
               onClick={() => select(i)}
               disabled={chosen !== null}
-              className={"text-left border-[1.5px] rounded-xl px-3.5 py-3 text-[15px] font-medium text-ink flex items-center gap-3 transition-all " + cls}
+              className={"text-left border-[1.5px] rounded-xl px-4 py-3 text-[15px] font-medium text-ink flex items-center gap-3 transition-all " + cls}
             >
               <span className={"w-[22px] h-[22px] rounded-full border-[1.5px] flex items-center justify-center text-[11px] font-bold shrink-0 transition-colors " + keyCls}>
                 {String.fromCharCode(65 + i)}

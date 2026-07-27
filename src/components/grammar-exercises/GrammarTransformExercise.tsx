@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { choice, levenshtein, normalize } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
 import { AnswerInput, ExerciseFooter, FeedbackPanel, HintButton, PrimaryButton } from "@/components/exercises/shared";
-import { CategoryBadge, type GrammarExerciseProps } from "./shared";
+import { CategoryBadge, Prompt, type GrammarExerciseProps } from "./shared";
 
 /** Sentence-rewrite production: given a source sentence and an instruction, type the rewritten
  * sentence that applies this rule — the most demanding of the review formats, since there's no
@@ -31,7 +31,7 @@ export default function GrammarTransformExercise({ rule, onAnswered, onNext }: G
   return (
     <>
       <CategoryBadge category={rule.category} />
-      <div className="text-[13.5px] text-ink-faint mb-2">{variant.prompt}</div>
+      <Prompt>{variant.prompt}</Prompt>
       <div className="text-[18px] font-semibold tracking-tight mb-3">{variant.source}</div>
       <AnswerInput value={value} onChange={setValue} status={result} disabled={!!result} placeholder="Type the rewritten sentence…" onEnter={() => check(false)} textarea />
       {!result && (
@@ -42,7 +42,7 @@ export default function GrammarTransformExercise({ rule, onAnswered, onNext }: G
       )}
       {result && (
         <FeedbackPanel result={result} onContinue={onNext}>
-          <div className="mb-1.5">
+          <div className="mb-3">
             <b className="font-semibold text-ink">{variant.answer}</b>
           </div>
           {rule.explanation}
