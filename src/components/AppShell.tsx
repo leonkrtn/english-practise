@@ -36,7 +36,6 @@ import { sample, shuffle } from "@/lib/utils";
 import { toggleMuted } from "@/lib/sound";
 import {
   BADGES_BY_ID,
-  comboTier,
   newlyEarnedBadges,
   xpForAnswer,
   xpForTest,
@@ -52,7 +51,6 @@ import ExerciseRouter from "@/components/exercises/ExerciseRouter";
 import GrammarExerciseRouter from "@/components/grammar-exercises/GrammarExerciseRouter";
 import TopBar from "./TopBar";
 import Modal from "./Modal";
-import Confetti from "./Confetti";
 import ShortcutsHelp from "./ShortcutsHelp";
 import HomeScreen from "./screens/HomeScreen";
 import SessionScreen from "./screens/SessionScreen";
@@ -187,9 +185,6 @@ export default function AppShell() {
   const [summary, setSummary] = useState<SummaryStats | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
-  // Bumped whenever something worth celebrating happens (combo tier reached, item mastered,
-  // exam passed). Confetti keys off the counter, so repeat celebrations replay cleanly.
-  const [celebrate, setCelebrate] = useState(0);
   // Longest combo of the session that just ended — fed into the badge snapshot below, which is why
   // it lives in state (a ref wouldn't re-trigger the evaluation).
   const [lastBestCombo, setLastBestCombo] = useState(0);
@@ -451,7 +446,6 @@ export default function AppShell() {
         durationSeconds,
       });
       store.addXp(xpEarned);
-      if (grade.passed) setCelebrate((c) => c + 1);
 
       setTestResult({
         grade,
@@ -687,19 +681,16 @@ export default function AppShell() {
   const currentItem = learningSession ? learningSession.queue[learningSession.index] : null;
 
   /**
-   * Runs one answer through the reward layer: extends or breaks the combo, prices the answer at the
-   * multiplier that was on screen when it was given, and fires confetti when a new combo tier is
-   * reached or an item is mastered. Pure — it takes and returns the reward slice of the session so
-   * the two advance* functions below can fold it into their own state update.
+   * Runs one answer through the reward layer: extends or breaks the combo and prices the answer at
+   * the multiplier that was on screen when it was given. Pure — it takes and returns the reward
+   * slice of the session so the two advance* functions below can fold it into their own state
+   * update.
    */
   const applyReward = useCallback(
     (reward: { combo: number; bestCombo: number; xpEarned: number }, result: AnswerResultKind, mastered: boolean) => {
       const comboBefore = reward.combo;
       const gained = xpForAnswer(result, comboBefore) + (mastered ? XP_ITEM_MASTERED : 0);
       const combo = result === "correct" ? comboBefore + 1 : 0;
-      // Only the moment a *new* tier is unlocked is worth celebrating, not every answer inside it.
-      const tierUp = result === "correct" && comboTier(combo)?.min === combo;
-      if (tierUp || mastered) setCelebrate((c) => c + 1);
       return {
         combo,
         bestCombo: Math.max(reward.bestCombo, combo),
@@ -1369,9 +1360,6 @@ export default function AppShell() {
         onConfirm={confirmEndSession}
       />
       <ShortcutsHelp open={shortcutsHelpOpen} onClose={() => setShortcutsHelpOpen(false)} />
-      {/* Every unlocked badge is worth its own burst, so the count is folded into the trigger
-          rather than needing a state update from the badge evaluation itself. */}
-      <Confetti trigger={celebrate + store.badgeIds.size} />
     </div>
   );
 }

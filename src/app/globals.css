@@ -141,22 +141,6 @@ body {
 
 /* --- Reward feedback ------------------------------------------------------ */
 
-/* Falls the full viewport height; the horizontal drift and spin are randomised per piece via the
-   --confetti-* custom properties so no two pieces trace the same path. */
-@keyframes confetti-fall {
-  0% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) rotate(0deg);
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(var(--confetti-drift, 0px), 100vh, 0) rotate(var(--confetti-spin, 360deg));
-  }
-}
-.animate-confetti {
-  animation: confetti-fall linear forwards;
-}
-
 /* The "+18 XP" that floats up off a correct answer. */
 @keyframes xp-pop {
   0% {
