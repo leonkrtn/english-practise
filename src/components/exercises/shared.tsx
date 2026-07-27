@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Lightbulb, Minus, X } from "lucide-react";
+import { animate, createScope } from "animejs";
 import type { Word } from "@/lib/vocab";
 import type { AnswerResultKind } from "@/lib/types";
 import { playFeedbackSound } from "@/lib/sound";
 import { findGap } from "@/lib/utils";
+import { motionMs } from "@/lib/motion";
 
 /** Lets a desktop user pick a lettered multiple-choice option (A, B, C, …) by pressing that
  * letter key, instead of only being able to click — mirrors the A/B/C/D labels already shown on
@@ -170,6 +172,41 @@ const STATUS_MAP: Record<
   },
 };
 
+/**
+ * Entrance choreography for a freshly-answered question: the panel fades in first, its icon pops in
+ * right behind it (elastically for a correct answer — the one moment worth a little flourish — with
+ * a plain settle for the other two outcomes), the explanation text and Continue button trail in last.
+ * An incorrect answer additionally gets a quick shake, layered on top of the same entrance rather than
+ * replacing it. Built with a `createScope` so the whole sequence (and the elements' inline styles)
+ * reverts cleanly if the panel unmounts mid-animation — e.g. a fast double-answer.
+ */
+function useFeedbackEntrance(result: AnswerResultKind, rootRef: React.RefObject<HTMLDivElement | null>, iconRef: React.RefObject<HTMLSpanElement | null>, bodyRef: React.RefObject<HTMLDivElement | null>, btnRef: React.RefObject<HTMLButtonElement | null>) {
+  useEffect(() => {
+    const scope = createScope({ root: rootRef }).add(() => {
+      animate(rootRef.current!, { opacity: [0, 1], duration: motionMs(160), ease: "outQuad" });
+      animate(iconRef.current!, {
+        scale: result === "correct" ? [0, 1.15, 1] : [0.6, 1],
+        rotate: result === "correct" ? [-18, 8, 0] : 0,
+        duration: motionMs(result === "correct" ? 480 : 260),
+        delay: motionMs(90),
+        ease: result === "correct" ? "outElastic(1, .6)" : "outBack",
+      });
+      animate(bodyRef.current!, { opacity: [0, 1], translateY: [8, 0], duration: motionMs(240), delay: motionMs(140), ease: "outQuad" });
+      animate(btnRef.current!, { opacity: [0, 1], translateY: [6, 0], duration: motionMs(220), delay: motionMs(220), ease: "outQuad" });
+      if (result === "incorrect") {
+        animate(rootRef.current!, {
+          translateX: [0, -7, 7, -5, 5, -2, 2, 0],
+          duration: motionMs(420),
+          delay: motionMs(90),
+          ease: "outQuad",
+        });
+      }
+    });
+    return () => scope.revert();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
+
 export function FeedbackPanel({
   result,
   children,
@@ -180,18 +217,35 @@ export function FeedbackPanel({
   onContinue: () => void;
 }) {
   const m = STATUS_MAP[result];
+  const rootRef = useRef<HTMLDivElement>(null);
+  const iconRef = useRef<HTMLSpanElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     playFeedbackSound(result);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useFeedbackEntrance(result, rootRef, iconRef, bodyRef, btnRef);
+
   return (
-    <div className="mt-4 pt-4 border-t border-line-soft animate-fade-in">
+    <div ref={rootRef} className="mt-4 pt-4 border-t border-line-soft" style={{ opacity: 0 }}>
       <div className={"flex items-center gap-2 text-[15px] font-semibold mb-2.5 " + m.cls}>
-        <span className={"w-6 h-6 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm " + m.bg}>{m.icon}</span>
+        <span
+          ref={iconRef}
+          style={{ opacity: 0 }}
+          className={"w-6 h-6 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm " + m.bg}
+        >
+          {m.icon}
+        </span>
         {m.label}
       </div>
-      <div className={"rounded-xl p-3.5 text-sm leading-relaxed text-ink-soft " + m.panelBg}>{children}</div>
+      <div ref={bodyRef} style={{ opacity: 0 }} className={"rounded-xl p-3.5 text-sm leading-relaxed text-ink-soft " + m.panelBg}>
+        {children}
+      </div>
       <button
+        ref={btnRef}
+        style={{ opacity: 0 }}
         autoFocus
         onClick={onContinue}
         className={

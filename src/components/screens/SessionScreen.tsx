@@ -1,7 +1,78 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Ban, Sparkles, Star, Timer, X, Zap } from "lucide-react";
+import { animate } from "animejs";
 import { comboTier } from "@/lib/gamification";
+import { motionMs } from "@/lib/motion";
+
+/** Fills toward `pct` with a snappy overshoot-then-settle instead of a linear CSS transition —
+ * driven by anime.js so it can retarget smoothly mid-flight if `pct` changes again before the
+ * previous fill finished (answering fast through a short queue). */
+function ProgressBar({ pct }: { pct: number }) {
+  const barRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    animate(barRef.current!, { width: pct + "%", duration: motionMs(500), ease: "outQuint" });
+  }, [pct]);
+  return (
+    <div className="flex-1 h-2 bg-line-soft rounded-full overflow-hidden">
+      <div ref={barRef} className="h-full bg-gradient-to-r from-blue to-purple rounded-full" style={{ width: 0 }} />
+    </div>
+  );
+}
+
+/** The combo pill: pops in with an elastic overshoot plus a small rotational wiggle whenever it
+ * (re)mounts — the parent keys it by tier so a *new* tier reaching the screen replays this instead
+ * of every single correct answer inside the same tier retriggering it. */
+function ComboBadge({ combo, tier }: { combo: number; tier: ReturnType<typeof comboTier> }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    animate(ref.current!, {
+      scale: [0.4, 1.15, 1],
+      rotate: [-6, 3, 0],
+      opacity: [0, 1],
+      duration: motionMs(450),
+      ease: "outElastic(1, .6)",
+    });
+  }, []);
+  return (
+    <div
+      ref={ref}
+      className={
+        "flex items-center gap-1 text-[11.5px] font-bold text-white rounded-full px-2.5 py-1 shadow-sm bg-gradient-to-r " +
+        (tier ? tier.grad : "from-ink to-ink/80")
+      }
+      style={{ opacity: 0 }}
+    >
+      <Zap size={11} fill="currentColor" />
+      {combo}x{tier && <span className="opacity-80 font-semibold">· {tier.multiplier}× XP</span>}
+    </div>
+  );
+}
+
+/** The exercise card itself: fades, rises and settles from a slight scale on every question — key'd
+ * by the caller so each new question is a fresh mount and replays the entrance. */
+function ExerciseCard({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    animate(ref.current!, {
+      opacity: [0, 1],
+      translateY: [14, 0],
+      scale: [0.98, 1],
+      duration: motionMs(320),
+      ease: "outQuad",
+    });
+  }, []);
+  return (
+    <div
+      ref={ref}
+      style={{ opacity: 0 }}
+      className="flex-1 min-h-0 w-full max-w-2xl mx-auto overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] bg-card border border-line-soft rounded-[22px] p-5 lg:p-7 shadow-[0_2px_8px_rgba(15,23,42,0.05),0_24px_48px_-18px_rgba(15,23,42,0.18)] flex flex-col"
+    >
+      {children}
+    </div>
+  );
+}
 
 export default function SessionScreen({
   renderKey,
@@ -50,12 +121,7 @@ export default function SessionScreen({
         >
           <X size={16} />
         </button>
-        <div className="flex-1 h-2 bg-line-soft rounded-full overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-blue to-purple rounded-full transition-[width] duration-300"
-            style={{ width: progressPct + "%" }}
-          />
-        </div>
+        <ProgressBar pct={progressPct} />
         <div className="text-[12.5px] text-ink-faint font-semibold whitespace-nowrap tabular-nums">{progressLabel}</div>
         {timerLabel && (
           <div className="flex items-center gap-1 text-[12.5px] font-bold tabular-nums text-white bg-gradient-to-r from-amber to-amber-dark rounded-full px-2.5 py-1 shrink-0">
@@ -103,27 +169,11 @@ export default function SessionScreen({
             </span>
           )}
         </div>
-        {combo >= 2 && (
-          <div
-            key={tier?.label ?? "combo"}
-            className={
-              "animate-pop-in flex items-center gap-1 text-[11.5px] font-bold text-white rounded-full px-2.5 py-1 shadow-sm bg-gradient-to-r " +
-              (tier ? tier.grad : "from-ink to-ink/80")
-            }
-          >
-            <Zap size={11} fill="currentColor" />
-            {combo}x{tier && <span className="opacity-80 font-semibold">· {tier.multiplier}× XP</span>}
-          </div>
-        )}
+        {combo >= 2 && <ComboBadge key={tier?.label ?? "combo"} combo={combo} tier={tier} />}
       </div>
       )}
 
-      <div
-        key={renderKey}
-        className="flex-1 min-h-0 w-full max-w-2xl mx-auto overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] bg-card border border-line-soft rounded-[22px] p-5 lg:p-7 shadow-[0_2px_8px_rgba(15,23,42,0.05),0_24px_48px_-18px_rgba(15,23,42,0.18)] flex flex-col animate-fade-in"
-      >
-        {children}
-      </div>
+      <ExerciseCard key={renderKey}>{children}</ExerciseCard>
     </section>
   );
 }
