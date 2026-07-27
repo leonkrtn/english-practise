@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ArrowUpRight, PartyPopper, Sparkles, Zap } from "lucide-react";
+import { createScope, createTimeline, stagger } from "animejs";
 import { VOCAB_BY_ID } from "@/lib/vocab";
 import { GRAMMAR_RULES_BY_ID } from "@/lib/grammar-data";
 import { useStore } from "@/lib/store";
 import { levelProgress } from "@/lib/gamification";
 import { useCountUp } from "@/lib/useCountUp";
+import { motionMs } from "@/lib/motion";
 import { BadgeMedal } from "@/components/BadgeIcon";
 import type { Badge } from "@/lib/gamification";
 import type { ResultEntry } from "@/lib/types";
@@ -101,9 +103,35 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onHome, onRepeat, wrongWordIds]);
 
+  // The payoff screen's entrance: headline, reward card, level-up line, stat cards and badges reveal
+  // in sequence rather than all at once, so the eye is walked through the session's outcome roughly
+  // in the order a learner would want to read it. Selectors that match nothing (e.g. no level-up, no
+  // badges this session) just no-op, so this doesn't need to branch per-section.
+  // Stat-card entrance deliberately starts early (80ms in, right after the headline begins) rather
+  // than waiting for the reward card/level-up line above it: each tile's number is already counting
+  // up from mount (see useCountUp below), so the later its card becomes visible, the more of that
+  // count-up has already silently finished off-screen. Starting early keeps most of the count
+  // visible instead of tiles fading in already near their final value.
+  const rootRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const scope = createScope({ root: rootRef }).add(() => {
+      createTimeline({ defaults: { ease: "outQuad" } })
+        .add(".summary-headline", { opacity: [0, 1], scale: [0.92, 1], duration: motionMs(380), ease: "outBack" }, 0)
+        .add(".summary-stat", { opacity: [0, 1], translateY: [10, 0], duration: motionMs(320), delay: stagger(motionMs(60)) }, motionMs(80))
+        .add(".summary-reward-card", { opacity: [0, 1], translateY: [16, 0], duration: motionMs(340) }, motionMs(180))
+        .add(".summary-levelup", { opacity: [0, 1], translateX: [-8, 0], duration: motionMs(260) }, motionMs(460))
+        .add(
+          ".summary-badge",
+          { opacity: [0, 1], scale: [0.7, 1], duration: motionMs(420), delay: stagger(motionMs(90)), ease: "outElastic(1, .6)" },
+          motionMs(560)
+        );
+    });
+    return () => scope.revert();
+  }, []);
+
   return (
-    <section className="animate-fade-in pb-4">
-      <div className="text-center py-8 px-5">
+    <section ref={rootRef} className="pb-4">
+      <div className="summary-headline text-center py-8 px-5" style={{ opacity: 0 }}>
         <div className="text-[52px] font-extrabold tracking-tight text-blue tabular-nums leading-none">{shownAccuracy}%</div>
         <div className="text-[15px] text-ink-faint mt-1.5">
           {stats.total} Fragen · {stats.newWordsCount} neu
@@ -112,7 +140,7 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
 
       {/* The reward block, deliberately directly under the headline number: XP earned, where that
           leaves the level bar, and the session's best combo. */}
-      <div className="bg-gradient-to-br from-ink to-ink/80 text-white rounded-2xl p-4 mb-4">
+      <div className="summary-reward-card bg-gradient-to-br from-ink to-ink/80 text-white rounded-2xl p-4 mb-4" style={{ opacity: 0 }}>
         <div className="flex items-center gap-3">
           <span className="w-11 h-11 rounded-full bg-white/15 flex items-center justify-center shrink-0">
             <Sparkles size={19} />
@@ -141,7 +169,7 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
           </div>
         </div>
         {leveledUp && (
-          <div className="mt-3 pt-3 border-t border-white/15 flex items-center gap-2 text-[13px] font-semibold animate-pop-in">
+          <div className="summary-levelup mt-3 pt-3 border-t border-white/15 flex items-center gap-2 text-[13px] font-semibold" style={{ opacity: 0 }}>
             <ArrowUpRight size={15} />
             Level {before.level} → {after.level}: {after.title}
           </div>
@@ -188,7 +216,7 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
           <div className="text-[13px] font-semibold text-ink mb-3">Neu freigeschaltet</div>
           <div className="flex flex-col gap-2.5">
             {stats.newBadges.map((b) => (
-              <div key={b.id} className="flex items-center gap-3 animate-pop-in">
+              <div key={b.id} className="summary-badge flex items-center gap-3" style={{ opacity: 0 }}>
                 <BadgeMedal badge={b} earned size={36} />
                 <div className="min-w-0">
                   <div className="text-[13px] font-semibold text-ink">{b.title}</div>
@@ -269,7 +297,7 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
 function SStat({ value, label, color }: { value: number; label: string; color: string }) {
   const shown = useCountUp(value, 700);
   return (
-    <div className="text-center px-2 py-3.5 bg-card border border-line-soft rounded-xl">
+    <div className="summary-stat text-center px-2 py-3.5 bg-card border border-line-soft rounded-xl" style={{ opacity: 0 }}>
       <div className={"text-[19px] font-bold tabular-nums " + color}>{shown}</div>
       <div className="text-[11px] text-ink-faint mt-0.5">{label}</div>
     </div>
