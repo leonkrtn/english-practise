@@ -6,6 +6,9 @@ import type { ReadingGap, ReadingText } from "@/lib/financeReading";
 import { shuffle } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
 import { FeedbackPanel } from "@/components/exercises/shared";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const LEVEL_TINT: Record<string, string> = {
   B2: "from-blue to-blue-dark",
@@ -67,13 +70,22 @@ export default function ReadingScreen({
   return (
     <section className="h-full flex flex-col">
       <div className="flex items-center gap-3 mb-3 shrink-0 w-full max-w-2xl mx-auto">
-        <button
-          onClick={onExit}
-          title="Lesen beenden"
-          className="w-8 h-8 rounded-full border border-line bg-card text-ink-soft flex items-center justify-center shrink-0 transition-all hover:bg-line-soft hover:-translate-y-0.5 hover:shadow-sm"
-        >
-          <X size={16} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                onClick={onExit}
+                aria-label="Lesen beenden"
+                variant="ghost"
+                size="icon"
+                className="rounded-full border border-line bg-card text-ink-soft shrink-0 transition-all hover:bg-line-soft hover:-translate-y-0.5 hover:shadow-sm"
+              />
+            }
+          >
+            <X size={16} />
+          </TooltipTrigger>
+          <TooltipContent>Lesen beenden</TooltipContent>
+        </Tooltip>
         <div className="text-[13px] font-semibold text-ink-soft flex items-center gap-1.5">
           <Newspaper size={14} /> Reading
         </div>
@@ -81,11 +93,11 @@ export default function ReadingScreen({
 
       <div className="flex-1 min-h-0 w-full max-w-2xl mx-auto overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] bg-card border border-line-soft rounded-[22px] p-5 lg:p-7 shadow-[0_2px_8px_rgba(15,23,42,0.05),0_24px_48px_-18px_rgba(15,23,42,0.18)] flex flex-col animate-fade-in">
         <div className="flex items-center gap-2 mb-3">
-          <span
-            className={"inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm bg-gradient-to-r " + LEVEL_TINT[text.level]}
+          <Badge
+            className={"h-auto rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm bg-gradient-to-r " + LEVEL_TINT[text.level]}
           >
             {text.level}
-          </span>
+          </Badge>
           <span className="text-[11.5px] font-semibold text-ink-faint">{text.topic}</span>
         </div>
         <div className="text-[18px] font-bold tracking-tight mb-3 leading-snug">{text.title}</div>
@@ -148,13 +160,14 @@ export default function ReadingScreen({
         </div>
 
         {!graded && (
-          <button
+          <Button
             onClick={check}
             disabled={!allAnswered}
-            className="mt-5 w-full rounded-full bg-gradient-to-r from-blue to-blue-dark hover:brightness-110 disabled:from-[#d1d1d6] disabled:to-[#d1d1d6] disabled:shadow-none disabled:cursor-not-allowed text-white font-semibold py-3.5 text-[15px] transition-all active:scale-[0.97] shadow-[0_10px_22px_-8px_rgba(0,113,227,0.5)]"
+            variant="ghost"
+            className="mt-5 h-auto w-full rounded-full bg-gradient-to-r from-blue to-blue-dark hover:brightness-110 hover:bg-transparent hover:text-white disabled:opacity-100 disabled:from-[#d1d1d6] disabled:to-[#d1d1d6] disabled:shadow-none disabled:cursor-not-allowed text-white font-semibold py-3.5 text-[15px] transition-all active:scale-[0.97] shadow-[0_10px_22px_-8px_rgba(0,113,227,0.5)]"
           >
             Prüfen
-          </button>
+          </Button>
         )}
 
         {graded && (

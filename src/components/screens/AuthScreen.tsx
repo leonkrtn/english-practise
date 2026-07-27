@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import GradientButton from "@/components/kokonutui/gradient-button";
 
 type Mode = "signin" | "signup";
 
@@ -53,36 +57,24 @@ export default function AuthScreen() {
         </div>
 
         <div className="bg-card border border-line-soft rounded-2xl p-6 shadow-sm">
-          <div className="flex bg-bg rounded-full p-1 mb-6">
-            <button
-              type="button"
-              onClick={() => {
-                setMode("signin");
-                setError(null);
-                setConfirmNotice(false);
-              }}
-              className={
-                "flex-1 rounded-full py-2 text-[14px] font-semibold transition-colors " +
-                (mode === "signin" ? "bg-white shadow-sm text-ink" : "text-ink-faint")
-              }
-            >
-              Anmelden
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode("signup");
-                setError(null);
-                setConfirmNotice(false);
-              }}
-              className={
-                "flex-1 rounded-full py-2 text-[14px] font-semibold transition-colors " +
-                (mode === "signup" ? "bg-white shadow-sm text-ink" : "text-ink-faint")
-              }
-            >
-              Account erstellen
-            </button>
-          </div>
+          <Tabs
+            value={mode}
+            onValueChange={(v) => {
+              setMode(v as Mode);
+              setError(null);
+              setConfirmNotice(false);
+            }}
+            className="mb-6"
+          >
+            <TabsList className="w-full h-auto rounded-full bg-bg p-1">
+              <TabsTrigger value="signin" className="flex-1 rounded-full py-2 h-auto text-[14px] font-semibold data-active:bg-white data-active:shadow-sm data-active:text-ink text-ink-faint">
+                Anmelden
+              </TabsTrigger>
+              <TabsTrigger value="signup" className="flex-1 rounded-full py-2 h-auto text-[14px] font-semibold data-active:bg-white data-active:shadow-sm data-active:text-ink text-ink-faint">
+                Account erstellen
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           <h1 className="text-[19px] font-semibold tracking-tight mb-1">
             {mode === "signin" ? "Willkommen zurück" : "Account erstellen"}
@@ -101,24 +93,24 @@ export default function AuthScreen() {
           ) : (
             <form onSubmit={submit} className="flex flex-col gap-3">
               <div>
-                <label className="text-[11.5px] uppercase tracking-wide font-bold text-ink-faint mb-1.5 block">
+                <Label className="text-[11.5px] uppercase tracking-wide font-bold text-ink-faint mb-1.5 block">
                   E-Mail
-                </label>
-                <input
+                </Label>
+                <Input
                   type="email"
                   required
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="du@beispiel.de"
-                  className="w-full text-[15px] px-3.5 py-2.5 rounded-xl border-[1.5px] border-line bg-bg focus:bg-white focus:border-blue outline-none transition-colors"
+                  className="w-full h-auto text-[15px] px-3.5 py-2.5 rounded-xl border-[1.5px] border-line bg-bg focus-visible:bg-white focus-visible:border-blue focus-visible:ring-0"
                 />
               </div>
               <div>
-                <label className="text-[11.5px] uppercase tracking-wide font-bold text-ink-faint mb-1.5 block">
+                <Label className="text-[11.5px] uppercase tracking-wide font-bold text-ink-faint mb-1.5 block">
                   Passwort
-                </label>
-                <input
+                </Label>
+                <Input
                   type="password"
                   required
                   minLength={6}
@@ -126,19 +118,19 @@ export default function AuthScreen() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full text-[15px] px-3.5 py-2.5 rounded-xl border-[1.5px] border-line bg-bg focus:bg-white focus:border-blue outline-none transition-colors"
+                  className="w-full h-auto text-[15px] px-3.5 py-2.5 rounded-xl border-[1.5px] border-line bg-bg focus-visible:bg-white focus-visible:border-blue focus-visible:ring-0"
                 />
               </div>
 
               {error && <div className="text-[13px] text-[#b8271b] bg-red-light rounded-lg px-3 py-2">{error}</div>}
 
-              <button
+              <GradientButton
                 type="submit"
                 disabled={busy}
-                className="mt-1 w-full rounded-full bg-blue hover:bg-blue-dark disabled:opacity-60 text-white font-semibold py-3 text-[15px] transition-colors active:scale-[0.97]"
-              >
-                {busy ? "Einen Moment…" : mode === "signin" ? "Anmelden" : "Account erstellen"}
-              </button>
+                variant="blue"
+                label={busy ? "Einen Moment…" : mode === "signin" ? "Anmelden" : "Account erstellen"}
+                className="mt-1 w-full active:scale-[0.97]"
+              />
             </form>
           )}
         </div>

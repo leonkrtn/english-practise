@@ -1,4 +1,12 @@
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 import { VOCAB, type Word } from "./vocab";
+
+/** Merges Tailwind class lists, letting a later conflicting utility (e.g. a caller-supplied
+ * rounded-full) win over an earlier one — used by every shadcn/ui component. */
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 export function normalize(s: string | null | undefined): string {
   if (!s) return "";

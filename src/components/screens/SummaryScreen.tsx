@@ -10,6 +10,7 @@ import { levelProgress } from "@/lib/gamification";
 import { useCountUp } from "@/lib/useCountUp";
 import { motionMs } from "@/lib/motion";
 import { BadgeMedal } from "@/components/BadgeIcon";
+import { Button } from "@/components/ui/button";
 import type { Badge } from "@/lib/gamification";
 import type { ResultEntry } from "@/lib/types";
 import type { GrammarResultEntry } from "@/lib/grammarTypes";
@@ -278,16 +279,21 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
       </div>
 
       <div className="flex gap-2.5">
-        <button onClick={onHome} className="flex-1 rounded-full bg-line-soft hover:bg-line text-ink font-semibold py-3.5 text-[15px] transition-colors">
+        <Button
+          onClick={onHome}
+          variant="ghost"
+          className="h-auto flex-1 rounded-full bg-line-soft hover:bg-line hover:text-ink text-ink font-semibold py-3.5 text-[15px] transition-colors"
+        >
           Home
-        </button>
+        </Button>
         {wrongWordIds.length > 0 && (
-          <button
+          <Button
             onClick={() => onRepeat(wrongWordIds)}
-            className="flex-1 rounded-full bg-blue hover:bg-blue-dark text-white font-semibold py-3.5 text-[15px] transition-colors"
+            variant="ghost"
+            className="h-auto flex-1 rounded-full bg-blue hover:bg-blue-dark hover:text-white text-white font-semibold py-3.5 text-[15px] transition-colors"
           >
             Fehler wiederholen
-          </button>
+          </Button>
         )}
       </div>
     </section>

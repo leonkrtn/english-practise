@@ -1,6 +1,7 @@
 "use client";
 
 import { levelProgress } from "@/lib/gamification";
+import ShimmerText from "@/components/kokonutui/shimmer-text";
 
 /**
  * The level readout in the top bar: current level, job title, and how far along the bar to the
@@ -24,7 +25,7 @@ export default function LevelPill({ xp, onClick }: { xp: number; onClick: () => 
         {p.level}
       </span>
       <span className="flex flex-col items-start leading-none gap-1">
-        <span className="text-[10.5px] font-semibold text-ink-soft">{p.title}</span>
+        <ShimmerText text={p.title} className="text-[10.5px] font-semibold" />
         <span className="w-16 h-1 rounded-full bg-line overflow-hidden">
           <span className="block h-full rounded-full bg-gradient-to-r from-blue to-purple transition-[width] duration-700" style={{ width: p.pct + "%" }} />
         </span>

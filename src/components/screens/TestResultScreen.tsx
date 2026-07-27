@@ -5,6 +5,7 @@ import { ChevronDown, Clock, RotateCcw, Sparkles, Target } from "lucide-react";
 import { BAND_STYLES, type TestGrade, type TestQuestion, type TestAnswer, scoreAnswer } from "@/lib/testMode";
 import { BadgeMedal } from "@/components/BadgeIcon";
 import { useCountUp } from "@/lib/useCountUp";
+import { Button } from "@/components/ui/button";
 import type { Badge } from "@/lib/gamification";
 
 export interface TestResult {
@@ -150,15 +151,20 @@ export default function TestResultScreen({ result, onHome, onRetry }: { result: 
       </div>
 
       <div className="flex gap-2.5">
-        <button onClick={onHome} className="flex-1 rounded-full bg-line-soft hover:bg-line text-ink font-semibold py-3.5 text-[15px] transition-colors">
+        <Button
+          onClick={onHome}
+          variant="ghost"
+          className="h-auto flex-1 rounded-full bg-line-soft hover:bg-line hover:text-ink text-ink font-semibold py-3.5 text-[15px] transition-colors"
+        >
           Home
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={onRetry}
-          className="flex-1 rounded-full bg-gradient-to-r from-ink to-ink/80 hover:brightness-125 text-white font-semibold py-3.5 text-[15px] transition-all active:scale-[0.97] flex items-center justify-center gap-2"
+          variant="ghost"
+          className="h-auto flex-1 rounded-full bg-gradient-to-r from-ink to-ink/80 hover:brightness-125 hover:text-white text-white font-semibold py-3.5 text-[15px] transition-all active:scale-[0.97] flex items-center justify-center gap-2"
         >
           <RotateCcw size={15} /> Neuer Test
-        </button>
+        </Button>
       </div>
     </section>
   );

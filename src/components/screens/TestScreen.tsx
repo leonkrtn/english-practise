@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, CircleCheck, Clock, X } from "lucide-react";
 import type { TestAnswer, TestQuestion } from "@/lib/testMode";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
  * Exam conditions, on purpose: no hints, no per-question feedback, no sounds, and nothing that
@@ -102,13 +104,22 @@ export default function TestScreen({
   return (
     <section className="h-full flex flex-col">
       <div className="flex items-center gap-2 mb-3 shrink-0 w-full max-w-2xl mx-auto">
-        <button
-          onClick={onExit}
-          title="Test abbrechen (Esc)"
-          className="w-8 h-8 rounded-full border border-line bg-card text-ink-soft flex items-center justify-center shrink-0 transition-all hover:bg-line-soft hover:-translate-y-0.5 hover:shadow-sm"
-        >
-          <X size={16} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                onClick={onExit}
+                aria-label="Test abbrechen (Esc)"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full border-line bg-card text-ink-soft shrink-0 transition-all hover:bg-line-soft hover:text-ink-soft hover:-translate-y-0.5 hover:shadow-sm"
+              />
+            }
+          >
+            <X size={16} />
+          </TooltipTrigger>
+          <TooltipContent>Test abbrechen (Esc)</TooltipContent>
+        </Tooltip>
         <div className="flex-1 h-2 bg-line-soft rounded-full overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-ink to-ink/70 rounded-full transition-[width] duration-300"
@@ -212,28 +223,31 @@ export default function TestScreen({
       </div>
 
       <div className="flex items-center gap-2 mt-3 shrink-0 w-full max-w-2xl mx-auto">
-        <button
+        <Button
           onClick={goPrev}
           disabled={index === 0}
-          className="rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft disabled:opacity-35 disabled:pointer-events-none text-ink font-semibold px-4 py-2.5 text-[14px] transition-all active:scale-[0.97] flex items-center gap-1"
+          variant="ghost"
+          className="h-auto rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:text-ink disabled:opacity-35 disabled:pointer-events-none text-ink font-semibold px-4 py-2.5 text-[14px] transition-all active:scale-[0.97] flex items-center gap-1"
         >
           <ChevronLeft size={15} /> Zurück
-        </button>
+        </Button>
         <div className="flex-1" />
         {!isLast && (
-          <button
+          <Button
             onClick={goNext}
-            className="rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft text-ink font-semibold px-4 py-2.5 text-[14px] transition-all active:scale-[0.97] flex items-center gap-1"
+            variant="ghost"
+            className="h-auto rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:text-ink text-ink font-semibold px-4 py-2.5 text-[14px] transition-all active:scale-[0.97] flex items-center gap-1"
           >
             Weiter <ChevronRight size={15} />
-          </button>
+          </Button>
         )}
-        <button
+        <Button
           onClick={onSubmit}
-          className="rounded-full bg-gradient-to-r from-ink to-ink/80 hover:brightness-125 text-white font-semibold px-5 py-2.5 text-[14px] transition-all active:scale-[0.97] shadow-[0_10px_24px_-10px_rgba(15,23,42,0.6)] flex items-center gap-1.5"
+          variant="ghost"
+          className="h-auto rounded-full bg-gradient-to-r from-ink to-ink/80 hover:brightness-125 hover:text-white text-white font-semibold px-5 py-2.5 text-[14px] transition-all active:scale-[0.97] shadow-[0_10px_24px_-10px_rgba(15,23,42,0.6)] flex items-center gap-1.5"
         >
           <CircleCheck size={15} /> Test abgeben
-        </button>
+        </Button>
       </div>
     </section>
   );

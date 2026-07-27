@@ -9,6 +9,7 @@ import { findUsedConnector } from "@/lib/connectorCheck";
 import { checkText, LanguageToolError, type LanguageToolMatch } from "@/lib/languageTool";
 import { renderHighlighted } from "@/lib/textHighlight";
 import { AnswerInput, ExerciseFooter, FeedbackPanel, HintButton, PrimaryButton } from "./shared";
+import { Badge } from "@/components/ui/badge";
 
 export interface LinkingResult {
   pairId: string;
@@ -57,9 +58,9 @@ export default function LinkingExercise({
 
   return (
     <>
-      <span className="inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-3 text-white shadow-sm bg-gradient-to-r from-blue to-purple">
+      <Badge className="h-auto inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-3 text-white shadow-sm bg-gradient-to-r from-blue to-purple">
         <Link2 size={11} /> {category.labelDe}
-      </span>
+      </Badge>
       <div className="text-[13.5px] text-ink-faint mb-3">Verbinde diese beiden Sätze zu einem natürlichen Satz</div>
 
       <div className="bg-bg rounded-xl p-3.5 text-[15px] leading-relaxed text-ink flex flex-col gap-1.5 mb-3">

@@ -6,6 +6,7 @@ import { FeedbackPanel } from "./shared";
 import type { ExerciseProps } from "./types";
 import type { ResultEntry } from "@/lib/types";
 import { playCorrect, playIncorrect } from "@/lib/sound";
+import { Badge } from "@/components/ui/badge";
 
 export default function MatchExercise({ item, onAnswered, onNext }: ExerciseProps) {
   const words = item.words;
@@ -99,7 +100,7 @@ export default function MatchExercise({ item, onAnswered, onNext }: ExerciseProp
             <div className="mb-2 last:mb-0" key={w.id}>
               <b className="font-semibold text-ink">{w.en}</b> → <b className="font-semibold text-ink">{w.de.join(" / ")}</b>
               {wrongIds.has(w.id) && (
-                <span className="inline-block text-[11.5px] font-semibold px-2 py-0.5 rounded-full bg-red-light text-[#b8271b] ml-2">retry</span>
+                <Badge className="h-auto inline-block text-[11.5px] font-semibold px-2 py-0.5 rounded-full bg-red-light text-[#b8271b] ml-2">retry</Badge>
               )}
             </div>
           ))}

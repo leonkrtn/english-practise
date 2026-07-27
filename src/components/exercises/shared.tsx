@@ -8,6 +8,7 @@ import type { AnswerResultKind } from "@/lib/types";
 import { playFeedbackSound } from "@/lib/sound";
 import { findGap } from "@/lib/utils";
 import { motionMs } from "@/lib/motion";
+import { Button } from "@/components/ui/button";
 
 /** Lets a desktop user pick a lettered multiple-choice option (A, B, C, …) by pressing that
  * letter key, instead of only being able to click — mirrors the A/B/C/D labels already shown on
@@ -337,13 +338,14 @@ export function ExerciseFooter({ children }: { children: React.ReactNode }) {
 
 export function HintButton({ onClick, children, id }: { onClick: () => void; children: React.ReactNode; id?: string }) {
   return (
-    <button
+    <Button
       id={id}
       onClick={onClick}
-      className="inline-flex items-center gap-1 text-[13px] text-ink-faint bg-transparent border border-line rounded-full px-3 py-1.5 hover:bg-blue-lighter hover:border-blue/30 hover:text-blue-dark transition-colors"
+      variant="ghost"
+      className="h-auto inline-flex items-center gap-1 text-[13px] text-ink-faint bg-transparent border border-line rounded-full px-3 py-1.5 hover:bg-blue-lighter hover:border-blue/30 hover:text-blue-dark transition-colors"
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -371,14 +373,14 @@ export function PrimaryButton({
   autoFocus?: boolean;
 }) {
   return (
-    <button
+    <Button
       id={id}
       onClick={onClick}
       disabled={disabled}
       autoFocus={autoFocus}
-      className="rounded-full bg-gradient-to-r from-blue to-blue-dark hover:brightness-110 disabled:bg-[#d1d1d6] disabled:from-[#d1d1d6] disabled:to-[#d1d1d6] disabled:shadow-none disabled:cursor-not-allowed text-white font-semibold px-5 py-3 text-[15px] transition-all active:scale-[0.97] shadow-[0_10px_22px_-8px_rgba(0,113,227,0.5)] inline-flex items-center gap-2"
+      className="h-auto rounded-full bg-gradient-to-r from-blue to-blue-dark hover:brightness-110 hover:bg-none disabled:bg-[#d1d1d6] disabled:from-[#d1d1d6] disabled:to-[#d1d1d6] disabled:shadow-none disabled:opacity-100 disabled:cursor-not-allowed text-white font-semibold px-5 py-3 text-[15px] transition-all active:scale-[0.97] shadow-[0_10px_22px_-8px_rgba(0,113,227,0.5)] inline-flex items-center gap-2"
     >
       {children}
-    </button>
+    </Button>
   );
 }

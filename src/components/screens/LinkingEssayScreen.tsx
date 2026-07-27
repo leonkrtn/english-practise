@@ -7,6 +7,9 @@ import { CONNECTOR_CATEGORIES } from "@/lib/connectors-data";
 import { findUsedConnector } from "@/lib/connectorCheck";
 import { checkText, LanguageToolError, type LanguageToolMatch } from "@/lib/languageTool";
 import { renderHighlighted } from "@/lib/textHighlight";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const MIN_WORDS = 60;
 export const MIN_CATEGORIES = 3;
@@ -63,20 +66,29 @@ export default function LinkingEssayScreen({
   return (
     <section className="h-full flex flex-col">
       <div className="flex items-center gap-3 mb-3 shrink-0 w-full max-w-2xl mx-auto">
-        <button
-          onClick={onExit}
-          title="Schreiben beenden"
-          className="w-8 h-8 rounded-full border border-line bg-card text-ink-soft flex items-center justify-center shrink-0 transition-all hover:bg-line-soft hover:-translate-y-0.5 hover:shadow-sm"
-        >
-          <X size={16} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                onClick={onExit}
+                aria-label="Schreiben beenden"
+                variant="ghost"
+                size="icon"
+                className="rounded-full border border-line bg-card text-ink-soft shrink-0 transition-all hover:bg-line-soft hover:-translate-y-0.5 hover:shadow-sm"
+              />
+            }
+          >
+            <X size={16} />
+          </TooltipTrigger>
+          <TooltipContent>Schreiben beenden</TooltipContent>
+        </Tooltip>
         <div className="text-[13px] font-semibold text-ink-soft">Freies Schreiben</div>
       </div>
 
       <div className="flex-1 min-h-0 w-full max-w-2xl mx-auto overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] bg-card border border-line-soft rounded-[22px] p-5 lg:p-7 shadow-[0_2px_8px_rgba(15,23,42,0.05),0_24px_48px_-18px_rgba(15,23,42,0.18)] flex flex-col animate-fade-in">
-        <span className="inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-3 text-white shadow-sm bg-gradient-to-r from-green to-green-dark">
+        <Badge className="h-auto self-start px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-3 text-white shadow-sm bg-gradient-to-r from-green to-green-dark">
           Thema
-        </span>
+        </Badge>
         <div className="text-[17px] font-bold tracking-tight mb-1 leading-snug">{topic.prompt}</div>
         <div className="text-[13px] text-ink-faint mb-4">
           Schreib frei drauflos — keine Satzvorgabe. Nutze dabei Bindewörter aus mindestens {MIN_CATEGORIES} verschiedenen Kategorien, um
@@ -88,16 +100,16 @@ export default function LinkingEssayScreen({
         </div>
         <div className="flex flex-wrap gap-1.5 mb-4">
           {CONNECTOR_CATEGORIES.map((c, i) => (
-            <span
+            <Badge
               key={c.id}
               className={
-                "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12.5px] font-semibold border-[1.5px] transition-colors " +
+                "h-auto rounded-full px-2.5 py-1 text-[12.5px] font-semibold border-[1.5px] transition-colors " +
                 (categoriesUsed[i] ? "border-green bg-green-light text-[#0d7a4f]" : "border-line bg-bg text-ink-soft")
               }
             >
               {categoriesUsed[i] ? <Check size={12} /> : null}
               {c.labelDe}
-            </span>
+            </Badge>
           ))}
         </div>
 
@@ -127,10 +139,11 @@ export default function LinkingEssayScreen({
         )}
 
         {matches === null ? (
-          <button
+          <Button
             onClick={handleCheck}
             disabled={checking || text.trim().length === 0}
-            className="w-full rounded-full bg-gradient-to-r from-green to-green-dark hover:brightness-110 disabled:from-[#d1d1d6] disabled:to-[#d1d1d6] disabled:shadow-none disabled:cursor-not-allowed text-white font-semibold py-3.5 text-[15px] transition-all active:scale-[0.97] shadow-[0_10px_22px_-8px_rgba(30,182,118,0.5)] inline-flex items-center justify-center gap-2"
+            variant="ghost"
+            className="h-auto w-full rounded-full bg-gradient-to-r from-green to-green-dark hover:brightness-110 hover:bg-transparent hover:text-white disabled:opacity-100 disabled:from-[#d1d1d6] disabled:to-[#d1d1d6] disabled:shadow-none disabled:cursor-not-allowed text-white font-semibold py-3.5 text-[15px] transition-all active:scale-[0.97] shadow-[0_10px_22px_-8px_rgba(30,182,118,0.5)] inline-flex items-center justify-center gap-2"
           >
             {checking ? (
               <>
@@ -141,7 +154,7 @@ export default function LinkingEssayScreen({
                 <Sparkles size={16} /> Prüfen
               </>
             )}
-          </button>
+          </Button>
         ) : (
           <div className="animate-fade-in">
             <div className="pt-4 border-t border-line-soft mb-3">
@@ -170,9 +183,9 @@ export default function LinkingEssayScreen({
                     {m.replacements.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
                         {m.replacements.map((r, ri) => (
-                          <span key={ri} className="text-[12px] font-semibold px-2 py-0.5 rounded-full bg-green-light text-[#0d7a4f]">
+                          <Badge key={ri} className="h-auto px-2 py-0.5 text-[12px] font-semibold rounded-full bg-green-light text-[#0d7a4f]">
                             {r}
-                          </span>
+                          </Badge>
                         ))}
                       </div>
                     )}
@@ -182,18 +195,20 @@ export default function LinkingEssayScreen({
             )}
 
             <div className="flex gap-2">
-              <button
+              <Button
                 onClick={() => setMatches(null)}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full border border-line bg-card hover:bg-line-soft text-ink font-semibold py-3 text-[14px] transition-all active:scale-[0.97]"
+                variant="outline"
+                className="flex-1 h-auto inline-flex items-center justify-center gap-1.5 rounded-full border border-line bg-card hover:bg-line-soft text-ink font-semibold py-3 text-[14px] transition-all active:scale-[0.97]"
               >
                 <RefreshCw size={14} /> Weiter bearbeiten
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleFinish}
-                className="flex-1 rounded-full bg-gradient-to-r from-blue to-blue-dark hover:brightness-110 text-white font-semibold py-3 text-[14px] transition-all active:scale-[0.97] shadow-[0_10px_22px_-8px_rgba(0,113,227,0.5)]"
+                variant="ghost"
+                className="flex-1 h-auto rounded-full bg-gradient-to-r from-blue to-blue-dark hover:brightness-110 hover:bg-transparent hover:text-white text-white font-semibold py-3 text-[14px] transition-all active:scale-[0.97] shadow-[0_10px_22px_-8px_rgba(0,113,227,0.5)]"
               >
                 Fertig
-              </button>
+              </Button>
             </div>
           </div>
         )}
