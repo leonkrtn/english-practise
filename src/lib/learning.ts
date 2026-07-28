@@ -1,26 +1,66 @@
 import { activeVocab, CONFUSABLE_PAIRS, type Word } from "./vocab";
-import { choice, sample, shuffle } from "./utils";
+import { shuffle } from "./utils";
 import type { AnswerResultKind, LearningStage, WordState } from "./types";
-import { pickDirection, type QueueItem } from "./sessionLogic";
+import type { QueueItem } from "./sessionLogic";
+import { activeTuning, type LearningTuning } from "./learningProfile";
+import {
+  balancedDirection,
+  nextStage,
+  pickAvoidingRecent,
+  rememberFormat,
+  selectByWeakness,
+  spacedInsertionIndex,
+  spreadByKey,
+  type FormatMemory,
+} from "./learningEngine";
 
-export type StageKind = "learn" | "quiz" | "match" | "apply" | "produce" | "review";
+/** Prefix used for this domain in the shared attempt/format bookkeeping AppShell threads through
+ * a session. Vocabulary and grammar share those maps, so the keys have to stay distinct. */
+export const vocabKey = (wordId: string) => "v:" + wordId;
 
-/** Every exercise format a mastered word can resurface as during long-term review — deliberately
- * wider than the single fixed "translate" format used before, so words you've known for months
- * don't always show the exact same question. All self-generate their content from the word's own
- * fields (no per-word authored variants needed), unlike the grammar rules' review formats. Left
- * out of the quiz/apply gate that drives mastery itself, so that progression stays untouched. */
+export type StageKind = "learn" | "quiz" | "match" | "apply" | "recall" | "build" | "produce" | "review";
+
+/** The active-learning task types, i.e. everything that can move a word up the ladder. */
+export type ActiveKind = Exclude<StageKind, "learn" | "match" | "review">;
+
+/**
+ * Which task types a word can be tested with at each stage.
+ *
+ * This is the "besser geordnet" half of the redesign. Previously every stage above 0 drew from
+ * the same two-entry pool (multiple choice or gap-fill), so the ladder had no shape: the task you
+ * got at your very first test was the same task you got just before mastery, and with only two
+ * options it repeated constantly.
+ *
+ * Now the stages mean something, following the standard recognition → retrieval → production
+ * progression, and each one offers three formats to rotate between:
+ *
+ *  - **Stage 1 — wiedererkennen:** pick it out, or rebuild a sentence you were just shown.
+ *  - **Stage 2 — abrufen:** produce the word itself, from German or from a context gap.
+ *  - **Stage 3 — anwenden:** use it in a sentence of your own; the real test before mastery.
+ */
+const KINDS_BY_STAGE: Record<1 | 2 | 3 | 4, ActiveKind[]> = {
+  1: ["quiz", "build", "recall"],
+  2: ["recall", "apply", "build"],
+  3: ["apply", "produce", "recall"],
+  // Stage 4 is long-term review territory; only reached here if a word is re-tested after mastery.
+  4: ["apply", "produce", "recall"],
+};
+
+/** Every exercise format a mastered word can resurface as during long-term review. All of these
+ * generate their own content from the word's fields, so no per-word authoring is needed. */
 export type ReviewFormat = "translate" | "build" | "mc" | "gap" | "multigap" | "confusable";
 const SINGLE_WORD_REVIEW_FORMATS: ReviewFormat[] = ["translate", "build", "mc", "gap"];
-export function pickReviewFormat(): ReviewFormat {
-  return choice(SINGLE_WORD_REVIEW_FORMATS);
+
+/** Picks a review format, avoiding the ones this word most recently appeared as. */
+export function pickReviewFormat(recent: string[] = []): ReviewFormat {
+  return pickAvoidingRecent(SINGLE_WORD_REVIEW_FORMATS, recent);
 }
 
 export interface LearningQueueItem {
   kind: StageKind;
   words: Word[];
   direction: "en-de" | "de-en";
-  /** Only set when kind === "review" — which format to render this time (see ReviewFormat). */
+  /** Only set when kind === "review" — which format to render this time. */
   reviewFormat?: ReviewFormat;
 }
 
@@ -29,64 +69,52 @@ const KIND_TO_FORMAT: Record<StageKind, QueueItem["format"]> = {
   quiz: "mc",
   match: "match",
   apply: "gap",
+  recall: "translate",
+  build: "build",
   produce: "sentence",
   review: "translate",
 };
 
+/** The exercise format a queue item will actually render as — also the value recorded in the
+ * format memory, so "don't repeat the last format" compares like with like. */
+export function formatForItem(item: LearningQueueItem): QueueItem["format"] {
+  return item.kind === "review" ? item.reviewFormat || "translate" : KIND_TO_FORMAT[item.kind];
+}
+
 export function toQueueItem(item: LearningQueueItem): QueueItem {
   const multiWord = item.kind === "match" || item.reviewFormat === "multigap" || item.reviewFormat === "confusable";
   const words = multiWord ? item.words : [item.words[0]];
-  const format: QueueItem["format"] = item.kind === "review" ? item.reviewFormat || "translate" : KIND_TO_FORMAT[item.kind];
-  return { format, words, direction: item.direction };
+  return { format: formatForItem(item), words, direction: item.direction };
 }
-
-/** Sessions until a word resurfaces, indexed by consecutive successful long-term reviews. */
-const REVIEW_INTERVALS = [2, 3, 5, 8, 13, 21];
-
-export function reviewInterval(streak: number): number {
-  return REVIEW_INTERVALS[Math.min(Math.max(streak, 0), REVIEW_INTERVALS.length - 1)];
-}
-
-const ACTIVE_KINDS: Exclude<StageKind, "learn" | "review" | "match" | "produce">[] = ["quiz", "apply"];
 
 /**
- * Which task type to test a word with. Stage 0 (the very first encounter) is always "learn" —
- * everything past that picks a random format each time instead of one fixed type being tied to
- * a given stage, so a word doesn't always get quizzed the same way as it climbs toward mastery.
- * Progression itself still tracks the word's real persisted stage (see nextAfterAnswer) — only
- * which format is shown is randomized.
+ * Which task type to test a word with next. Stage 0 is always the learn card; everything above it
+ * draws from that stage's format list while avoiding whatever this word was recently shown as.
  */
-export function pickKindForStage(stage: LearningStage): Exclude<StageKind, "match" | "review"> {
+export function pickKindForStage(stage: LearningStage, recent: string[] = []): Exclude<StageKind, "match" | "review"> {
   if (stage === 0) return "learn";
-  return choice(ACTIVE_KINDS);
+  const candidates = KINDS_BY_STAGE[stage as 1 | 2 | 3 | 4] ?? KINDS_BY_STAGE[3];
+  // The memory stores rendered formats ("gap"), the candidates are task kinds ("apply"). Translate
+  // the history back into kinds, keeping its newest-last ordering so the most recent format is the
+  // one that actually gets excluded.
+  const recentKinds = recent
+    .map((fmt) => candidates.find((k) => KIND_TO_FORMAT[k] === fmt))
+    .filter((k): k is ActiveKind => k !== undefined);
+  return pickAvoidingRecent(candidates, recentKinds);
 }
 
 /**
- * How many *consecutive* correct active-learning answers a word needs at the final pre-mastery
- * stage before it's trusted as mastered. A single lucky/careless correct answer no longer
- * promotes a word to mastery on its own — it has to hold up across several (spaced apart within
- * the session, not back-to-back, via insertionIndex).
- */
-export const APPLY_REQUIRED_STREAK = 3;
-
-/**
- * Typed production (Schreiben, and review's "translate" format) always shows German and asks for
- * English — you never have to type German, only recognize it. Recognition tasks (MC) have no
- * typing, so they keep testing both directions for well-rounded comprehension — including when MC
- * shows up as a review format, so it doesn't lose the word2trans/gapsentence variety it has at the
- * normal quiz stage. Build/gap/multigap/confusable ignore direction entirely, so it's irrelevant
- * for those review formats.
+ * Typed production always shows German and asks for English — you never have to type German, only
+ * recognise it. Everything else draws from a balanced bag so the two directions stay evenly mixed
+ * across a session instead of clumping the way independent coin flips do.
  */
 export function directionForKind(kind: StageKind, reviewFormat?: ReviewFormat): "en-de" | "de-en" {
-  if (kind === "produce") return "de-en";
-  if (kind === "review") return reviewFormat && reviewFormat !== "translate" ? pickDirection("mixed") : "de-en";
-  return pickDirection("mixed");
+  if (kind === "produce" || kind === "recall") return "de-en";
+  if (kind === "review") return !reviewFormat || reviewFormat === "translate" ? "de-en" : balancedDirection();
+  return balancedDirection();
 }
 
-const ACTIVE_BATCH_SIZE = 10;
-const REVIEW_SAMPLE_SIZE = 4;
 export const MATCH_GROUP_SIZE = 4;
-export const LEARNING_BATCH_SIZE = ACTIVE_BATCH_SIZE;
 
 /** Pulls as many full groups of MATCH_GROUP_SIZE off the front of the pool as possible. */
 export function popMatchGroups(pool: Word[]): { groups: Word[][]; remaining: Word[] } {
@@ -104,27 +132,32 @@ export interface LearningBatch {
 }
 
 /**
- * Picks the ~10 words this session works on (in-progress words first, then new ones) plus a
- * few due long-term reviews — the "ab und zu abgefragt" confirmation for stage-4 words. Reviews
- * are picked most-overdue-first (not randomly): with a growing pool of known words, a fixed
- * sample size per session means the backlog only clears if the words waiting longest go first,
- * otherwise some could get skipped indefinitely in favor of always-fresher due words.
+ * Picks the words this session works on, plus the long-term reviews that have come due.
+ *
+ * Two changes over the previous version, both aimed at making sessions feel less repetitive:
+ *
+ *  - In-progress words are chosen by how much they actually need work (weakness + staleness, with
+ *    noise) instead of a flat shuffle, so the session spends its slots where they matter.
+ *  - Brand-new words are capped well below the batch size. A batch of ten unknown words needs a
+ *    learn card plus several tests for each, which is precisely the "same few words on a loop"
+ *    experience — mixing a few new words into mostly familiar ones spreads the load.
+ *
+ * Reviews are taken most-overdue-first so a growing backlog actually clears.
  */
 export function buildLearningBatch(
   getState: (id: string) => WordState,
   totalPracticeSessions: number,
   blockedWordIds: ReadonlySet<string> = new Set(),
-  includeReview: boolean = true
+  includeReview: boolean = true,
+  tuning: LearningTuning = activeTuning()
 ): LearningBatch {
   const pool = activeVocab(blockedWordIds);
+  const newPool = pool.filter((w) => getState(w.id).stage === 0);
 
   if (!includeReview) {
-    // "Nur Neues lernen" means exactly that — brand-new words only. Mixing in-progress words back
-    // in here would defeat the point: with even a handful of in-progress words already in flight,
-    // they'd crowd out new ones every time (in-progress is filled first, up to ACTIVE_BATCH_SIZE),
-    // so picking "only new" would barely change what you see session to session.
-    const newPool = pool.filter((w) => getState(w.id).stage === 0);
-    return { activeWords: sample(newPool, ACTIVE_BATCH_SIZE), reviewWords: [] };
+    // "Nur Neues lernen" means exactly that — brand-new words only, and here the full batch may be
+    // new because that is what the learner explicitly asked for.
+    return { activeWords: selectByWeakness(newPool, (w) => getState(w.id), tuning.vocabBatchSize), reviewWords: [] };
   }
 
   const duePool = pool.filter((w) => {
@@ -132,79 +165,91 @@ export function buildLearningBatch(
     return s.stage === 4 && s.dueAtSession !== null && s.dueAtSession <= totalPracticeSessions;
   });
   duePool.sort((a, b) => (getState(a.id).dueAtSession ?? 0) - (getState(b.id).dueAtSession ?? 0));
-  const reviewWords = duePool.slice(0, REVIEW_SAMPLE_SIZE);
+  const reviewWords = duePool.slice(0, tuning.vocabReviewSample);
 
-  const inProgressPool = shuffle(
-    pool.filter((w) => {
-      const s = getState(w.id);
-      return s.stage >= 1 && s.stage <= 3;
-    })
-  );
-  const inProgressWords = inProgressPool.slice(0, ACTIVE_BATCH_SIZE);
+  const inProgressPool = pool.filter((w) => {
+    const s = getState(w.id);
+    return s.stage >= 1 && s.stage <= 3;
+  });
+  const inProgressWords = selectByWeakness(inProgressPool, (w) => getState(w.id), tuning.vocabBatchSize);
 
-  const remaining = ACTIVE_BATCH_SIZE - inProgressWords.length;
-  const newPool = pool.filter((w) => getState(w.id).stage === 0);
-  const newWords = remaining > 0 ? sample(newPool, remaining) : [];
+  // Only top up with new words if in-progress work didn't already fill the batch, and never past
+  // the per-session cap on unfamiliar material.
+  const room = tuning.vocabBatchSize - inProgressWords.length;
+  const newWords = room > 0 ? selectByWeakness(newPool, (w) => getState(w.id), Math.min(room, tuning.maxNewVocabPerSession)) : [];
 
   return { activeWords: inProgressWords.concat(newWords), reviewWords };
 }
 
 export interface InitialQueue {
   queue: LearningQueueItem[];
-  /** Words already due for their first "quiz" test that didn't (yet) fill a full match group — carried in session state and merged with words that reach this point mid-session. */
+  /** Words due for a matching round that didn't fill a full group yet — carried in session state
+   * and combined with words that reach the same point later in the session. */
   matchPool: Word[];
+  /** Seeded with the format each word starts on, so the first follow-up already avoids a repeat. */
+  formatMemory: FormatMemory;
 }
 
 /**
- * Builds the shuffled starting queue for a batch. Words due for their first "quiz" test are
- * grouped into Word Matching rounds (recognition practice, lower cognitive load) whenever
- * there are enough of them at once — any that don't fill a group go into `matchPool` instead
- * of the queue, to be combined with words that reach the same point later in the session.
- * Everything else gets one task per word at its current stage; due long-term reviews are mixed
- * in too, all interleaved together.
+ * Builds the starting queue for a batch: one task per active word at its current stage, words due
+ * for a matching round grouped into fours, and due long-term reviews mixed in with varied formats.
+ *
+ * The result is ordered with spreadByKey rather than a plain shuffle, so two tasks for the same
+ * word never land back to back.
  */
 export function buildInitialQueue(batch: LearningBatch, getState: (id: string) => WordState): InitialQueue {
   const quizWords: Word[] = [];
   const items: LearningQueueItem[] = [];
+  let formatMemory: FormatMemory = {};
+
+  const remember = (item: LearningQueueItem) => {
+    const format = formatForItem(item);
+    item.words.forEach((w) => {
+      formatMemory = rememberFormat(formatMemory, vocabKey(w.id), format);
+    });
+    return item;
+  };
 
   batch.activeWords.forEach((word) => {
     const kind = pickKindForStage(getState(word.id).stage);
+    // "quiz" words are held back so they can be batched into matching rounds — recognition
+    // practice at lower cognitive load — whenever enough of them accumulate.
     if (kind === "quiz") quizWords.push(word);
-    else items.push({ kind, words: [word], direction: directionForKind(kind) });
+    else items.push(remember({ kind, words: [word], direction: directionForKind(kind) }));
   });
 
   const { groups, remaining } = popMatchGroups(shuffle(quizWords));
-  groups.forEach((group) => items.push({ kind: "match", words: group, direction: directionForKind("match") }));
+  groups.forEach((group) => items.push(remember({ kind: "match", words: group, direction: directionForKind("match") })));
 
-  // Review-due words get varied formats instead of always "translate": at most one confusable
-  // pair per session (only when BOTH pair members are already mastered, so whichever one gets
-  // quizzed has a valid stage to transition from), the rest occasionally grouped into multigap
-  // pairs, and otherwise a random single-word format — see pickReviewFormat().
+  // Review-due words get varied formats: at most one confusable pair per session (only when both
+  // members are mastered, so whichever gets quizzed has a valid stage to transition from), at most
+  // one multigap pair, and a rotated single-word format for the rest.
   const reviewPool = shuffle(batch.reviewWords.slice());
   const usedIds = new Set<string>();
+
   for (const [a, b] of CONFUSABLE_PAIRS) {
-    if (usedIds.has(a.id) || usedIds.has(b.id)) continue;
     const aIsDue = reviewPool.some((w) => w.id === a.id);
     const bIsDue = reviewPool.some((w) => w.id === b.id);
     if (!aIsDue && !bIsDue) continue;
     if (getState(a.id).stage !== 4 || getState(b.id).stage !== 4) continue;
-    items.push({ kind: "review", words: [a, b], direction: directionForKind("review", "confusable"), reviewFormat: "confusable" });
+    items.push(remember({ kind: "review", words: [a, b], direction: directionForKind("review", "confusable"), reviewFormat: "confusable" }));
     usedIds.add(a.id);
     usedIds.add(b.id);
     break;
   }
 
   const remainingReview = reviewPool.filter((w) => !usedIds.has(w.id));
-  while (remainingReview.length >= 2 && Math.random() < 0.35) {
-    const pairWords = [remainingReview.shift()!, remainingReview.shift()!];
-    items.push({ kind: "review", words: pairWords, direction: directionForKind("review", "multigap"), reviewFormat: "multigap" });
+  if (remainingReview.length >= 2 && Math.random() < 0.35) {
+    const pairWords = [remainingReview.shift() as Word, remainingReview.shift() as Word];
+    items.push(remember({ kind: "review", words: pairWords, direction: directionForKind("review", "multigap"), reviewFormat: "multigap" }));
   }
   remainingReview.forEach((word) => {
     const fmt = pickReviewFormat();
-    items.push({ kind: "review", words: [word], direction: directionForKind("review", fmt), reviewFormat: fmt });
+    items.push(remember({ kind: "review", words: [word], direction: directionForKind("review", fmt), reviewFormat: fmt }));
   });
 
-  return { queue: shuffle(items), matchPool: remaining };
+  const queue = spreadByKey(items, (item) => item.words.map((w) => w.id).join("+"));
+  return { queue, matchPool: remaining, formatMemory };
 }
 
 export interface StageOutcome {
@@ -215,70 +260,70 @@ export interface StageOutcome {
 }
 
 /**
- * Computes a word's next learning stage after an answer, and which task (if any) should follow
- * up later in the same session. `currentStage` is the word's actual persisted stage — since the
- * task format shown (`kind`) is now picked randomly rather than implied by the stage (see
- * pickKindForStage), progression has to read the real stage instead of inferring it from which
- * format happened to be tested this time.
+ * Computes a word's next learning stage after an answer, and which task (if any) should follow up
+ * later in the same session. The stage ladder itself lives in the shared engine — see nextStage()
+ * for why "almost" no longer resets progress and why a wrong answer costs one step rather than all
+ * of them.
+ *
+ * `recentFormats` is this word's format history, so the follow-up task is a different kind of
+ * question than the one just answered.
  */
 export function nextAfterAnswer(
   kind: StageKind,
   currentStage: LearningStage,
   reviewStreak: number,
   result: AnswerResultKind,
-  totalPracticeSessions: number
+  totalPracticeSessions: number,
+  recentFormats: string[] = [],
+  tuning: LearningTuning = activeTuning()
 ): StageOutcome {
-  if (kind === "learn") {
-    return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: pickKindForStage(1) };
-  }
-  if (kind === "review") {
-    if (result === "correct") {
-      const rs = reviewStreak + 1;
-      return { stage: 4, reviewStreak: rs, dueAtSession: totalPracticeSessions + reviewInterval(rs), nextKind: null };
-    }
-    // Forgetting a mastered word sends it all the way back to the bottom of active learning, not
-    // partway back in — re-earning mastery means climbing the whole ladder again, not one quick
-    // reconfirmation.
-    return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: pickKindForStage(1) };
-  }
+  const transition = nextStage({
+    isLearnCard: kind === "learn",
+    isReview: kind === "review",
+    currentStage,
+    reviewStreak,
+    result,
+    totalPracticeSessions,
+    tuning,
+  });
 
-  // Active learning — quiz/match/apply (and any stray legacy "produce" item left in-flight from
-  // before that stage was removed). The format shown no longer implies the stage, so promotion
-  // and demotion both key off the word's real persisted stage.
-  if (result === "correct") {
-    if (currentStage >= 3) {
-      // Final step before mastery: needs APPLY_REQUIRED_STREAK consecutive correct answers,
-      // reusing the reviewStreak field as that counter. A single correct answer here no longer
-      // promotes to mastery on its own.
-      const streak = reviewStreak + 1;
-      if (streak >= APPLY_REQUIRED_STREAK) {
-        return { stage: 4, reviewStreak: 0, dueAtSession: totalPracticeSessions + reviewInterval(0), nextKind: null };
-      }
-      return { stage: 3, reviewStreak: streak, dueAtSession: null, nextKind: pickKindForStage(3) };
-    }
-    const newStage = (currentStage + 1) as LearningStage;
-    return { stage: newStage, reviewStreak: 0, dueAtSession: null, nextKind: pickKindForStage(newStage) };
-  }
-
-  // Any wrong active-learning answer knocks the word straight back to stage 1 — no partial
-  // credit for progress already made, regardless of which stage it fell at.
-  return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: pickKindForStage(1) };
+  return {
+    stage: transition.stage,
+    reviewStreak: transition.reviewStreak,
+    dueAtSession: transition.dueAtSession,
+    nextKind: transition.followUp ? pickKindForStage(transition.stage, recentFormats) : null,
+  };
 }
 
-/** Where in the (growing) queue a follow-up task should be inserted — a few items ahead, never right next, so repeats are spaced out. */
-export function insertionIndex(currentIndex: number, queueLength: number): number {
-  const offset = 2 + Math.floor(Math.random() * 3); // 2..4
-  return Math.min(currentIndex + offset, queueLength);
+/**
+ * Where a follow-up task should be inserted. `attemptNo` is how many times this word has been
+ * answered in this session — the gap widens with each repeat (expanding retrieval), which is the
+ * main fix for words feeling like they come back on a loop.
+ *
+ * Returns null when the remaining queue is too short to space the repeat properly; the caller
+ * should then simply not schedule it.
+ */
+export function insertionIndex(
+  currentIndex: number,
+  queueLength: number,
+  attemptNo: number = 1,
+  tuning: LearningTuning = activeTuning()
+): number | null {
+  return spacedInsertionIndex(currentIndex, queueLength, attemptNo, tuning);
 }
 
-/** End-of-session (or empty-queue) cleanup: turns whatever's left in the match pool into one last task instead of leaving it untested. */
+/** End-of-session cleanup: turns whatever is left in the match pool into one last task rather than
+ * leaving those words untested. */
 export function flushMatchPool(pool: Word[]): LearningQueueItem[] {
   if (pool.length === 0) return [];
   if (pool.length === 1) return [{ kind: "quiz", words: [pool[0]], direction: directionForKind("quiz") }];
   return [{ kind: "match", words: pool, direction: directionForKind("match") }];
 }
 
-export const MAX_ATTEMPTS_PER_WORD = 5;
+/** How many times one word may be asked within a single session, per the active profile. */
+export function maxAttemptsPerWord(tuning: LearningTuning = activeTuning()): number {
+  return tuning.maxAttemptsPerItem;
+}
 
 export function stageKindLabel(kind: StageKind): string {
   switch (kind) {
@@ -290,6 +335,10 @@ export function stageKindLabel(kind: StageKind): string {
       return "Wörter verbinden";
     case "apply":
       return "Einbauen";
+    case "recall":
+      return "Abrufen";
+    case "build":
+      return "Satz bauen";
     case "produce":
       return "Schreiben";
     case "review":

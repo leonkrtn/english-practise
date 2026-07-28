@@ -26,6 +26,18 @@ export default function GrammarExerciseRouter({
       return <GrammarGapExercise {...props} />;
     case "produce":
       return <GrammarBuildExercise {...props} />;
+    // Formats that used to be reserved for long-term review, now also part of active learning so a
+    // rule isn't tested with the same three question shapes on its way up the ladder.
+    case "situation":
+      return <GrammarSituationExercise {...props} />;
+    case "conjugate":
+      return <GrammarConjugateExercise {...props} />;
+    case "error":
+      return <GrammarErrorExercise {...props} />;
+    case "translate":
+      return <GrammarTranslateExercise {...props} />;
+    case "transform":
+      return <GrammarTransformExercise {...props} />;
     case "review":
       switch (reviewFormat) {
         case "g-mc":
