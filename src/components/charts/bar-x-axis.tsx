@@ -115,9 +115,21 @@ const BarXAxisInner = memo(function BarXAxisInner({
       return allLabels;
     }
 
-    // Otherwise, skip some labels to avoid crowding
-    const step = Math.ceil(allLabels.length / maxLabels);
-    return allLabels.filter((_, i) => i % step === 0);
+    // Otherwise, pick evenly spaced indices that always include the first and
+    // last bar — a plain `i % step` skip (as used previously) can land short
+    // of the final index (e.g. 14 bars / maxLabels=2 picked index 0 and 7,
+    // leaving the last bar unlabeled and a label floating mid-chart instead
+    // of at the edge).
+    if (maxLabels <= 1) {
+      return [allLabels[0]];
+    }
+    const lastIndex = allLabels.length - 1;
+    const step = lastIndex / (maxLabels - 1);
+    const indices = new Set<number>();
+    for (let i = 0; i < maxLabels; i++) {
+      indices.add(Math.round(i * step));
+    }
+    return [...indices].sort((a, b) => a - b).map((i) => allLabels[i]);
   }, [
     barScale,
     bandWidth,

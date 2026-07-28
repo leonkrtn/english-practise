@@ -234,7 +234,7 @@ export default function StatsScreen() {
       <h1 className="text-[26px] font-bold tracking-tight mt-1 mb-4">Statistiken</h1>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-        <TabsList className="w-full h-auto justify-start rounded-none bg-transparent p-0 gap-1.5 mb-5 overflow-x-auto -mx-1 px-1 pb-1">
+        <TabsList className="w-full h-auto! justify-start rounded-none bg-transparent p-0 gap-1.5 mb-5 overflow-x-auto -mx-1 px-1 pb-1">
           {TABS.map((t) => {
             const Icon = t.icon;
             return (
