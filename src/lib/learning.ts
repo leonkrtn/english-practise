@@ -2,7 +2,7 @@ import { activeVocab, CONFUSABLE_PAIRS, type Word } from "./vocab";
 import { shuffle } from "./utils";
 import type { AnswerResultKind, LearningStage, WordState } from "./types";
 import type { QueueItem } from "./sessionLogic";
-import { activeTuning, type LearningTuning } from "./learningProfile";
+import type { LearningTuning } from "./learningProfile";
 import {
   balancedDirection,
   nextStage,
@@ -147,9 +147,9 @@ export interface LearningBatch {
 export function buildLearningBatch(
   getState: (id: string) => WordState,
   totalPracticeSessions: number,
-  blockedWordIds: ReadonlySet<string> = new Set(),
-  includeReview: boolean = true,
-  tuning: LearningTuning = activeTuning()
+  blockedWordIds: ReadonlySet<string>,
+  includeReview: boolean,
+  tuning: LearningTuning
 ): LearningBatch {
   const pool = activeVocab(blockedWordIds);
   const newPool = pool.filter((w) => getState(w.id).stage === 0);
@@ -274,8 +274,8 @@ export function nextAfterAnswer(
   reviewStreak: number,
   result: AnswerResultKind,
   totalPracticeSessions: number,
-  recentFormats: string[] = [],
-  tuning: LearningTuning = activeTuning()
+  recentFormats: string[],
+  tuning: LearningTuning
 ): StageOutcome {
   const transition = nextStage({
     isLearnCard: kind === "learn",
@@ -306,8 +306,8 @@ export function nextAfterAnswer(
 export function insertionIndex(
   currentIndex: number,
   queueLength: number,
-  attemptNo: number = 1,
-  tuning: LearningTuning = activeTuning()
+  attemptNo: number,
+  tuning: LearningTuning
 ): number | null {
   return spacedInsertionIndex(currentIndex, queueLength, attemptNo, tuning);
 }
@@ -321,7 +321,7 @@ export function flushMatchPool(pool: Word[]): LearningQueueItem[] {
 }
 
 /** How many times one word may be asked within a single session, per the active profile. */
-export function maxAttemptsPerWord(tuning: LearningTuning = activeTuning()): number {
+export function maxAttemptsPerWord(tuning: LearningTuning): number {
   return tuning.maxAttemptsPerItem;
 }
 

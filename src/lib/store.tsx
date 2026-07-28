@@ -3,6 +3,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { isAuthError, supabase } from "./supabase";
 import { blankWordState, type FormatStat, type SessionRecord, type TestRecord, type WordState, type AnswerResultKind, type LearningStage } from "./types";
+import { DEFAULT_PROFILE_ID, isLearningProfileId, type LearningProfileId } from "./learningProfile";
 
 interface StoreShape {
   words: Record<string, WordState>;
@@ -15,6 +16,7 @@ interface StoreShape {
   blockedWordIds: Set<string>;
   xp: number;
   badgeIds: Set<string>;
+  learningProfile: LearningProfileId;
 }
 
 interface StoreApi {
@@ -30,6 +32,7 @@ interface StoreApi {
   blockedWordIds: Set<string>;
   xp: number;
   badgeIds: Set<string>;
+  learningProfile: LearningProfileId;
   wordState: (id: string) => WordState;
   updateWord: (id: string, result: AnswerResultKind, hintsUsed?: number) => void;
   recordFormatStat: (format: string, result: AnswerResultKind) => void;
@@ -41,6 +44,7 @@ interface StoreApi {
   setWordBlocked: (id: string, blocked: boolean) => void;
   addXp: (amount: number) => void;
   unlockBadges: (ids: string[]) => void;
+  setLearningProfile: (id: LearningProfileId) => void;
 }
 
 const StoreContext = createContext<StoreApi | null>(null);
@@ -60,6 +64,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     blockedWordIds: new Set(),
     xp: 0,
     badgeIds: new Set(),
+    learningProfile: DEFAULT_PROFILE_ID,
   });
 
   useEffect(() => {
@@ -149,6 +154,10 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
           blockedWordIds: new Set(meta.data?.blocked_word_ids || []),
           xp: meta.data?.xp ?? 0,
           badgeIds: new Set(meta.data?.badge_ids || []),
+          // An account whose database hasn't run migration 0010 yet (column missing from the
+          // select result) falls back to the same default the column itself defaults to, same
+          // reasoning as the test_history soft-fail above.
+          learningProfile: isLearningProfileId(meta.data?.learning_profile) ? meta.data.learning_profile : DEFAULT_PROFILE_ID,
         });
         setReady(true);
       } catch (e) {
@@ -426,6 +435,21 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     [userId]
   );
 
+  const setLearningProfile = useCallback(
+    (id: LearningProfileId) => {
+      setState((prev) => {
+        supabase
+          .from("app_meta")
+          .upsert({ user_id: userId, learning_profile: id }, { onConflict: "user_id" })
+          .then(({ error: err }) => {
+            if (err) console.error("setLearningProfile", err);
+          });
+        return { ...prev, learningProfile: id };
+      });
+    },
+    [userId]
+  );
+
   const api: StoreApi = {
     ready,
     error,
@@ -439,6 +463,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     blockedWordIds: state.blockedWordIds,
     xp: state.xp,
     badgeIds: state.badgeIds,
+    learningProfile: state.learningProfile,
     wordState,
     updateWord,
     recordFormatStat,
@@ -450,6 +475,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     setWordBlocked,
     addXp,
     unlockBadges,
+    setLearningProfile,
   };
 
   return <StoreContext.Provider value={api}>{children}</StoreContext.Provider>;

@@ -1,30 +1,20 @@
 "use client";
 
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo } from "react";
 import { X } from "lucide-react";
 import { GRAMMAR_RULES } from "@/lib/grammar-data";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { useStore } from "@/lib/store";
 import { VOCAB_BY_ID } from "@/lib/vocab";
 import { Button } from "@/components/ui/button";
-import {
-  LEARNING_PROFILES,
-  PROFILE_ORDER,
-  activeProfileId,
-  defaultProfileId,
-  setActiveProfile,
-  subscribeProfile,
-  type LearningProfileId,
-} from "@/lib/learningProfile";
+import { LEARNING_PROFILES, PROFILE_ORDER } from "@/lib/learningProfile";
 
 export default function SettingsScreen() {
   const store = useStore();
   const grammarStore = useGrammarStore();
-
-  // The profile lives in localStorage, i.e. outside React. Subscribing to it rather than copying
-  // it into state keeps the server render and the hydrating client render in agreement (both use
-  // the default snapshot) and still re-renders the moment the choice changes.
-  const profile = useSyncExternalStore<LearningProfileId>(subscribeProfile, activeProfileId, defaultProfileId);
+  // Account state (app_meta.learning_profile), same source of truth the session engine reads —
+  // no separate client-only copy to keep in sync.
+  const profile = store.learningProfile;
 
   const byCategory = useMemo(() => {
     const map = new Map<string, typeof GRAMMAR_RULES>();
@@ -57,7 +47,7 @@ export default function SettingsScreen() {
             return (
               <button
                 key={id}
-                onClick={() => setActiveProfile(id)}
+                onClick={() => store.setLearningProfile(id)}
                 aria-pressed={selected}
                 className={
                   "text-left rounded-xl border-[1.5px] px-3.5 py-3 transition-colors " +

@@ -35,6 +35,7 @@ import {
   type GrammarQueueItem,
 } from "@/lib/grammarLearning";
 import { rememberFormat, type FormatMemory } from "@/lib/learningEngine";
+import { tuningFor } from "@/lib/learningProfile";
 import { sample, shuffle } from "@/lib/utils";
 import { toggleMuted } from "@/lib/sound";
 import {
@@ -174,6 +175,10 @@ const NOOP = () => {};
 export default function AppShell() {
   const store = useStore();
   const grammarStore = useGrammarStore();
+  // The learner's chosen pace (Ruhig/Standard/Intensiv) — account state from app_meta, not a
+  // client-only default, so every engine call below reads the same tuning the account was
+  // actually loaded with instead of silently falling back to something else.
+  const tuning = useMemo(() => tuningFor(store.learningProfile), [store.learningProfile]);
   const { signOut } = useAuth();
   const [screen, setScreen] = useState<Screen>("home");
   const [detailWordId, setDetailWordId] = useState<string | null>(null);
@@ -279,13 +284,13 @@ export default function AppShell() {
       let formatMemory: FormatMemory = {};
 
       if (mode === "vocab") {
-        const batch = buildLearningBatch(store.wordState, store.totalPracticeSessions, store.blockedWordIds, includeReview);
+        const batch = buildLearningBatch(store.wordState, store.totalPracticeSessions, store.blockedWordIds, includeReview, tuning);
         const built = buildInitialQueue(batch, store.wordState);
         vocabQueue = built.queue;
         matchPool = built.matchPool;
         formatMemory = built.formatMemory;
       } else {
-        const gBatch = buildGrammarBatch(grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds, includeReview);
+        const gBatch = buildGrammarBatch(grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds, includeReview, tuning);
         const built = buildGrammarQueue(gBatch, grammarStore.ruleState);
         grammarQueueItems = built.queue;
         formatMemory = built.formatMemory;
@@ -330,7 +335,7 @@ export default function AppShell() {
       });
       setScreen("session");
     },
-    [beginRun, store.wordState, store.totalPracticeSessions, store.blockedWordIds, grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds]
+    [beginRun, store.wordState, store.totalPracticeSessions, store.blockedWordIds, grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds, tuning]
   );
 
   // Drills exclusively every word/rule that has already reached stage 4 ("gelernt"), using the
@@ -734,7 +739,7 @@ export default function AppShell() {
       let matchPool = session.matchPool;
       const attempts = { ...session.attempts };
       let formatMemory = session.formatMemory;
-      const maxAttempts = maxAttemptsPerWord();
+      const maxAttempts = maxAttemptsPerWord(tuning);
       const finishedItemIds = new Set(session.finishedItemIds);
       const masteredItemIds = new Set(session.masteredItemIds);
       let reward = { combo: session.combo, bestCombo: session.bestCombo, xpEarned: session.xpEarned };
@@ -755,7 +760,8 @@ export default function AppShell() {
           priorState.reviewStreak,
           entry.result,
           store.totalPracticeSessions,
-          formatMemory[key] || []
+          formatMemory[key] || [],
+          tuning
         );
 
         store.setLearningStage(entry.wordId, outcome.stage, outcome.reviewStreak, outcome.dueAtSession);
@@ -774,7 +780,7 @@ export default function AppShell() {
           } else {
             // The gap widens with each repeat of this word, and comes back null when the rest of
             // the session is too short to space it — see spacedInsertionIndex().
-            const insertAt = insertionIndex(session.index, queue.length, attempts[key]);
+            const insertAt = insertionIndex(session.index, queue.length, attempts[key], tuning);
             if (insertAt !== null) {
               const nextItem: LearningQueueItem = { kind: outcome.nextKind, words: [word], direction: directionForKind(outcome.nextKind) };
               queue = [...queue.slice(0, insertAt), { domain: "vocab", item: nextItem }, ...queue.slice(insertAt)];
@@ -801,7 +807,7 @@ export default function AppShell() {
         // Space the round by whichever of its words has been seen most this session, so a matching
         // round never lands right on top of the word that triggered it.
         const groupAttempts = Math.max(...group.map((w) => attempts[vocabKey(w.id)] || 1));
-        const insertAt = insertionIndex(session.index, queue.length, groupAttempts);
+        const insertAt = insertionIndex(session.index, queue.length, groupAttempts, tuning);
         if (insertAt === null) {
           // No room to place it properly — hand the words back to the pool so the end-of-session
           // flush picks them up instead of wedging a round in right behind the current question.
@@ -825,7 +831,7 @@ export default function AppShell() {
         lastXp: gainedTotal > 0 ? { amount: gainedTotal, key: session.vocabResults.length + session.grammarResults.length + 1 } : session.lastXp,
       };
     },
-    [store, applyReward]
+    [store, applyReward, tuning]
   );
 
   /** Pure: computes the queue/attempts/results after one grammar answer, from a known-fresh session snapshot. */
@@ -834,7 +840,7 @@ export default function AppShell() {
       let queue = session.queue;
       const attempts = { ...session.attempts };
       let formatMemory = session.formatMemory;
-      const maxAttempts = maxAttemptsPerRule();
+      const maxAttempts = maxAttemptsPerRule(tuning);
       const finishedItemIds = new Set(session.finishedItemIds);
       const masteredItemIds = new Set(session.masteredItemIds);
       let reward = { combo: session.combo, bestCombo: session.bestCombo, xpEarned: session.xpEarned };
@@ -852,7 +858,8 @@ export default function AppShell() {
           priorState.reviewStreak,
           entry.result,
           grammarStore.totalPracticeSessions,
-          formatMemory[key] || []
+          formatMemory[key] || [],
+          tuning
         );
 
         grammarStore.setLearningStage(entry.ruleId, outcome.stage, outcome.reviewStreak, outcome.dueAtSession);
@@ -864,7 +871,7 @@ export default function AppShell() {
         let mastered = false;
         let scheduled = false;
         if (outcome.nextKind && attempts[key] < maxAttempts) {
-          const insertAt = grammarInsertionIndex(session.index, queue.length, attempts[key]);
+          const insertAt = grammarInsertionIndex(session.index, queue.length, attempts[key], tuning);
           if (insertAt !== null) {
             const nextItem: GrammarQueueItem = { kind: outcome.nextKind, rule: item.rule };
             queue = [...queue.slice(0, insertAt), { domain: "grammar", item: nextItem }, ...queue.slice(insertAt)];
@@ -896,7 +903,7 @@ export default function AppShell() {
         lastXp: gainedTotal > 0 ? { amount: gainedTotal, key: session.vocabResults.length + session.grammarResults.length + 1 } : session.lastXp,
       };
     },
-    [grammarStore, applyReward]
+    [grammarStore, applyReward, tuning]
   );
 
   // Records the answer (grows the queue with a follow-up task) but does NOT advance the index —

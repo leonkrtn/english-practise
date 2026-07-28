@@ -8,8 +8,12 @@
  * change without editing code. Collecting them here is what makes "the same session, but calmer"
  * or "the same session, but denser" a one-click choice instead of a rewrite.
  *
- * The profile is a device-level preference persisted in localStorage, exactly like the mute
- * setting in sound.ts — no Supabase migration needed, and it takes effect on the next session.
+ * This file only holds the presets themselves — pure data, no persistence. The learner's actual
+ * choice is account state stored on app_meta.learning_profile (migration 0010) and lives in
+ * store.tsx alongside blocked_word_ids and xp, so it follows the account across devices instead of
+ * being stuck to one browser. Engine functions in learning.ts / grammarLearning.ts take the
+ * resulting LearningTuning as a required argument rather than reaching for a module-level default,
+ * so there is no path through the algorithm that silently runs off a client-only fallback.
  */
 
 export type LearningProfileId = "gentle" | "standard" | "intensive";
@@ -116,56 +120,16 @@ export const LEARNING_PROFILES: Record<LearningProfileId, LearningTuning> = {
 
 export const PROFILE_ORDER: LearningProfileId[] = ["gentle", "standard", "intensive"];
 
-const STORAGE_KEY = "learning-profile";
-const DEFAULT_PROFILE: LearningProfileId = "standard";
+/** What a brand-new account (or a row from before migration 0010) gets: app_meta.learning_profile
+ * defaults to this value at the database level too, so the two defaults can't drift apart. */
+export const DEFAULT_PROFILE_ID: LearningProfileId = "standard";
 
-function isProfileId(value: string | null): value is LearningProfileId {
+export function isLearningProfileId(value: unknown): value is LearningProfileId {
   return value === "gentle" || value === "standard" || value === "intensive";
 }
 
-/** Read straight from localStorage every time rather than caching in a module variable: the
- * engine is called from React render paths that may run before the settings screen has ever
- * mounted, and a stale cached value would silently apply the wrong profile for a whole session. */
-export function activeProfileId(): LearningProfileId {
-  if (typeof window === "undefined") return DEFAULT_PROFILE;
-  try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    return isProfileId(stored) ? stored : DEFAULT_PROFILE;
-  } catch {
-    // Private-mode Safari and friends throw on localStorage access rather than returning null.
-    return DEFAULT_PROFILE;
-  }
-}
-
-/** The tuning every engine function falls back to when no explicit override is passed. */
-export function activeTuning(): LearningTuning {
-  return LEARNING_PROFILES[activeProfileId()];
-}
-
-/** The default a server render and the hydrating client render both agree on. Reading localStorage
- * during render would make those two disagree, so components subscribe via useSyncExternalStore
- * with this as the server snapshot. */
-export function defaultProfileId(): LearningProfileId {
-  return DEFAULT_PROFILE;
-}
-
-const listeners = new Set<() => void>();
-
-export function subscribeProfile(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-export function setActiveProfile(id: LearningProfileId): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, id);
-  } catch {
-    // Nothing to do — the session simply runs on the default profile.
-  }
-  listeners.forEach((listener) => listener());
+export function tuningFor(id: LearningProfileId): LearningTuning {
+  return LEARNING_PROFILES[id];
 }
 
 /** Sessions until an item resurfaces, given how many consecutive long-term reviews it has passed.

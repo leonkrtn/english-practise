@@ -1,7 +1,7 @@
 import { GRAMMAR_RULES, type GrammarRule } from "./grammar-data";
 import type { AnswerResultKind, LearningStage } from "./types";
 import type { GrammarRuleState } from "./grammarTypes";
-import { activeTuning, type LearningTuning } from "./learningProfile";
+import type { LearningTuning } from "./learningProfile";
 import {
   nextStage,
   pickAvoidingRecent,
@@ -140,9 +140,9 @@ export interface GrammarBatch {
 export function buildGrammarBatch(
   getState: (id: string) => GrammarRuleState,
   totalPracticeSessions: number,
-  blockedRuleIds: ReadonlySet<string> = new Set(),
-  includeReview: boolean = true,
-  tuning: LearningTuning = activeTuning()
+  blockedRuleIds: ReadonlySet<string>,
+  includeReview: boolean,
+  tuning: LearningTuning
 ): GrammarBatch {
   const pool = activeGrammarRules(blockedRuleIds);
   const newPool = pool.filter((r) => getState(r.id).stage === 0);
@@ -215,8 +215,8 @@ export function grammarNextAfterAnswer(
   reviewStreak: number,
   result: AnswerResultKind,
   totalPracticeSessions: number,
-  recentFormats: string[] = [],
-  tuning: LearningTuning = activeTuning()
+  recentFormats: string[],
+  tuning: LearningTuning
 ): GrammarStageOutcome {
   const transition = nextStage({
     isLearnCard: kind === "learn",
@@ -241,14 +241,14 @@ export function grammarNextAfterAnswer(
 export function grammarInsertionIndex(
   currentIndex: number,
   queueLength: number,
-  attemptNo: number = 1,
-  tuning: LearningTuning = activeTuning()
+  attemptNo: number,
+  tuning: LearningTuning
 ): number | null {
   return spacedInsertionIndex(currentIndex, queueLength, attemptNo, tuning);
 }
 
 /** How many times one rule may be asked within a single session, per the active profile. */
-export function maxAttemptsPerRule(tuning: LearningTuning = activeTuning()): number {
+export function maxAttemptsPerRule(tuning: LearningTuning): number {
   return tuning.maxAttemptsPerItem;
 }
 
