@@ -20,7 +20,8 @@ import {
   popMatchGroups,
   flushMatchPool,
   pickReviewFormat as pickVocabReviewFormat,
-  MAX_ATTEMPTS_PER_WORD,
+  maxAttemptsPerWord,
+  vocabKey,
   type LearningQueueItem,
 } from "@/lib/learning";
 import {
@@ -29,9 +30,12 @@ import {
   grammarNextAfterAnswer,
   grammarInsertionIndex,
   pickReviewFormat,
-  GRAMMAR_MAX_ATTEMPTS,
+  maxAttemptsPerRule,
+  grammarKey,
   type GrammarQueueItem,
 } from "@/lib/grammarLearning";
+import { rememberFormat, type FormatMemory } from "@/lib/learningEngine";
+import { tuningFor } from "@/lib/learningProfile";
 import { sample, shuffle } from "@/lib/utils";
 import { toggleMuted } from "@/lib/sound";
 import {
@@ -139,6 +143,9 @@ interface LearningSessionState {
   masteredItemIds: Set<string>;
   /** Word Matching pool — vocab only, grammar has no matching round. */
   matchPool: Word[];
+  /** Which exercise formats each item has already been shown as this session, so a follow-up task
+   * asks a different kind of question instead of repeating the one just answered. */
+  formatMemory: FormatMemory;
   /** Set only for a Speed Round: the timestamp the session auto-finishes at. */
   speedEndsAt: number | null;
   /** Current run of consecutive correct answers, and the longest such run this session. */
@@ -168,6 +175,10 @@ const NOOP = () => {};
 export default function AppShell() {
   const store = useStore();
   const grammarStore = useGrammarStore();
+  // The learner's chosen pace (Ruhig/Standard/Intensiv) — account state from app_meta, not a
+  // client-only default, so every engine call below reads the same tuning the account was
+  // actually loaded with instead of silently falling back to something else.
+  const tuning = useMemo(() => tuningFor(store.learningProfile), [store.learningProfile]);
   const { signOut } = useAuth();
   const [screen, setScreen] = useState<Screen>("home");
   const [detailWordId, setDetailWordId] = useState<string | null>(null);
@@ -270,21 +281,27 @@ export default function AppShell() {
       let vocabQueue: LearningQueueItem[] = [];
       let matchPool: Word[] = [];
       let grammarQueueItems: GrammarQueueItem[] = [];
+      let formatMemory: FormatMemory = {};
 
       if (mode === "vocab") {
-        const batch = buildLearningBatch(store.wordState, store.totalPracticeSessions, store.blockedWordIds, includeReview);
+        const batch = buildLearningBatch(store.wordState, store.totalPracticeSessions, store.blockedWordIds, includeReview, tuning);
         const built = buildInitialQueue(batch, store.wordState);
         vocabQueue = built.queue;
         matchPool = built.matchPool;
+        formatMemory = built.formatMemory;
       } else {
-        const gBatch = buildGrammarBatch(grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds, includeReview);
-        grammarQueueItems = buildGrammarQueue(gBatch, grammarStore.ruleState);
+        const gBatch = buildGrammarBatch(grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds, includeReview, tuning);
+        const built = buildGrammarQueue(gBatch, grammarStore.ruleState);
+        grammarQueueItems = built.queue;
+        formatMemory = built.formatMemory;
       }
 
-      let queue: UnifiedItem[] = shuffle([
+      // Deliberately *not* reshuffled: each builder already orders its own queue so that two tasks
+      // for the same item never land next to each other, and a shuffle here would undo that.
+      let queue: UnifiedItem[] = [
         ...vocabQueue.map((item) => ({ domain: "vocab" as const, item })),
         ...grammarQueueItems.map((item) => ({ domain: "grammar" as const, item })),
-      ]);
+      ];
       // Guarantee at least one playable item even if a vocab-only batch was a handful of
       // already-in-progress words that didn't fill a match group on their own.
       if (queue.length === 0 && matchPool.length > 0) {
@@ -309,6 +326,7 @@ export default function AppShell() {
         finishedItemIds: new Set(),
         masteredItemIds: new Set(),
         matchPool,
+        formatMemory,
         speedEndsAt: null,
         combo: 0,
         bestCombo: 0,
@@ -317,7 +335,7 @@ export default function AppShell() {
       });
       setScreen("session");
     },
-    [beginRun, store.wordState, store.totalPracticeSessions, store.blockedWordIds, grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds]
+    [beginRun, store.wordState, store.totalPracticeSessions, store.blockedWordIds, grammarStore.ruleState, grammarStore.totalPracticeSessions, grammarStore.blockedRuleIds, tuning]
   );
 
   // Drills exclusively every word/rule that has already reached stage 4 ("gelernt"), using the
@@ -354,6 +372,17 @@ export default function AppShell() {
       if (options?.limit !== null && options?.limit !== undefined) queue = queue.slice(0, options.limit);
       if (queue.length === 0) return;
 
+      // Seed the memory with the format each item opens on, so an item that gets demoted and asked
+      // again later in this session comes back as a different kind of question.
+      let formatMemory: FormatMemory = {};
+      queue.forEach((u) => {
+        if (u.domain === "vocab") {
+          formatMemory = rememberFormat(formatMemory, vocabKey(u.item.words[0].id), u.item.reviewFormat || "translate");
+        } else {
+          formatMemory = rememberFormat(formatMemory, grammarKey(u.item.rule.id), u.item.reviewFormat || "g-error");
+        }
+      });
+
       const totalItemIds = [...new Set(queue.map((u) => (u.domain === "vocab" ? "v:" + u.item.words[0].id : "g:" + u.item.rule.id)))];
       setLearningSession({
         queue,
@@ -365,6 +394,7 @@ export default function AppShell() {
         finishedItemIds: new Set(),
         masteredItemIds: new Set(),
         matchPool: [],
+        formatMemory,
         speedEndsAt: null,
         combo: 0,
         bestCombo: 0,
@@ -401,6 +431,7 @@ export default function AppShell() {
       finishedItemIds: new Set(),
       masteredItemIds: new Set(),
       matchPool: [],
+      formatMemory: {},
       speedEndsAt: Date.now() + SPEED_ROUND_MS,
       combo: 0,
       bestCombo: 0,
@@ -707,6 +738,8 @@ export default function AppShell() {
       let queue = session.queue;
       let matchPool = session.matchPool;
       const attempts = { ...session.attempts };
+      let formatMemory = session.formatMemory;
+      const maxAttempts = maxAttemptsPerWord(tuning);
       const finishedItemIds = new Set(session.finishedItemIds);
       const masteredItemIds = new Set(session.masteredItemIds);
       let reward = { combo: session.combo, bestCombo: session.bestCombo, xpEarned: session.xpEarned };
@@ -715,9 +748,21 @@ export default function AppShell() {
       entries.forEach((entry) => {
         const word = item.words.find((w) => w.id === entry.wordId);
         if (!word) return;
-        const key = "v:" + entry.wordId;
+        const key = vocabKey(entry.wordId);
         const priorState = store.wordState(entry.wordId);
-        const outcome = nextAfterAnswer(item.kind, priorState.stage, priorState.reviewStreak, entry.result, store.totalPracticeSessions);
+
+        // Record what was just asked *before* picking the follow-up, so the next task for this word
+        // is a different kind of question than the one just answered.
+        formatMemory = rememberFormat(formatMemory, key, entry.format);
+        const outcome = nextAfterAnswer(
+          item.kind,
+          priorState.stage,
+          priorState.reviewStreak,
+          entry.result,
+          store.totalPracticeSessions,
+          formatMemory[key] || [],
+          tuning
+        );
 
         store.setLearningStage(entry.wordId, outcome.stage, outcome.reviewStreak, outcome.dueAtSession);
         store.updateWord(entry.wordId, entry.result, entry.hintsUsed);
@@ -726,15 +771,24 @@ export default function AppShell() {
         attempts[key] = (attempts[key] || 0) + 1;
 
         let mastered = false;
-        if (outcome.nextKind && attempts[key] < MAX_ATTEMPTS_PER_WORD) {
+        let scheduled = false;
+        if (outcome.nextKind && attempts[key] < maxAttempts) {
           if (outcome.nextKind === "quiz") {
+            // Held back for a matching round — the pool is its own spacing mechanism.
             matchPool = [...matchPool, word];
+            scheduled = true;
           } else {
-            const nextItem: LearningQueueItem = { kind: outcome.nextKind, words: [word], direction: directionForKind(outcome.nextKind) };
-            const insertAt = insertionIndex(session.index, queue.length);
-            queue = [...queue.slice(0, insertAt), { domain: "vocab", item: nextItem }, ...queue.slice(insertAt)];
+            // The gap widens with each repeat of this word, and comes back null when the rest of
+            // the session is too short to space it — see spacedInsertionIndex().
+            const insertAt = insertionIndex(session.index, queue.length, attempts[key], tuning);
+            if (insertAt !== null) {
+              const nextItem: LearningQueueItem = { kind: outcome.nextKind, words: [word], direction: directionForKind(outcome.nextKind) };
+              queue = [...queue.slice(0, insertAt), { domain: "vocab", item: nextItem }, ...queue.slice(insertAt)];
+              scheduled = true;
+            }
           }
-        } else {
+        }
+        if (!scheduled) {
           finishedItemIds.add(key);
           if (outcome.stage === 4) {
             masteredItemIds.add(key);
@@ -748,12 +802,21 @@ export default function AppShell() {
       });
 
       const { groups, remaining } = popMatchGroups(matchPool);
+      matchPool = remaining;
       groups.forEach((group) => {
+        // Space the round by whichever of its words has been seen most this session, so a matching
+        // round never lands right on top of the word that triggered it.
+        const groupAttempts = Math.max(...group.map((w) => attempts[vocabKey(w.id)] || 1));
+        const insertAt = insertionIndex(session.index, queue.length, groupAttempts, tuning);
+        if (insertAt === null) {
+          // No room to place it properly — hand the words back to the pool so the end-of-session
+          // flush picks them up instead of wedging a round in right behind the current question.
+          matchPool = [...matchPool, ...group];
+          return;
+        }
         const nextItem: LearningQueueItem = { kind: "match", words: group, direction: directionForKind("match") };
-        const insertAt = insertionIndex(session.index, queue.length);
         queue = [...queue.slice(0, insertAt), { domain: "vocab", item: nextItem }, ...queue.slice(insertAt)];
       });
-      matchPool = remaining;
 
       return {
         ...session,
@@ -761,13 +824,14 @@ export default function AppShell() {
         attempts,
         queue,
         matchPool,
+        formatMemory,
         finishedItemIds,
         masteredItemIds,
         ...reward,
         lastXp: gainedTotal > 0 ? { amount: gainedTotal, key: session.vocabResults.length + session.grammarResults.length + 1 } : session.lastXp,
       };
     },
-    [store, applyReward]
+    [store, applyReward, tuning]
   );
 
   /** Pure: computes the queue/attempts/results after one grammar answer, from a known-fresh session snapshot. */
@@ -775,15 +839,28 @@ export default function AppShell() {
     (session: LearningSessionState, item: GrammarQueueItem, entries: GrammarResultEntry[]): LearningSessionState => {
       let queue = session.queue;
       const attempts = { ...session.attempts };
+      let formatMemory = session.formatMemory;
+      const maxAttempts = maxAttemptsPerRule(tuning);
       const finishedItemIds = new Set(session.finishedItemIds);
       const masteredItemIds = new Set(session.masteredItemIds);
       let reward = { combo: session.combo, bestCombo: session.bestCombo, xpEarned: session.xpEarned };
       let gainedTotal = 0;
 
       entries.forEach((entry) => {
-        const key = "g:" + entry.ruleId;
+        const key = grammarKey(entry.ruleId);
         const priorState = grammarStore.ruleState(entry.ruleId);
-        const outcome = grammarNextAfterAnswer(item.kind, priorState.stage, priorState.reviewStreak, entry.result, grammarStore.totalPracticeSessions);
+
+        // Same as the vocab path: remember the format just answered before choosing the follow-up.
+        formatMemory = rememberFormat(formatMemory, key, entry.format);
+        const outcome = grammarNextAfterAnswer(
+          item.kind,
+          priorState.stage,
+          priorState.reviewStreak,
+          entry.result,
+          grammarStore.totalPracticeSessions,
+          formatMemory[key] || [],
+          tuning
+        );
 
         grammarStore.setLearningStage(entry.ruleId, outcome.stage, outcome.reviewStreak, outcome.dueAtSession);
         grammarStore.updateRule(entry.ruleId, entry.result, entry.hintsUsed);
@@ -792,11 +869,16 @@ export default function AppShell() {
         attempts[key] = (attempts[key] || 0) + 1;
 
         let mastered = false;
-        if (outcome.nextKind && attempts[key] < GRAMMAR_MAX_ATTEMPTS) {
-          const nextItem: GrammarQueueItem = { kind: outcome.nextKind, rule: item.rule };
-          const insertAt = grammarInsertionIndex(session.index, queue.length);
-          queue = [...queue.slice(0, insertAt), { domain: "grammar", item: nextItem }, ...queue.slice(insertAt)];
-        } else {
+        let scheduled = false;
+        if (outcome.nextKind && attempts[key] < maxAttempts) {
+          const insertAt = grammarInsertionIndex(session.index, queue.length, attempts[key], tuning);
+          if (insertAt !== null) {
+            const nextItem: GrammarQueueItem = { kind: outcome.nextKind, rule: item.rule };
+            queue = [...queue.slice(0, insertAt), { domain: "grammar", item: nextItem }, ...queue.slice(insertAt)];
+            scheduled = true;
+          }
+        }
+        if (!scheduled) {
           finishedItemIds.add(key);
           if (outcome.stage === 4) {
             masteredItemIds.add(key);
@@ -814,13 +896,14 @@ export default function AppShell() {
         grammarResults: [...session.grammarResults, ...entries],
         attempts,
         queue,
+        formatMemory,
         finishedItemIds,
         masteredItemIds,
         ...reward,
         lastXp: gainedTotal > 0 ? { amount: gainedTotal, key: session.vocabResults.length + session.grammarResults.length + 1 } : session.lastXp,
       };
     },
-    [grammarStore, applyReward]
+    [grammarStore, applyReward, tuning]
   );
 
   // Records the answer (grows the queue with a follow-up task) but does NOT advance the index —

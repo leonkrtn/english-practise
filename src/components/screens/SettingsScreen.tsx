@@ -7,10 +7,14 @@ import { useGrammarStore } from "@/lib/grammarStore";
 import { useStore } from "@/lib/store";
 import { VOCAB_BY_ID } from "@/lib/vocab";
 import { Button } from "@/components/ui/button";
+import { LEARNING_PROFILES, PROFILE_ORDER } from "@/lib/learningProfile";
 
 export default function SettingsScreen() {
   const store = useStore();
   const grammarStore = useGrammarStore();
+  // Account state (app_meta.learning_profile), same source of truth the session engine reads —
+  // no separate client-only copy to keep in sync.
+  const profile = store.learningProfile;
 
   const byCategory = useMemo(() => {
     const map = new Map<string, typeof GRAMMAR_RULES>();
@@ -29,6 +33,40 @@ export default function SettingsScreen() {
   return (
     <section className="animate-fade-in pb-4">
       <h1 className="text-[26px] font-bold tracking-tight mt-1 mb-1">Settings</h1>
+
+      <div className="mb-6">
+        <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-1">Lern-Tempo</h2>
+        <p className="text-ink-soft text-[13.5px] mb-3 leading-snug">
+          Bestimmt, wie viel pro Session drankommt und wie viel Abstand zwischen zwei Abfragen desselben Wortes liegt. Gilt ab der
+          nächsten Session.
+        </p>
+        <div className="flex flex-col gap-2">
+          {PROFILE_ORDER.map((id) => {
+            const tuning = LEARNING_PROFILES[id];
+            const selected = profile === id;
+            return (
+              <button
+                key={id}
+                onClick={() => store.setLearningProfile(id)}
+                aria-pressed={selected}
+                className={
+                  "text-left rounded-xl border-[1.5px] px-3.5 py-3 transition-colors " +
+                  (selected ? "border-blue bg-blue-light" : "border-line-soft bg-card hover:border-line")
+                }
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className={"text-[14px] font-semibold " + (selected ? "text-blue-dark" : "text-ink")}>{tuning.label}</span>
+                  <span className="text-[12px] text-ink-faint shrink-0">
+                    {tuning.vocabBatchSize} Wörter · Abstand {tuning.minRepeatGap}+
+                  </span>
+                </div>
+                <p className="text-[12.5px] text-ink-soft leading-snug mt-1">{tuning.summary}</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <p className="text-ink-soft text-[14px] mb-5 leading-snug">
         Blockierte Regeln tauchen nirgendwo mehr auf — weder beim Grammatik-Lernen, bei &quot;Gelerntes wiederholen&quot; noch als
         Pflichtgrammatik beim Schreiben.

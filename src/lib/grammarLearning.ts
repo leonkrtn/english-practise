@@ -1,18 +1,81 @@
 import { GRAMMAR_RULES, type GrammarRule } from "./grammar-data";
-import { choice, sample, shuffle } from "./utils";
 import type { AnswerResultKind, LearningStage } from "./types";
 import type { GrammarRuleState } from "./grammarTypes";
+import type { LearningTuning } from "./learningProfile";
+import {
+  nextStage,
+  pickAvoidingRecent,
+  rememberFormat,
+  selectByWeakness,
+  spacedInsertionIndex,
+  spreadByKey,
+  type FormatMemory,
+} from "./learningEngine";
 
-export type GrammarStageKind = "learn" | "quiz" | "apply" | "produce" | "review";
+/** Prefix used for this domain in the shared attempt/format bookkeeping — see vocabKey(). */
+export const grammarKey = (ruleId: string) => "g:" + ruleId;
 
-/** Every exercise format a mastered rule can resurface as during long-term review — deliberately
- * wider than the single fixed "g-error" format review used before, so a rule you've known for
- * months doesn't always show the exact same question. Left out of the quiz/apply/produce gate
- * that drives mastery itself, so that carefully-tuned progression stays untouched. */
-export type GrammarReviewFormat = "g-error" | "g-mc" | "g-gap" | "g-build" | "g-conjugate" | "g-translate" | "g-transform" | "g-situation";
-const REVIEW_FORMATS: GrammarReviewFormat[] = ["g-error", "g-mc", "g-gap", "g-build", "g-conjugate", "g-translate", "g-transform", "g-situation"];
-export function pickReviewFormat(): GrammarReviewFormat {
-  return choice(REVIEW_FORMATS);
+export type GrammarStageKind =
+  | "learn"
+  | "quiz"
+  | "apply"
+  | "produce"
+  | "situation"
+  | "conjugate"
+  | "error"
+  | "translate"
+  | "transform"
+  | "review";
+
+/** The active-learning task types — everything that can move a rule up the ladder. */
+export type GrammarActiveKind = Exclude<GrammarStageKind, "learn" | "review">;
+
+/**
+ * Which task types a rule can be tested with at each stage.
+ *
+ * The grammar data has always carried eight different exercise variants per rule, but active
+ * learning only ever used three of them (multiple choice, gap-fill, sentence building) — the other
+ * five were reserved for long-term review. That is a large part of why practising a rule felt like
+ * answering the same question repeatedly: three formats spread across three stages guarantees
+ * repeats, especially once a rule needs several attempts.
+ *
+ * All eight are now in rotation, ordered into the same recognition → retrieval → production ladder
+ * the vocabulary engine uses, so each stage means something and offers three formats to vary
+ * between. Every rule in grammar-data.ts carries a non-empty list for each variant, so any of
+ * these is safe for any rule.
+ */
+const KINDS_BY_STAGE: Record<1 | 2 | 3 | 4, GrammarActiveKind[]> = {
+  1: ["quiz", "situation", "conjugate"],
+  2: ["apply", "error", "conjugate"],
+  3: ["produce", "translate", "transform"],
+  4: ["produce", "translate", "transform"],
+};
+
+/** Every exercise format a mastered rule can resurface as during long-term review. */
+export type GrammarReviewFormat =
+  | "g-error"
+  | "g-mc"
+  | "g-gap"
+  | "g-build"
+  | "g-conjugate"
+  | "g-translate"
+  | "g-transform"
+  | "g-situation";
+
+const REVIEW_FORMATS: GrammarReviewFormat[] = [
+  "g-error",
+  "g-mc",
+  "g-gap",
+  "g-build",
+  "g-conjugate",
+  "g-translate",
+  "g-transform",
+  "g-situation",
+];
+
+/** Picks a review format, avoiding the ones this rule most recently appeared as. */
+export function pickReviewFormat(recent: string[] = []): GrammarReviewFormat {
+  return pickAvoidingRecent(REVIEW_FORMATS, recent);
 }
 
 export interface GrammarQueueItem {
@@ -22,12 +85,17 @@ export interface GrammarQueueItem {
   reviewFormat?: GrammarReviewFormat;
 }
 
-/** Maps each task type to the exercise format that tests it. */
+/** Maps each task type to the exercise format that tests it — also the id recorded in format stats. */
 const KIND_TO_FORMAT: Record<GrammarStageKind, string> = {
   learn: "g-learn",
   quiz: "g-mc",
   apply: "g-gap",
   produce: "g-build",
+  situation: "g-situation",
+  conjugate: "g-conjugate",
+  error: "g-error",
+  translate: "g-translate",
+  transform: "g-transform",
   review: "g-error",
 };
 
@@ -35,60 +103,52 @@ export function grammarFormatFor(kind: GrammarStageKind): string {
   return KIND_TO_FORMAT[kind];
 }
 
-const GRAMMAR_ACTIVE_KINDS: Exclude<GrammarStageKind, "learn" | "review">[] = ["quiz", "apply", "produce"];
+/** The format a queue item actually renders as — what the format memory compares against. */
+export function formatForGrammarItem(item: GrammarQueueItem): string {
+  return item.kind === "review" ? item.reviewFormat || "g-error" : KIND_TO_FORMAT[item.kind];
+}
 
 /**
- * Which task type to test a rule with. Stage 0 (the very first encounter) is always "learn" —
- * everything past that picks a random format each time instead of one fixed type per stage, so a
- * rule doesn't always get tested the same way as it climbs toward mastery. Progression itself
- * still tracks the rule's real persisted stage (see grammarNextAfterAnswer) — only which format
- * is shown is randomized.
+ * Which task type to test a rule with next. Stage 0 is always the learn card; above that the
+ * stage's format list is drawn from while avoiding whatever this rule was recently shown as.
  */
-export function pickGrammarKindForStage(stage: LearningStage): Exclude<GrammarStageKind, "review"> {
+export function pickGrammarKindForStage(stage: LearningStage, recent: string[] = []): Exclude<GrammarStageKind, "review"> {
   if (stage === 0) return "learn";
-  return choice(GRAMMAR_ACTIVE_KINDS);
+  const candidates = KINDS_BY_STAGE[stage as 1 | 2 | 3 | 4] ?? KINDS_BY_STAGE[3];
+  const recentKinds = recent
+    .map((fmt) => candidates.find((k) => KIND_TO_FORMAT[k] === fmt))
+    .filter((k): k is GrammarActiveKind => k !== undefined);
+  return pickAvoidingRecent(candidates, recentKinds);
 }
 
-/**
- * How many *consecutive* correct active-learning answers a rule needs at the final pre-mastery
- * stage before it's trusted as mastered — mirrors the vocab engine's APPLY_REQUIRED_STREAK, so a
- * single lucky correct answer doesn't promote a rule to mastery on its own.
- */
-export const GRAMMAR_MASTERY_REQUIRED_STREAK = 3;
-
-const REVIEW_INTERVALS = [2, 3, 5, 8, 13, 21];
-export function grammarReviewInterval(streak: number): number {
-  return REVIEW_INTERVALS[Math.min(Math.max(streak, 0), REVIEW_INTERVALS.length - 1)];
+/** Every rule minus any the learner has permanently blocked ("I don't care about adjective order"). */
+export function activeGrammarRules(blockedRuleIds: ReadonlySet<string> = new Set()): GrammarRule[] {
+  return blockedRuleIds.size === 0 ? GRAMMAR_RULES : GRAMMAR_RULES.filter((r) => !blockedRuleIds.has(r.id));
 }
-
-const GRAMMAR_BATCH_SIZE = 5;
-const GRAMMAR_REVIEW_SAMPLE = 2;
-export const GRAMMAR_MAX_ATTEMPTS = 5;
 
 export interface GrammarBatch {
   activeRules: GrammarRule[];
   reviewRules: GrammarRule[];
 }
 
-/** Every rule minus any the user has permanently blocked ("I don't care about adjective order"). */
-export function activeGrammarRules(blockedRuleIds: ReadonlySet<string> = new Set()): GrammarRule[] {
-  return blockedRuleIds.size === 0 ? GRAMMAR_RULES : GRAMMAR_RULES.filter((r) => !blockedRuleIds.has(r.id));
-}
-
-/** Picks the ~5 rules this session works on (in-progress first, then new) plus a couple of due long-term reviews, most-overdue-first. Blocked rules are excluded entirely. */
+/**
+ * Picks the rules this session works on plus the long-term reviews that have come due. Mirrors
+ * buildLearningBatch(): in-progress rules are chosen by how much they actually need work rather
+ * than at random, new rules are capped so a session isn't all unfamiliar material, and reviews are
+ * taken most-overdue-first so the backlog clears.
+ */
 export function buildGrammarBatch(
   getState: (id: string) => GrammarRuleState,
   totalPracticeSessions: number,
-  blockedRuleIds: ReadonlySet<string> = new Set(),
-  includeReview: boolean = true
+  blockedRuleIds: ReadonlySet<string>,
+  includeReview: boolean,
+  tuning: LearningTuning
 ): GrammarBatch {
   const pool = activeGrammarRules(blockedRuleIds);
+  const newPool = pool.filter((r) => getState(r.id).stage === 0);
 
   if (!includeReview) {
-    // "Nur Neues lernen": brand-new rules only — see buildLearningBatch's identical fix for why
-    // in-progress rules can't be mixed back in here without defeating the whole point.
-    const newPool = pool.filter((r) => getState(r.id).stage === 0);
-    return { activeRules: sample(newPool, GRAMMAR_BATCH_SIZE), reviewRules: [] };
+    return { activeRules: selectByWeakness(newPool, (r) => getState(r.id), tuning.grammarBatchSize), reviewRules: [] };
   }
 
   const duePool = pool.filter((r) => {
@@ -96,27 +156,46 @@ export function buildGrammarBatch(
     return s.stage === 4 && s.dueAtSession !== null && s.dueAtSession <= totalPracticeSessions;
   });
   duePool.sort((a, b) => (getState(a.id).dueAtSession ?? 0) - (getState(b.id).dueAtSession ?? 0));
-  const reviewRules = duePool.slice(0, GRAMMAR_REVIEW_SAMPLE);
+  const reviewRules = duePool.slice(0, tuning.grammarReviewSample);
 
-  const inProgressPool = shuffle(
-    pool.filter((r) => {
-      const s = getState(r.id);
-      return s.stage >= 1 && s.stage <= 3;
-    })
-  );
-  const inProgressRules = inProgressPool.slice(0, GRAMMAR_BATCH_SIZE);
+  const inProgressPool = pool.filter((r) => {
+    const s = getState(r.id);
+    return s.stage >= 1 && s.stage <= 3;
+  });
+  const inProgressRules = selectByWeakness(inProgressPool, (r) => getState(r.id), tuning.grammarBatchSize);
 
-  const remaining = GRAMMAR_BATCH_SIZE - inProgressRules.length;
-  const newPool = pool.filter((r) => getState(r.id).stage === 0);
-  const newRules = remaining > 0 ? sample(newPool, remaining) : [];
+  const room = tuning.grammarBatchSize - inProgressRules.length;
+  const newRules = room > 0 ? selectByWeakness(newPool, (r) => getState(r.id), Math.min(room, tuning.maxNewGrammarPerSession)) : [];
 
   return { activeRules: inProgressRules.concat(newRules), reviewRules };
 }
 
-export function buildGrammarQueue(batch: GrammarBatch, getState: (id: string) => GrammarRuleState): GrammarQueueItem[] {
-  const items: GrammarQueueItem[] = batch.activeRules.map((rule) => ({ kind: pickGrammarKindForStage(getState(rule.id).stage), rule }));
-  batch.reviewRules.forEach((rule) => items.push({ kind: "review", rule, reviewFormat: pickReviewFormat() }));
-  return shuffle(items);
+export interface GrammarInitialQueue {
+  queue: GrammarQueueItem[];
+  /** Seeded with the format each rule starts on, so the first follow-up already avoids a repeat. */
+  formatMemory: FormatMemory;
+}
+
+export function buildGrammarQueue(
+  batch: GrammarBatch,
+  getState: (id: string) => GrammarRuleState
+): GrammarInitialQueue {
+  let formatMemory: FormatMemory = {};
+  const items: GrammarQueueItem[] = [];
+
+  const remember = (item: GrammarQueueItem) => {
+    formatMemory = rememberFormat(formatMemory, grammarKey(item.rule.id), formatForGrammarItem(item));
+    return item;
+  };
+
+  batch.activeRules.forEach((rule) => {
+    items.push(remember({ kind: pickGrammarKindForStage(getState(rule.id).stage), rule }));
+  });
+  batch.reviewRules.forEach((rule) => {
+    items.push(remember({ kind: "review", rule, reviewFormat: pickReviewFormat() }));
+  });
+
+  return { queue: spreadByKey(items, (item) => item.rule.id), formatMemory };
 }
 
 export interface GrammarStageOutcome {
@@ -127,58 +206,50 @@ export interface GrammarStageOutcome {
 }
 
 /**
- * Computes a rule's next learning stage after an answer, and which task (if any) should follow
- * up later in the same session. `currentStage` is the rule's actual persisted stage — since the
- * task format shown (`kind`) is now picked randomly rather than implied by the stage (see
- * pickGrammarKindForStage), progression has to read the real stage instead of inferring it from
- * which format happened to be tested this time.
+ * Computes a rule's next learning stage after an answer, and which task (if any) should follow up
+ * later in the same session. The ladder itself is the shared one — see nextStage().
  */
 export function grammarNextAfterAnswer(
   kind: GrammarStageKind,
   currentStage: LearningStage,
   reviewStreak: number,
   result: AnswerResultKind,
-  totalPracticeSessions: number
+  totalPracticeSessions: number,
+  recentFormats: string[],
+  tuning: LearningTuning
 ): GrammarStageOutcome {
-  if (kind === "learn") {
-    return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: pickGrammarKindForStage(1) };
-  }
-  if (kind === "review") {
-    if (result === "correct") {
-      const rs = reviewStreak + 1;
-      return { stage: 4, reviewStreak: rs, dueAtSession: totalPracticeSessions + grammarReviewInterval(rs), nextKind: null };
-    }
-    // Forgetting a mastered rule sends it all the way back to the bottom of active learning, not
-    // straight to "produce" — re-earning mastery means climbing the whole ladder again, not one
-    // lucky sentence.
-    return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: pickGrammarKindForStage(1) };
-  }
+  const transition = nextStage({
+    isLearnCard: kind === "learn",
+    isReview: kind === "review",
+    currentStage,
+    reviewStreak,
+    result,
+    totalPracticeSessions,
+    tuning,
+  });
 
-  // Active learning — quiz/apply/produce. The format shown no longer implies the stage, so
-  // promotion and demotion both key off the rule's real persisted stage.
-  if (result === "correct") {
-    if (currentStage >= 3) {
-      // Final step before mastery: needs GRAMMAR_MASTERY_REQUIRED_STREAK consecutive correct
-      // answers, reusing the reviewStreak field as that counter.
-      const streak = reviewStreak + 1;
-      if (streak >= GRAMMAR_MASTERY_REQUIRED_STREAK) {
-        return { stage: 4, reviewStreak: 0, dueAtSession: totalPracticeSessions + grammarReviewInterval(0), nextKind: null };
-      }
-      return { stage: 3, reviewStreak: streak, dueAtSession: null, nextKind: pickGrammarKindForStage(3) };
-    }
-    const newStage = (currentStage + 1) as LearningStage;
-    return { stage: newStage, reviewStreak: 0, dueAtSession: null, nextKind: pickGrammarKindForStage(newStage) };
-  }
-
-  // Any wrong active-learning answer knocks the rule straight back to stage 1 — no partial
-  // credit for progress already made, regardless of which stage it fell at.
-  return { stage: 1, reviewStreak: 0, dueAtSession: null, nextKind: pickGrammarKindForStage(1) };
+  return {
+    stage: transition.stage,
+    reviewStreak: transition.reviewStreak,
+    dueAtSession: transition.dueAtSession,
+    nextKind: transition.followUp ? pickGrammarKindForStage(transition.stage, recentFormats) : null,
+  };
 }
 
-/** Where in the (growing) queue a follow-up task should be inserted — same spacing rule as the vocab engine. */
-export function grammarInsertionIndex(currentIndex: number, queueLength: number): number {
-  const offset = 2 + Math.floor(Math.random() * 3);
-  return Math.min(currentIndex + offset, queueLength);
+/** Where a follow-up task should be inserted — expanding gaps, same rule as the vocab engine.
+ * Returns null when the remaining queue is too short to space the repeat properly. */
+export function grammarInsertionIndex(
+  currentIndex: number,
+  queueLength: number,
+  attemptNo: number,
+  tuning: LearningTuning
+): number | null {
+  return spacedInsertionIndex(currentIndex, queueLength, attemptNo, tuning);
+}
+
+/** How many times one rule may be asked within a single session, per the active profile. */
+export function maxAttemptsPerRule(tuning: LearningTuning): number {
+  return tuning.maxAttemptsPerItem;
 }
 
 export function grammarStageKindLabel(kind: GrammarStageKind): string {
@@ -191,6 +262,16 @@ export function grammarStageKindLabel(kind: GrammarStageKind): string {
       return "Einbauen";
     case "produce":
       return "Schreiben";
+    case "situation":
+      return "Situation wählen";
+    case "conjugate":
+      return "Form wählen";
+    case "error":
+      return "Fehler finden";
+    case "translate":
+      return "Übersetzen";
+    case "transform":
+      return "Umformen";
     case "review":
       return "Wiederholung";
   }

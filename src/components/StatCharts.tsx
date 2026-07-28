@@ -7,6 +7,7 @@ import { XAxis } from "@/components/charts/x-axis";
 import { BarChart } from "@/components/charts/bar-chart";
 import { Bar } from "@/components/charts/bar";
 import { BarXAxis } from "@/components/charts/bar-x-axis";
+import { Grid } from "@/components/charts/grid";
 import { ChartTooltip } from "@/components/charts/tooltip";
 
 const DAY_MS = 86400000;
@@ -48,6 +49,9 @@ export function TrendBarChart({ points, from, to }: { points: AccuracyPoint[]; f
   return (
     <div>
       <BarChart data={data} xDataKey="label" aspectRatio="3 / 1" className="h-[110px]" margin={{ top: 10, right: 6, bottom: 22, left: 6 }}>
+        {/* A floored no-data day (minBarHeight=3) reads as a floating dash without something to
+            visually rest on — the highlighted 0-line gives every bar a shared ground to sit on. */}
+        <Grid numTicksRows={3} strokeOpacity={0.35} highlightRowValues={[0]} highlightRowStrokeOpacity={0.5} />
         <Bar dataKey="accuracy" fill={to} lineCap="round" minBarHeight={3} />
         <BarXAxis maxLabels={2} />
         <ChartTooltip
