@@ -213,16 +213,14 @@ body {
   background: var(--blue-light);
 }
 
+/* Every screen scrolls inside its own inner container (see the html/body comment above) — those
+   stay scrollable, just without a visible track/thumb, matching the app's mobile-first design. */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-thumb {
-  background: #d1d1d6;
-  border-radius: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
+  display: none;
 }
 
 @keyframes fadeIn {
