@@ -50,13 +50,18 @@ export function useHintShortcut(onTrigger: () => void, disabled: boolean) {
   }, [onTrigger, disabled]);
 }
 
-/** Lets a desktop user build a word-order sentence without a mouse: 1–9 places the Nth
- * still-available tile (in the order shown, same idea as A–D for multiple choice), Backspace
- * removes the most recently placed tile, and Enter checks the answer once every tile is placed.
- * Ignored once answered. */
-export function useTileShortcuts(
-  availableCount: number,
-  onPick: (index: number) => void,
+/** Lets a desktop user build a word-order sentence without a mouse: 1–9 places the tile shown
+ * with that number, Backspace removes the most recently placed tile, and Enter checks the answer
+ * once every tile is placed. Ignored once answered.
+ *
+ * The number is each tile's fixed position in the (already shuffled) tile list, not its position
+ * among the tiles still available — placing one tile must not renumber the ones left behind, or
+ * a learner reading "3" before placing a tile could find it pointing at a different word by the
+ * time they act on it. */
+export function useTileShortcuts<T extends { key: string }>(
+  tokens: readonly T[],
+  usedKeys: ReadonlySet<string>,
+  onPick: (token: T) => void,
   onUndo: () => void,
   onSubmit: () => void,
   canSubmit: boolean,
@@ -78,13 +83,15 @@ export function useTileShortcuts(
         return;
       }
       const num = Number(e.key);
-      if (!Number.isInteger(num) || num < 1 || num > 9 || num > availableCount) return;
+      if (!Number.isInteger(num) || num < 1 || num > 9 || num > tokens.length) return;
+      const tok = tokens[num - 1];
+      if (usedKeys.has(tok.key)) return;
       e.preventDefault();
-      onPick(num - 1);
+      onPick(tok);
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [availableCount, onPick, onUndo, onSubmit, canSubmit, disabled]);
+  }, [tokens, usedKeys, onPick, onUndo, onSubmit, canSubmit, disabled]);
 }
 
 /** Renders a sentence with the target word's occurrence in bold — used everywhere a full English
