@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { shuffle } from "@/lib/utils";
+import { germanGloss } from "@/lib/vocab";
 import { Prompt, FeedbackPanel } from "./shared";
 import type { ExerciseProps } from "./types";
 import type { ResultEntry } from "@/lib/types";
@@ -11,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 export default function MatchExercise({ item, onAnswered, onNext }: ExerciseProps) {
   const words = item.words;
   const left = useMemo(() => shuffle(words.map((w) => ({ id: w.id, text: w.en }))), [words]);
-  const right = useMemo(() => shuffle(words.map((w) => ({ id: w.id, text: w.de[0] }))), [words]);
+  const right = useMemo(() => shuffle(words.map((w) => ({ id: w.id, text: germanGloss(w) }))), [words]);
 
   const [matched, setMatched] = useState<Set<string>>(new Set());
   const [wrongIds, setWrongIds] = useState<Set<string>>(new Set());

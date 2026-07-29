@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleCheck, Lightbulb, Search, Star } from "lucide-react";
-import { VOCAB } from "@/lib/vocab";
+import { VOCAB, WORD_TYPE_SHORT } from "@/lib/vocab";
 import { normalize } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { needsIntensification } from "@/lib/intensify";
@@ -15,6 +15,8 @@ const FILTERS = [
   { val: "known", label: "Known" },
   { val: "verb", label: "Verbs" },
   { val: "adjective", label: "Adjectives" },
+  { val: "finance", label: "Finance" },
+  { val: "math", label: "Math" },
   { val: "favorites", label: "Favorites" },
   { val: "mistakes", label: "Mistakes" },
   { val: "unpracticed", label: "Unpracticed" },
@@ -45,6 +47,8 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
     let l = VOCAB;
     if (filter === "verb") l = l.filter((w) => w.type === "verb");
     if (filter === "adjective") l = l.filter((w) => w.type === "adjective");
+    if (filter === "finance") l = l.filter((w) => w.category === "finance");
+    if (filter === "math") l = l.filter((w) => w.category === "math");
     if (filter === "favorites") l = l.filter((w) => store.wordState(w.id).favorite);
     if (filter === "mistakes") l = l.filter((w) => store.wordState(w.id).recentMistake);
     if (filter === "known") l = l.filter((w) => store.wordState(w.id).stage === 4);
@@ -98,11 +102,17 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
               >
                 <Badge
                   className={
-                    "h-auto text-[10px] font-bold uppercase rounded-[5px] px-1.5 py-0.5 shrink-0 w-7 justify-center text-center " +
-                    (w.type === "adjective" ? "text-purple bg-purple-light" : "text-blue bg-blue-light")
+                    "h-auto text-[10px] font-bold uppercase rounded-[5px] px-1.5 py-0.5 shrink-0 w-9 justify-center text-center " +
+                    (w.category === "finance"
+                      ? "text-green bg-green-light"
+                      : w.category === "math"
+                      ? "text-amber bg-amber-light"
+                      : w.type === "adjective"
+                      ? "text-purple bg-purple-light"
+                      : "text-blue bg-blue-light")
                   }
                 >
-                  {w.type === "verb" ? "V" : "ADJ"}
+                  {WORD_TYPE_SHORT[w.type]}
                 </Badge>
                 <div className="flex-1 min-w-0">
                   <div className="text-[14.5px] font-semibold">{w.en}</div>

@@ -109,6 +109,8 @@ export default function StatsScreen() {
 
     const verbsTotal = VOCAB.filter((w) => w.type === "verb").length;
     const adjTotal = VOCAB.filter((w) => w.type === "adjective").length;
+    const financeTotal = VOCAB.filter((w) => w.category === "finance").length;
+    const mathTotal = VOCAB.filter((w) => w.category === "math").length;
 
     return {
       practiced,
@@ -120,8 +122,12 @@ export default function StatsScreen() {
       accuracy: totalAll ? Math.round((totalCorrect / totalAll) * 100) : 0,
       verbsTotal,
       adjTotal,
+      financeTotal,
+      mathTotal,
       verbsPracticed: practiced.filter(([id]) => VOCAB_BY_ID[id]?.type === "verb").length,
       adjPracticed: practiced.filter(([id]) => VOCAB_BY_ID[id]?.type === "adjective").length,
+      financePracticed: practiced.filter(([id]) => VOCAB_BY_ID[id]?.category === "finance").length,
+      mathPracticed: practiced.filter(([id]) => VOCAB_BY_ID[id]?.category === "math").length,
     };
   }, [store.words]);
 
@@ -293,6 +299,8 @@ export default function StatsScreen() {
           <div className="bg-card border border-line-soft rounded-2xl p-4 mb-6">
             <BarRow label="Verbs" value={`${vocab.verbsPracticed}/${vocab.verbsTotal}`} pct={pct(vocab.verbsPracticed, vocab.verbsTotal)} />
             <BarRow label="Adjectives" value={`${vocab.adjPracticed}/${vocab.adjTotal}`} pct={pct(vocab.adjPracticed, vocab.adjTotal)} />
+            <BarRow label="Finance" value={`${vocab.financePracticed}/${vocab.financeTotal}`} pct={pct(vocab.financePracticed, vocab.financeTotal)} />
+            <BarRow label="Math" value={`${vocab.mathPracticed}/${vocab.mathTotal}`} pct={pct(vocab.mathPracticed, vocab.mathTotal)} />
             <BarRow label="Grammar" value={`${grammar.practiced.length}/${grammar.total}`} pct={pct(grammar.practiced.length, grammar.total)} last />
           </div>
 

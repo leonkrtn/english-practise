@@ -29,7 +29,7 @@ const GROUPS: Group[] = [
   {
     title: "Hauptmenü",
     rows: [
-      { keys: ["1", "–", "5"], label: "Modus wählen (Vocabulary, Grammar, Linking, Reading, Test)" },
+      { keys: ["1", "–", "6"], label: "Modus wählen (Vocabulary, Grammar, Finance, Linking, Reading, Test)" },
       { keys: ["Enter"], label: "Session bzw. Test starten" },
       { keys: ["C"], label: "Optionen öffnen (Session-Inhalt / Test-Einstellungen)" },
       { keys: ["R"], label: "„Gelerntes wiederholen“ mit Filtern öffnen" },
@@ -39,7 +39,7 @@ const GROUPS: Group[] = [
   {
     title: "Während einer Übung",
     rows: [
-      { keys: ["A", "–", "D"], label: "Antwortoption wählen (Multiple Choice)" },
+      { keys: ["1", "–", "4"], label: "Antwortoption wählen (Multiple Choice)" },
       { keys: ["1", "–", "9"], label: "Wortkachel setzen (Satzbau)" },
       { keys: ["1"], label: "Hint anzeigen" },
       { keys: ["⌫"], label: "Letzte Wortkachel zurücknehmen" },
@@ -51,7 +51,7 @@ const GROUPS: Group[] = [
   {
     title: "Im Test",
     rows: [
-      { keys: ["A", "–", "D"], label: "Antwortoption wählen" },
+      { keys: ["1", "–", "4"], label: "Antwortoption wählen" },
       { keys: ["→"], label: "Nächste Frage (auf der letzten: abgeben)" },
       { keys: ["←"], label: "Vorherige Frage" },
       { keys: ["Enter"], label: "Antwort bestätigen und weiter" },

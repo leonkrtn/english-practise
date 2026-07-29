@@ -3,26 +3,26 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Lightbulb, Minus, X } from "lucide-react";
 import { animate, createScope } from "animejs";
-import type { Word } from "@/lib/vocab";
+import { WORD_TYPE_LABEL, type Word } from "@/lib/vocab";
 import type { AnswerResultKind } from "@/lib/types";
 import { playFeedbackSound } from "@/lib/sound";
 import { findGap } from "@/lib/utils";
 import { motionMs } from "@/lib/motion";
 import { Button } from "@/components/ui/button";
 
-/** Lets a desktop user pick a lettered multiple-choice option (A, B, C, …) by pressing that
- * letter key, instead of only being able to click — mirrors the A/B/C/D labels already shown on
+/** Lets a desktop user pick a numbered multiple-choice option (1, 2, 3, …) by pressing that
+ * number key, instead of only being able to click — mirrors the 1/2/3/4 labels already shown on
  * each option button. Ignored once answered, and while a modifier key is held (so it never fights
- * browser/OS shortcuts like Cmd+A). */
-export function useLetterShortcuts(optionCount: number, onSelect: (index: number) => void, disabled: boolean) {
+ * browser/OS shortcuts). */
+export function useNumberShortcuts(optionCount: number, onSelect: (index: number) => void, disabled: boolean) {
   useEffect(() => {
     if (disabled) return;
     function handleKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const key = e.key.toUpperCase();
-      if (key.length !== 1 || key < "A" || key > "Z") return;
-      const index = key.charCodeAt(0) - 65;
-      if (index < 0 || index >= optionCount) return;
+      const num = Number(e.key);
+      if (!Number.isInteger(num) || num < 1 || num > 9) return;
+      const index = num - 1;
+      if (index >= optionCount) return;
       e.preventDefault();
       onSelect(index);
     }
@@ -32,10 +32,9 @@ export function useLetterShortcuts(optionCount: number, onSelect: (index: number
 }
 
 /** Lets a desktop user trigger the Hint button by pressing "1" — deliberately global (fires even
- * while the answer field is focused, unlike useLetterShortcuts) since a hint request is something
- * you usually want mid-typing, not just before starting. Uses "1" rather than a letter specifically
- * so it can always preventDefault() and swallow the keystroke — a letter shortcut would otherwise
- * have no way to tell "wanted as a shortcut" apart from "being typed as part of the answer". */
+ * while the answer field is focused, unlike useNumberShortcuts) since a hint request is something
+ * you usually want mid-typing, not just before starting. Only used by the free-text exercises
+ * (translate/gap/sentence), which don't also register useNumberShortcuts, so "1" never double-fires. */
 export function useHintShortcut(onTrigger: () => void, disabled: boolean) {
   useEffect(() => {
     if (disabled) return;
@@ -50,13 +49,18 @@ export function useHintShortcut(onTrigger: () => void, disabled: boolean) {
   }, [onTrigger, disabled]);
 }
 
-/** Lets a desktop user build a word-order sentence without a mouse: 1–9 places the Nth
- * still-available tile (in the order shown, same idea as A–D for multiple choice), Backspace
- * removes the most recently placed tile, and Enter checks the answer once every tile is placed.
- * Ignored once answered. */
-export function useTileShortcuts(
-  availableCount: number,
-  onPick: (index: number) => void,
+/** Lets a desktop user build a word-order sentence without a mouse: 1–9 places the tile shown
+ * with that number, Backspace removes the most recently placed tile, and Enter checks the answer
+ * once every tile is placed. Ignored once answered.
+ *
+ * The number is each tile's fixed position in the (already shuffled) tile list, not its position
+ * among the tiles still available — placing one tile must not renumber the ones left behind, or
+ * a learner reading "3" before placing a tile could find it pointing at a different word by the
+ * time they act on it. */
+export function useTileShortcuts<T extends { key: string }>(
+  tokens: readonly T[],
+  usedKeys: ReadonlySet<string>,
+  onPick: (token: T) => void,
   onUndo: () => void,
   onSubmit: () => void,
   canSubmit: boolean,
@@ -78,13 +82,15 @@ export function useTileShortcuts(
         return;
       }
       const num = Number(e.key);
-      if (!Number.isInteger(num) || num < 1 || num > 9 || num > availableCount) return;
+      if (!Number.isInteger(num) || num < 1 || num > 9 || num > tokens.length) return;
+      const tok = tokens[num - 1];
+      if (usedKeys.has(tok.key)) return;
       e.preventDefault();
-      onPick(num - 1);
+      onPick(tok);
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [availableCount, onPick, onUndo, onSubmit, canSubmit, disabled]);
+  }, [tokens, usedKeys, onPick, onUndo, onSubmit, canSubmit, disabled]);
 }
 
 /** Renders a sentence with the target word's occurrence in bold — used everywhere a full English
@@ -101,16 +107,27 @@ export function boldenWord(sentence: string, word: Word): React.ReactNode {
   );
 }
 
+/** Word-class pill above every exercise. Specialist words carry their track's colour and name
+ * instead of the word class, because "which register is this from" is the more useful cue when a
+ * Finance session mixes accounting terms with statistics. */
 export function Badge({ word }: { word: Word }) {
-  const isAdj = word.type === "adjective";
+  const label = word.category === "finance" ? "Finance" : word.category === "math" ? "Math" : WORD_TYPE_LABEL[word.type];
+  const grad =
+    word.category === "finance"
+      ? "from-green to-green-dark"
+      : word.category === "math"
+      ? "from-amber to-amber-dark"
+      : word.type === "adjective"
+      ? "from-purple to-purple-dark"
+      : "from-blue to-blue-dark";
   return (
     <span
       className={
         "inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-4 text-white shadow-sm bg-gradient-to-r " +
-        (isAdj ? "from-purple to-purple-dark" : "from-blue to-blue-dark")
+        grad
       }
     >
-      {isAdj ? "Adjective" : "Verb"}
+      {label}
     </span>
   );
 }
@@ -129,7 +146,8 @@ export function ContextNote({ word }: { word: Word }) {
       <Row label="Meaning">
         <b className="text-ink font-semibold">{word.de.join(" / ")}</b>
       </Row>
-      <Row label="Type">{word.type === "verb" ? "Verb" : "Adjective"}</Row>
+      {word.definition && <Row label="Definition">{word.definition}</Row>}
+      <Row label="Type">{WORD_TYPE_LABEL[word.type]}</Row>
       <Row label="Example">
         {boldenWord(word.enSentence, word)}
         <br />

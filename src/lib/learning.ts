@@ -149,9 +149,12 @@ export function buildLearningBatch(
   totalPracticeSessions: number,
   blockedWordIds: ReadonlySet<string>,
   includeReview: boolean,
-  tuning: LearningTuning
+  tuning: LearningTuning,
+  /** Restricts the pool to a slice of the vocabulary — how the Finance mode reuses this engine
+   * without a parallel track. Omit for the general Vocabulary session, which draws from everything. */
+  wordFilter?: (word: Word) => boolean
 ): LearningBatch {
-  const pool = activeVocab(blockedWordIds);
+  const pool = wordFilter ? activeVocab(blockedWordIds).filter(wordFilter) : activeVocab(blockedWordIds);
   const newPool = pool.filter((w) => getState(w.id).stage === 0);
 
   if (!includeReview) {

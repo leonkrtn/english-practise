@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, Star } from "lucide-react";
-import { VOCAB_BY_ID } from "@/lib/vocab";
+import { VOCAB_BY_ID, WORD_TYPE_LABEL } from "@/lib/vocab";
 import { useStore } from "@/lib/store";
 import { needsIntensification } from "@/lib/intensify";
 import { Button } from "@/components/ui/button";
@@ -25,13 +25,27 @@ export default function WordDetailScreen({ wordId, onBack, onPractice }: { wordI
       <Badge
         className={
           "h-auto self-start px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-3 " +
-          (w.type === "adjective" ? "text-purple bg-purple-light" : "text-blue bg-blue-light")
+          (w.category === "finance"
+            ? "text-green bg-green-light"
+            : w.category === "math"
+            ? "text-amber bg-amber-light"
+            : w.type === "adjective"
+            ? "text-purple bg-purple-light"
+            : "text-blue bg-blue-light")
         }
       >
-        {w.type === "verb" ? "Verb" : "Adjective"}
+        {w.category === "finance" ? "Finance · " : w.category === "math" ? "Math · " : ""}
+        {WORD_TYPE_LABEL[w.type]}
       </Badge>
       <h1 className="text-[26px] font-bold tracking-tight mt-1 mb-1">{w.en}</h1>
       <p className="text-ink-soft text-[15px] mb-4 leading-relaxed">{w.de.join(" / ")}</p>
+
+      {w.definition && (
+        <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm mb-4">
+          <div className="text-[11.5px] uppercase tracking-wide font-bold text-ink-faint mb-0.5">Definition</div>
+          <div className="text-sm text-ink-soft leading-relaxed">{w.definition}</div>
+        </div>
+      )}
 
       <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm mb-4">
         <div className="text-[11.5px] uppercase tracking-wide font-bold text-ink-faint mb-0.5">Example</div>

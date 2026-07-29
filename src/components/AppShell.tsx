@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { useAuth } from "@/lib/auth";
-import { VOCAB, VOCAB_BY_ID, VOCAB_BY_EN, type Word } from "@/lib/vocab";
+import { VOCAB, VOCAB_BY_ID, VOCAB_BY_EN, inDomainScope, type DomainScope, type Word } from "@/lib/vocab";
 import { GRAMMAR_RULES } from "@/lib/grammar-data";
 import { WRITING_TOPICS, type WritingTopic } from "@/lib/writingTopics";
 import { CLAUSE_PAIRS, type ClausePair } from "@/lib/connectors-data";
@@ -86,7 +86,7 @@ export type Screen =
   | "reading"
   | "test"
   | "test-result";
-export type SessionMode = "vocab" | "grammar" | "linking" | "reading" | "test";
+export type SessionMode = "vocab" | "grammar" | "domain" | "linking" | "reading" | "test";
 /** The two modes that run through the adaptive stage engine — everything else is its own flow. */
 export type LearningMode = "vocab" | "grammar";
 export type LinkingSubMode = "combine" | "learn" | "essay";
@@ -97,8 +97,8 @@ export type ReviewOptions = { maxAccuracy: number | null; limit: number | null }
 /** Snapshot of whichever preset-driven start the learner most recently launched from Home, so it
  * can be replayed verbatim by the "Weiter" action on the summary/test-result screens. */
 type LastStartConfig =
-  | { kind: "learning"; mode: LearningMode; includeReview: boolean }
-  | { kind: "review"; mode: LearningMode; options?: ReviewOptions }
+  | { kind: "learning"; mode: LearningMode; includeReview: boolean; domainScope?: DomainScope }
+  | { kind: "review"; mode: LearningMode; options?: ReviewOptions; domainScope?: DomainScope }
   | { kind: "speed" }
   | { kind: "test"; scope: TestScope; length: TestLength };
 
@@ -193,6 +193,7 @@ export default function AppShell() {
   // after finishing a session) instead of always resetting back to Vocabulary.
   const [homeMode, setHomeMode] = useState<SessionMode>("vocab");
   const [homeLinkingSubMode, setHomeLinkingSubMode] = useState<LinkingSubMode>("combine");
+  const [homeDomainScope, setHomeDomainScope] = useState<DomainScope>("both");
   const [quickSession, setQuickSession] = useState<QuickSessionState | null>(null);
   const [learningSession, setLearningSession] = useState<LearningSessionState | null>(null);
   const [linkingSession, setLinkingSession] = useState<LinkingSessionState | null>(null);
@@ -288,7 +289,7 @@ export default function AppShell() {
   // ---------- Primary flow: the adaptive learning-stage engine (vocab or grammar) ----------
 
   const startLearningSession = useCallback(
-    (mode: LearningMode, includeReview: boolean = true) => {
+    (mode: LearningMode, includeReview: boolean = true, domainScope?: DomainScope) => {
       beginRun();
       let vocabQueue: LearningQueueItem[] = [];
       let matchPool: Word[] = [];
@@ -296,7 +297,16 @@ export default function AppShell() {
       let formatMemory: FormatMemory = {};
 
       if (mode === "vocab") {
-        const batch = buildLearningBatch(store.wordState, store.totalPracticeSessions, store.blockedWordIds, includeReview, tuning);
+        // The Finance mode is the vocabulary engine pointed at one slice of the word bank rather
+        // than a track of its own — same stages, same review schedule, same stats.
+        const batch = buildLearningBatch(
+          store.wordState,
+          store.totalPracticeSessions,
+          store.blockedWordIds,
+          includeReview,
+          tuning,
+          domainScope ? inDomainScope(domainScope) : undefined
+        );
         const built = buildInitialQueue(batch, store.wordState);
         vocabQueue = built.queue;
         matchPool = built.matchPool;
@@ -356,15 +366,16 @@ export default function AppShell() {
   // growing/interleaved session machinery as startLearningSession, just seeded differently: every
   // already-mastered item at once instead of an adaptive ~10-word batch.
   const startReviewSession = useCallback(
-    (mode: LearningMode, options?: ReviewOptions) => {
+    (mode: LearningMode, options?: ReviewOptions, domainScope?: DomainScope) => {
       beginRun();
       const maxAccuracy = options?.maxAccuracy ?? null;
       const belowThreshold = (score: number) => maxAccuracy === null || score * 20 < maxAccuracy;
+      const inScope = domainScope ? inDomainScope(domainScope) : () => true;
 
       const vocabQueue: LearningQueueItem[] =
         mode === "vocab"
           ? VOCAB.filter(
-              (w) => !store.blockedWordIds.has(w.id) && store.wordState(w.id).stage === 4 && belowThreshold(store.wordState(w.id).score)
+              (w) => inScope(w) && !store.blockedWordIds.has(w.id) && store.wordState(w.id).stage === 4 && belowThreshold(store.wordState(w.id).score)
             ).map((w) => {
               const fmt = pickVocabReviewFormat();
               return { kind: "review" as const, words: [w], direction: directionForKind("review", fmt), reviewFormat: fmt };
@@ -470,8 +481,8 @@ export default function AppShell() {
   /** Re-runs whichever preset-driven session was launched last, with the exact same settings. */
   const replayLastStart = useCallback(() => {
     if (!lastStart) return;
-    if (lastStart.kind === "learning") startLearningSession(lastStart.mode, lastStart.includeReview);
-    else if (lastStart.kind === "review") startReviewSession(lastStart.mode, lastStart.options);
+    if (lastStart.kind === "learning") startLearningSession(lastStart.mode, lastStart.includeReview, lastStart.domainScope);
+    else if (lastStart.kind === "review") startReviewSession(lastStart.mode, lastStart.options, lastStart.domainScope);
     else if (lastStart.kind === "speed") startSpeedRound();
     else if (lastStart.kind === "test") startTest(lastStart.scope, lastStart.length);
   }, [lastStart, startLearningSession, startReviewSession, startSpeedRound, startTest]);
@@ -1299,9 +1310,11 @@ export default function AppShell() {
             onModeChange={setHomeMode}
             linkingSubMode={homeLinkingSubMode}
             onLinkingSubModeChange={setHomeLinkingSubMode}
-            onStartLearning={(mode, includeReview) => {
-              setLastStart({ kind: "learning", mode, includeReview });
-              startLearningSession(mode, includeReview);
+            domainScope={homeDomainScope}
+            onDomainScopeChange={setHomeDomainScope}
+            onStartLearning={(mode, includeReview, domainScope) => {
+              setLastStart({ kind: "learning", mode, includeReview, domainScope });
+              startLearningSession(mode, includeReview, domainScope);
             }}
             onStartLinking={(subMode) => (subMode === "learn" ? startConnectorLearn() : subMode === "essay" ? startLinkingEssay() : startLinkingSession())}
             onStartReading={startReadingSession}
@@ -1309,9 +1322,9 @@ export default function AppShell() {
               setLastStart({ kind: "test", scope, length });
               startTest(scope, length);
             }}
-            onReview={(mode, options) => {
-              setLastStart({ kind: "review", mode, options });
-              startReviewSession(mode, options);
+            onReview={(mode, options, domainScope) => {
+              setLastStart({ kind: "review", mode, options, domainScope });
+              startReviewSession(mode, options, domainScope);
             }}
             onSpeedRound={() => {
               setLastStart({ kind: "speed" });

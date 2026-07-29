@@ -45,11 +45,11 @@ export default function GrammarBuildExercise({ rule, onAnswered, onNext }: Gramm
   }
 
   const usedKeys = new Set(placed.map((p) => p.key));
-  const available = shuffled.filter((x) => !usedKeys.has(x.key));
 
   useTileShortcuts(
-    available.length,
-    (i) => place(available[i]),
+    shuffled,
+    usedKeys,
+    place,
     () => setPlaced((p) => p.slice(0, -1)),
     () => check(false),
     placed.length === shuffled.length,
@@ -73,25 +73,20 @@ export default function GrammarBuildExercise({ rule, onAnswered, onNext }: Gramm
         ))}
       </div>
       <div className="flex flex-wrap gap-2">
-        {shuffled.map((x) => {
-          const availIdx = available.findIndex((a) => a.key === x.key);
-          return (
-            <button
-              key={x.key}
-              onClick={() => place(x)}
-              disabled={usedKeys.has(x.key)}
-              className={
-                "inline-flex items-center gap-1.5 border-[1.5px] border-line bg-card rounded-lg px-3 py-2 text-[15px] font-semibold select-none transition-all hover:border-purple/40 hover:bg-purple-light hover:-translate-y-0.5 hover:shadow-sm " +
-                (usedKeys.has(x.key) ? "opacity-30 pointer-events-none" : "")
-              }
-            >
-              {availIdx >= 0 && availIdx < 9 && (
-                <span className="text-[10px] font-mono bg-line-soft border border-line rounded px-1 text-ink-faint">{availIdx + 1}</span>
-              )}
-              {x.t}
-            </button>
-          );
-        })}
+        {shuffled.map((x, idx) => (
+          <button
+            key={x.key}
+            onClick={() => place(x)}
+            disabled={usedKeys.has(x.key)}
+            className={
+              "inline-flex items-center gap-1.5 border-[1.5px] border-line bg-card rounded-lg px-3 py-2 text-[15px] font-semibold select-none transition-all hover:border-purple/40 hover:bg-purple-light hover:-translate-y-0.5 hover:shadow-sm " +
+              (usedKeys.has(x.key) ? "opacity-30 pointer-events-none" : "")
+            }
+          >
+            {idx < 9 && <span className="text-[10px] font-mono bg-line-soft border border-line rounded px-1 text-ink-faint">{idx + 1}</span>}
+            {x.t}
+          </button>
+        ))}
       </div>
       {!result && (
         <ExerciseFooter>

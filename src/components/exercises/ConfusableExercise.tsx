@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { choice, findGap, shuffle } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
-import { Prompt, FeedbackPanel, useLetterShortcuts } from "./shared";
+import { Prompt, FeedbackPanel, useNumberShortcuts } from "./shared";
 import type { ExerciseProps } from "./types";
 import { Badge } from "@/components/ui/badge";
 
@@ -22,7 +22,7 @@ export default function ConfusableExercise({ item, onAnswered, onNext }: Exercis
     onAnswered([{ wordId: target.id, format: "confusable", result: isCorrect ? "correct" : "incorrect", errorType: isCorrect ? null : "confused", hintsUsed: 0 }]);
   }
 
-  useLetterShortcuts(options.length, select, chosen !== null);
+  useNumberShortcuts(options.length, select, chosen !== null);
 
   const result: AnswerResultKind | null = chosen === null ? null : options[chosen].toLowerCase() === target.en.toLowerCase() ? "correct" : "incorrect";
   const correctIdx = options.findIndex((o) => o.toLowerCase() === target.en.toLowerCase());
@@ -69,7 +69,7 @@ export default function ConfusableExercise({ item, onAnswered, onNext }: Exercis
               className={"text-left border-[1.5px] rounded-xl px-4 py-3 text-[15px] font-medium text-ink flex items-center gap-3 transition-colors " + cls}
             >
               <span className={"w-[22px] h-[22px] rounded-full border-[1.5px] flex items-center justify-center text-[11px] font-bold shrink-0 " + keyCls}>
-                {String.fromCharCode(65 + i)}
+                {i + 1}
               </span>
               {o}
             </button>

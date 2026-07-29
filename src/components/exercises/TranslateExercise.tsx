@@ -8,8 +8,11 @@ import type { ExerciseProps } from "./types";
 
 export default function TranslateExercise({ item, onAnswered, onNext }: ExerciseProps) {
   const word = item.words[0];
-  const toGerman = item.direction === "en-de";
-  const promptStr = toGerman ? word.en : word.de.join(" / ");
+  // Jargon anchored to an English definition is always asked term-first, whichever direction the
+  // queue picked: asking someone to type the German for "EBITDA" tests nothing.
+  const byDefinition = !!word.definition;
+  const toGerman = !byDefinition && item.direction === "en-de";
+  const promptStr = byDefinition ? word.definition! : toGerman ? word.en : word.de.join(" / ");
   const accepted = toGerman ? word.de : [word.en];
 
   const [value, setValue] = useState("");
@@ -30,8 +33,12 @@ export default function TranslateExercise({ item, onAnswered, onNext }: Exercise
   return (
     <>
       <Badge word={word} />
-      <div className="text-[24px] font-bold tracking-tight mb-1 leading-tight">{promptStr}</div>
-      <Prompt>Translate to {toGerman ? "German" : "English"}</Prompt>
+      {/* A definition is a full sentence, so it can't carry the 24px display size a single word
+          gets without dominating the card. */}
+      <div className={byDefinition ? "text-[17px] font-semibold leading-snug mb-1" : "text-[24px] font-bold tracking-tight mb-1 leading-tight"}>
+        {promptStr}
+      </div>
+      <Prompt>{byDefinition ? "Which term matches this definition?" : `Translate to ${toGerman ? "German" : "English"}`}</Prompt>
       <AnswerInput
         value={value}
         onChange={setValue}
