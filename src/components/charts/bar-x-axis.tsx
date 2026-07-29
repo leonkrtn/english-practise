@@ -49,7 +49,12 @@ function BarXAxisLabel({
       className="absolute"
       style={{
         left: x,
-        bottom: 12,
+        // The chart's own baseline (the zero-line the bars sit on, drawn via <Grid
+        // highlightRowValues={[0]}>) sits exactly at margin.bottom from the container edge — with
+        // this chart's 22px margin, `bottom: 12` put the label's top edge 6px above that line, so
+        // the line cut straight through the text instead of sitting above it. 2 keeps the label
+        // fully below the baseline with a few px of its own clearance.
+        bottom: 2,
         width: 0,
         display: "flex",
         justifyContent: "center",
