@@ -423,9 +423,9 @@ function DatePillTrackerInner({
         transform: "translateX(-50%)",
         // The x-axis label row sits at `bottom: 12` with ~16px of text (see BarXAxisLabel /
         // XAxisLabel) — this pill is ~34px tall, so anchoring it at the old `bottom: 4` made it
-        // fully enclose that row instead of floating above it. 32 clears the label's top edge
-        // with a few px to spare.
-        bottom: 32,
+        // fully enclose that row instead of floating above it. 48 gives it clear breathing room
+        // above the label row instead of just clearing it by a few px.
+        bottom: 48,
       }}
     >
       <DateTicker
