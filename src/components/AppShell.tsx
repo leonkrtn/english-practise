@@ -94,6 +94,13 @@ export type LinkingSubMode = "combine" | "learn" | "essay";
  * below a score-based mastery percentage (null = no restriction) and/or cap how many are drawn
  * (null = everyone that matches). */
 export type ReviewOptions = { maxAccuracy: number | null; limit: number | null };
+/** Snapshot of whichever preset-driven start the learner most recently launched from Home, so it
+ * can be replayed verbatim by the "Weiter" action on the summary/test-result screens. */
+type LastStartConfig =
+  | { kind: "learning"; mode: LearningMode; includeReview: boolean }
+  | { kind: "review"; mode: LearningMode; options?: ReviewOptions }
+  | { kind: "speed" }
+  | { kind: "test"; scope: TestScope; length: TestLength };
 
 type UnifiedItem = { domain: "vocab"; item: LearningQueueItem } | { domain: "grammar"; item: GrammarQueueItem };
 
@@ -194,6 +201,11 @@ export default function AppShell() {
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [linkingEssayTopic, setLinkingEssayTopic] = useState<WritingTopic | null>(null);
   const [summary, setSummary] = useState<SummaryStats | null>(null);
+  // The preset a preset-driven session was launched with, so the "Weiter" button on the summary/
+  // test-result screens can start the next run identically without sending the learner back
+  // through Home to re-pick everything. Quick drills (repeat mistakes / practice one word) aren't
+  // preset-driven, so they clear this rather than leave a stale preset behind.
+  const [lastStart, setLastStart] = useState<LastStartConfig | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
   // Longest combo of the session that just ended — fed into the badge snapshot below, which is why
@@ -454,6 +466,15 @@ export default function AppShell() {
     },
     [beginRun, store.wordState, store.blockedWordIds, grammarStore.ruleState, grammarStore.blockedRuleIds]
   );
+
+  /** Re-runs whichever preset-driven session was launched last, with the exact same settings. */
+  const replayLastStart = useCallback(() => {
+    if (!lastStart) return;
+    if (lastStart.kind === "learning") startLearningSession(lastStart.mode, lastStart.includeReview);
+    else if (lastStart.kind === "review") startReviewSession(lastStart.mode, lastStart.options);
+    else if (lastStart.kind === "speed") startSpeedRound();
+    else if (lastStart.kind === "test") startTest(lastStart.scope, lastStart.length);
+  }, [lastStart, startLearningSession, startReviewSession, startSpeedRound, startTest]);
 
   // Marks the paper and files the result. Deliberately does NOT call updateWord/setLearningStage:
   // a test measures where the learner stands, and letting it move stages would mean the act of
@@ -994,6 +1015,7 @@ export default function AppShell() {
 
   const startWithWords = useCallback((words: Word[]) => {
     beginRun();
+    setLastStart(null);
     const queue: QueueItem[] = words.map((w) => ({
       format: SIMPLE_FORMATS[Math.floor(Math.random() * SIMPLE_FORMATS.length)],
       words: [w],
@@ -1277,12 +1299,24 @@ export default function AppShell() {
             onModeChange={setHomeMode}
             linkingSubMode={homeLinkingSubMode}
             onLinkingSubModeChange={setHomeLinkingSubMode}
-            onStartLearning={startLearningSession}
+            onStartLearning={(mode, includeReview) => {
+              setLastStart({ kind: "learning", mode, includeReview });
+              startLearningSession(mode, includeReview);
+            }}
             onStartLinking={(subMode) => (subMode === "learn" ? startConnectorLearn() : subMode === "essay" ? startLinkingEssay() : startLinkingSession())}
             onStartReading={startReadingSession}
-            onStartTest={startTest}
-            onReview={startReviewSession}
-            onSpeedRound={startSpeedRound}
+            onStartTest={(scope, length) => {
+              setLastStart({ kind: "test", scope, length });
+              startTest(scope, length);
+            }}
+            onReview={(mode, options) => {
+              setLastStart({ kind: "review", mode, options });
+              startReviewSession(mode, options);
+            }}
+            onSpeedRound={() => {
+              setLastStart({ kind: "speed" });
+              startSpeedRound();
+            }}
             onGoal={goGoal}
           />
         )}
@@ -1345,8 +1379,11 @@ export default function AppShell() {
             onHome={goHome}
             onRetry={() => {
               setTestResult(null);
-              setHomeMode("test");
-              setScreen("home");
+              if (lastStart?.kind === "test") replayLastStart();
+              else {
+                setHomeMode("test");
+                setScreen("home");
+              }
             }}
           />
         )}
@@ -1404,6 +1441,7 @@ export default function AppShell() {
             stats={summaryWithBadges}
             onHome={goHome}
             onRepeat={(ids) => startWithWords(ids.map((id) => VOCAB_BY_ID[id]))}
+            onNext={lastStart ? replayLastStart : undefined}
           />
         )}
 

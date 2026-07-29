@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { ArrowUpRight, PartyPopper, Sparkles, Zap } from "lucide-react";
+import { ArrowUpRight, PartyPopper, RotateCcw, Sparkles, Zap } from "lucide-react";
 import { createScope, createTimeline, stagger } from "animejs";
 import { VOCAB_BY_ID } from "@/lib/vocab";
 import { GRAMMAR_RULES_BY_ID } from "@/lib/grammar-data";
@@ -40,7 +40,19 @@ export interface SummaryStats {
   newBadges?: Badge[];
 }
 
-export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: SummaryStats; onHome: () => void; onRepeat: (wordIds: string[]) => void }) {
+export default function SummaryScreen({
+  stats,
+  onHome,
+  onRepeat,
+  onNext,
+}: {
+  stats: SummaryStats;
+  onHome: () => void;
+  onRepeat: (wordIds: string[]) => void;
+  /** Starts the next session with the exact same preset this one was launched with. Absent when
+   * the just-finished session wasn't preset-driven (e.g. a "repeat mistakes" quick drill). */
+  onNext?: () => void;
+}) {
   const store = useStore();
 
   const { wrongWordIds, topError, weakestFormat, weakestAcc } = useMemo(() => {
@@ -278,7 +290,7 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
         )}
       </div>
 
-      <div className="flex gap-2.5">
+      <div className="flex flex-wrap gap-2.5">
         <Button
           onClick={onHome}
           variant="ghost"
@@ -293,6 +305,15 @@ export default function SummaryScreen({ stats, onHome, onRepeat }: { stats: Summ
             className="h-auto flex-1 rounded-full bg-blue hover:bg-blue-dark hover:text-white text-white font-semibold py-3.5 text-[15px] transition-colors"
           >
             Fehler wiederholen
+          </Button>
+        )}
+        {onNext && (
+          <Button
+            onClick={onNext}
+            variant="ghost"
+            className="h-auto flex-1 rounded-full bg-gradient-to-r from-ink to-ink/80 hover:brightness-125 hover:text-white text-white font-semibold py-3.5 text-[15px] transition-all active:scale-[0.97] flex items-center justify-center gap-2"
+          >
+            <RotateCcw size={15} /> Weiter
           </Button>
         )}
       </div>
