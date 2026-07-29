@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Lightbulb, Minus, X } from "lucide-react";
 import { animate, createScope } from "animejs";
-import type { Word } from "@/lib/vocab";
+import { WORD_TYPE_LABEL, type Word } from "@/lib/vocab";
 import type { AnswerResultKind } from "@/lib/types";
 import { playFeedbackSound } from "@/lib/sound";
 import { findGap } from "@/lib/utils";
@@ -107,16 +107,27 @@ export function boldenWord(sentence: string, word: Word): React.ReactNode {
   );
 }
 
+/** Word-class pill above every exercise. Specialist words carry their track's colour and name
+ * instead of the word class, because "which register is this from" is the more useful cue when a
+ * Finance session mixes accounting terms with statistics. */
 export function Badge({ word }: { word: Word }) {
-  const isAdj = word.type === "adjective";
+  const label = word.category === "finance" ? "Finance" : word.category === "math" ? "Math" : WORD_TYPE_LABEL[word.type];
+  const grad =
+    word.category === "finance"
+      ? "from-green to-green-dark"
+      : word.category === "math"
+      ? "from-amber to-amber-dark"
+      : word.type === "adjective"
+      ? "from-purple to-purple-dark"
+      : "from-blue to-blue-dark";
   return (
     <span
       className={
         "inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-4 text-white shadow-sm bg-gradient-to-r " +
-        (isAdj ? "from-purple to-purple-dark" : "from-blue to-blue-dark")
+        grad
       }
     >
-      {isAdj ? "Adjective" : "Verb"}
+      {label}
     </span>
   );
 }
@@ -135,7 +146,8 @@ export function ContextNote({ word }: { word: Word }) {
       <Row label="Meaning">
         <b className="text-ink font-semibold">{word.de.join(" / ")}</b>
       </Row>
-      <Row label="Type">{word.type === "verb" ? "Verb" : "Adjective"}</Row>
+      {word.definition && <Row label="Definition">{word.definition}</Row>}
+      <Row label="Type">{WORD_TYPE_LABEL[word.type]}</Row>
       <Row label="Example">
         {boldenWord(word.enSentence, word)}
         <br />

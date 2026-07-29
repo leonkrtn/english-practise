@@ -61,7 +61,15 @@ export default function GapExercise(props: ExerciseProps) {
       {/* 4px above, 16px below: the meaning hangs off the sentence it explains rather than sitting
           equidistant between the sentence and the answer field. */}
       <div className="text-sm text-ink-faint mb-4">
-        German meaning: <b className="text-ink font-semibold">{word.de.join(" / ")}</b>
+        {word.definition ? (
+          <>
+            Definition: <b className="text-ink font-semibold">{word.definition}</b>
+          </>
+        ) : (
+          <>
+            German meaning: <b className="text-ink font-semibold">{word.de.join(" / ")}</b>
+          </>
+        )}
       </div>
       <AnswerInput
         value={value}

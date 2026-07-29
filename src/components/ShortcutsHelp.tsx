@@ -29,7 +29,7 @@ const GROUPS: Group[] = [
   {
     title: "Hauptmenü",
     rows: [
-      { keys: ["1", "–", "5"], label: "Modus wählen (Vocabulary, Grammar, Linking, Reading, Test)" },
+      { keys: ["1", "–", "6"], label: "Modus wählen (Vocabulary, Grammar, Finance, Linking, Reading, Test)" },
       { keys: ["Enter"], label: "Session bzw. Test starten" },
       { keys: ["C"], label: "Optionen öffnen (Session-Inhalt / Test-Einstellungen)" },
       { keys: ["R"], label: "„Gelerntes wiederholen“ mit Filtern öffnen" },

@@ -5,16 +5,20 @@ import {
   BookMarked,
   BookOpen,
   Blocks,
+  Calculator,
   ChevronUp,
   Flag,
   Flame,
   GraduationCap,
   Heart,
+  Landmark,
+  Layers,
   Lightbulb,
   Link2,
   Newspaper,
   PenLine,
   Repeat,
+  Sigma,
   Sparkles,
   Target,
   Timer,
@@ -24,7 +28,7 @@ import {
 import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { useGrammarStore } from "@/lib/grammarStore";
-import { VOCAB, VOCAB_BY_ID } from "@/lib/vocab";
+import { VOCAB, VOCAB_BY_ID, inDomainScope, type DomainScope } from "@/lib/vocab";
 import { activeGrammarRules } from "@/lib/grammarLearning";
 import { needsIntensification } from "@/lib/intensify";
 import { computeGoalStatus } from "@/lib/goal";
@@ -71,6 +75,15 @@ const MODES: {
     ring: ["#8b5cf6", "#6d3fd4"],
   },
   {
+    val: "domain",
+    label: "Finance",
+    icon: Calculator,
+    grad: "from-green to-green-dark",
+    tint: "bg-green-light text-green",
+    glow: "shadow-[0_10px_24px_-8px_rgba(30,182,118,0.5)]",
+    ring: ["#1eb676", "#0e9464"],
+  },
+  {
     val: "linking",
     label: "Linking",
     icon: Link2,
@@ -99,10 +112,24 @@ const MODES: {
   },
 ];
 
-/** The two modes that run the adaptive stage engine — the only ones with a review pool, a
+/** The modes that run the adaptive stage engine — the only ones with a review pool, a
  * "Session-Inhalt" choice, or a learned/total progress ring. */
-const LEARNING_MODES: SessionMode[] = ["vocab", "grammar"];
-const isLearningMode = (m: SessionMode): m is LearningMode => LEARNING_MODES.includes(m);
+const LEARNING_MODES: SessionMode[] = ["vocab", "grammar", "domain"];
+const isLearningMode = (m: SessionMode): boolean => LEARNING_MODES.includes(m);
+
+/**
+ * Which engine a mode drives. "domain" is not a track of its own — it is the vocabulary engine
+ * pointed at the finance/math slice of the same word bank, so it reports "vocab" here and carries
+ * its scope separately.
+ */
+const learningModeFor = (m: SessionMode): LearningMode | null =>
+  m === "vocab" || m === "domain" ? "vocab" : m === "grammar" ? "grammar" : null;
+
+const DOMAIN_SCOPES: { val: DomainScope; label: string; icon: typeof Link2 }[] = [
+  { val: "both", label: "Beides", icon: Layers },
+  { val: "finance", label: "Corporate Finance", icon: Landmark },
+  { val: "math", label: "Mathematik", icon: Sigma },
+];
 
 const SESSION_CONTENT_OPTIONS: { val: boolean; label: string; hint: string }[] = [
   { val: true, label: "Neu + Wiederholung", hint: "Neue Inhalte, gemischt mit fälligen Wiederholungen" },
@@ -150,6 +177,8 @@ export default function HomeScreen({
   onModeChange,
   linkingSubMode,
   onLinkingSubModeChange,
+  domainScope,
+  onDomainScopeChange,
   onStartLearning,
   onStartLinking,
   onStartReading,
@@ -162,11 +191,13 @@ export default function HomeScreen({
   onModeChange: (mode: SessionMode) => void;
   linkingSubMode: LinkingSubMode;
   onLinkingSubModeChange: (mode: LinkingSubMode) => void;
-  onStartLearning: (mode: LearningMode, includeReview: boolean) => void;
+  domainScope: DomainScope;
+  onDomainScopeChange: (scope: DomainScope) => void;
+  onStartLearning: (mode: LearningMode, includeReview: boolean, domainScope?: DomainScope) => void;
   onStartLinking: (subMode: LinkingSubMode) => void;
   onStartReading: () => void;
   onStartTest: (scope: TestScope, length: TestLength) => void;
-  onReview: (mode: LearningMode, options?: ReviewOptions) => void;
+  onReview: (mode: LearningMode, options?: ReviewOptions, domainScope?: DomainScope) => void;
   onSpeedRound: () => void;
   onGoal: () => void;
 }) {
@@ -197,6 +228,34 @@ export default function HomeScreen({
     const accuracy = totalAll ? Math.round((totalCorrect / totalAll) * 100) : 0;
     return { learned, total: activeVocabTotal, sessions: store.totalPracticeSessions || 0, accuracy };
   }, [store.words, store.blockedWordIds, activeVocabTotal, store.totalPracticeSessions]);
+
+  /** The finance/math slice, scored the same way as vocabStats but over the selected scope only. */
+  const domainStats = useMemo(() => {
+    const inScope = inDomainScope(domainScope);
+    const pool = VOCAB.filter((w) => inScope(w) && !store.blockedWordIds.has(w.id));
+    let learned = 0;
+    let totalCorrect = 0;
+    let totalAll = 0;
+    pool.forEach((word) => {
+      const s = store.words[word.id];
+      if (!s) return;
+      if (s.stage === 4) learned++;
+      totalCorrect += s.timesCorrect;
+      totalAll += s.timesCorrect + s.timesAlmost + s.timesIncorrect;
+    });
+    const accuracy = totalAll ? Math.round((totalCorrect / totalAll) * 100) : 0;
+    return { learned, total: pool.length, sessions: store.totalPracticeSessions || 0, accuracy };
+  }, [domainScope, store.words, store.blockedWordIds, store.totalPracticeSessions]);
+
+  /** Learned/total per track, for the two bars under the Finance card. */
+  const domainBreakdown = useMemo(() => {
+    const count = (category: "finance" | "math") => {
+      const pool = VOCAB.filter((w) => w.category === category && !store.blockedWordIds.has(w.id));
+      const learned = pool.filter((w) => store.words[w.id]?.stage === 4).length;
+      return { learned, total: pool.length };
+    };
+    return { finance: count("finance"), math: count("math") };
+  }, [store.words, store.blockedWordIds]);
 
   const activeRules = useMemo(() => activeGrammarRules(grammarStore.blockedRuleIds), [grammarStore.blockedRuleIds]);
 
@@ -274,7 +333,7 @@ export default function HomeScreen({
     return rows.sort((a, b) => b.date - a.date).slice(0, 6);
   }, [store.sessionHistory, grammarStore.sessionHistory]);
 
-  const stats = mode === "grammar" ? grammarStats : vocabStats;
+  const stats = mode === "grammar" ? grammarStats : mode === "domain" ? domainStats : vocabStats;
 
   const linkingSessionsCount = useMemo(
     () => grammarStore.sessionHistory.filter((s) => LINKING_FORMATS.includes(s.format)).length,
@@ -320,9 +379,15 @@ export default function HomeScreen({
   const reviewMatchCount = useMemo(() => {
     const belowThreshold = (score: number) => reviewMaxAccuracy === null || score * 20 < reviewMaxAccuracy;
     let count = 0;
-    if (mode === "vocab") {
+    if (mode === "vocab" || mode === "domain") {
+      const inScope = mode === "domain" ? inDomainScope(domainScope) : null;
       Object.entries(store.words).forEach(([id, w]) => {
-        if (!store.blockedWordIds.has(id) && w.stage === 4 && belowThreshold(w.score)) count++;
+        if (store.blockedWordIds.has(id) || w.stage !== 4 || !belowThreshold(w.score)) return;
+        if (inScope) {
+          const word = VOCAB_BY_ID[id];
+          if (!word || !inScope(word)) return;
+        }
+        count++;
       });
     }
     if (mode === "grammar") {
@@ -332,7 +397,7 @@ export default function HomeScreen({
       });
     }
     return count;
-  }, [mode, store.words, store.blockedWordIds, activeRules, grammarStore.rules, reviewMaxAccuracy]);
+  }, [mode, domainScope, store.words, store.blockedWordIds, activeRules, grammarStore.rules, reviewMaxAccuracy]);
 
   const active = MODES.find((m) => m.val === mode)!;
   const progressPct = stats.total ? Math.round((stats.learned / stats.total) * 100) : 0;
@@ -346,7 +411,17 @@ export default function HomeScreen({
     if (mode === "test") onStartTest(testScope, testLength);
     else if (mode === "linking") onStartLinking(linkingSubMode);
     else if (mode === "reading") onStartReading();
-    else onStartLearning(mode, includeReview);
+    else {
+      const engine = learningModeFor(mode);
+      if (engine) onStartLearning(engine, includeReview, mode === "domain" ? domainScope : undefined);
+    }
+  }
+
+  function startReview() {
+    const engine = learningModeFor(mode);
+    if (!engine) return;
+    setOpenMenu(null);
+    onReview(engine, { maxAccuracy: reviewMaxAccuracy, limit: reviewLimit }, mode === "domain" ? domainScope : undefined);
   }
 
   // Home's own no-mouse shortcuts: 1-5 pick a mode tile (same left-to-right order as MODES),
@@ -402,8 +477,7 @@ export default function HomeScreen({
         if (openMenu === "review") {
           if (reviewMatchCount === 0 || !isLearningMode(mode)) return;
           e.preventDefault();
-          setOpenMenu(null);
-          onReview(mode, { maxAccuracy: reviewMaxAccuracy, limit: reviewLimit });
+          startReview();
           return;
         }
         e.preventDefault();
@@ -442,8 +516,8 @@ export default function HomeScreen({
 
       <div className="lg:grid lg:grid-cols-[1.35fr_1fr] lg:gap-6 lg:items-start">
         <div>
-          {/* Three per row on a phone (5 labels across ~360px would clip), five once there's room. */}
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-5 mt-1">
+          {/* Three per row on a phone (six labels across ~360px would clip), all six once there's room. */}
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5 mt-1">
             {MODES.map((m) => {
               const Icon = m.icon;
               const isActive = mode === m.val;
@@ -469,6 +543,30 @@ export default function HomeScreen({
               );
             })}
           </div>
+
+          {mode === "domain" && (
+            <div className="grid grid-cols-3 gap-2 mb-5">
+              {DOMAIN_SCOPES.map((sc) => {
+                const Icon = sc.icon;
+                const isActive = domainScope === sc.val;
+                return (
+                  <button
+                    key={sc.val}
+                    onClick={() => onDomainScopeChange(sc.val)}
+                    className={
+                      "flex flex-col items-center gap-1 rounded-xl px-1.5 py-2.5 text-center transition-all " +
+                      (isActive
+                        ? "bg-green-light border-[1.5px] border-green text-[#0d7a4f]"
+                        : "bg-card border-[1.5px] border-line-soft text-ink-soft hover:border-line")
+                    }
+                  >
+                    <Icon size={15} />
+                    <span className="text-[11px] font-semibold leading-tight">{sc.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {mode === "linking" && (
             <div className="grid grid-cols-3 gap-2 mb-5">
@@ -544,6 +642,18 @@ export default function HomeScreen({
             </div>
           )}
 
+          {mode === "domain" && (
+            <div className="flex flex-col gap-2.5 mt-3">
+              <MiniBar
+                label="Corporate Finance"
+                learned={domainBreakdown.finance.learned}
+                total={domainBreakdown.finance.total}
+                grad="from-green to-green-dark"
+              />
+              <MiniBar label="Mathematik" learned={domainBreakdown.math.learned} total={domainBreakdown.math.total} grad="from-amber to-amber-dark" />
+            </div>
+          )}
+
           {mode === "grammar" && grammarCategoryBreakdown.length > 0 && (
             <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm mt-3">
               <div className="text-[13px] font-semibold text-ink mb-3">Nach Kategorie</div>
@@ -604,10 +714,7 @@ export default function HomeScreen({
                   <div className="text-[12px] font-semibold text-ink-soft mb-1.5 mt-3">Wie viele?</div>
                   <ChipRow options={REVIEW_LIMIT_OPTIONS} value={reviewLimit} onChange={setReviewLimit} />
                   <Button
-                    onClick={() => {
-                      setOpenMenu(null);
-                      if (isLearningMode(mode)) onReview(mode, { maxAccuracy: reviewMaxAccuracy, limit: reviewLimit });
-                    }}
+                    onClick={startReview}
                     disabled={reviewMatchCount === 0}
                     className="mt-3.5 h-auto w-full rounded-full bg-gradient-to-r from-blue to-blue-dark hover:brightness-110 hover:bg-none disabled:opacity-40 disabled:pointer-events-none text-white font-semibold py-2.5 text-[13.5px] transition-all active:scale-[0.97]"
                   >

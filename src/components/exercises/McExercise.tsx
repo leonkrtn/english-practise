@@ -11,9 +11,20 @@ export default function McExercise({ item, onAnswered, onNext }: ExerciseProps) 
   const toGerman = item.direction === "en-de";
 
   const built = useMemo(() => {
+    // Distractors are drawn from the same word class *and* the same track, so a statistics
+    // question never offers accounting terms as its alternatives (and vice versa).
+    const samePool = VOCAB.filter((w) => w.type === word.type && w.category === word.category && w.id !== word.id);
+
+    // Jargon anchored to an English definition asks for the term itself rather than a German
+    // translation — same reasoning as TranslateExercise.
+    if (word.definition) {
+      const distractors = sample(samePool, 3).map((w) => w.en);
+      const options = shuffle([word.en].concat(distractors));
+      return { variant: "definition", options, correctIdx: options.indexOf(word.en), gapInfo: null };
+    }
+
     const variants = toGerman ? ["word2trans", "gapsentence"] : ["de2word"];
     let variant = choice(variants);
-    const samePool = VOCAB.filter((w) => w.type === word.type && w.id !== word.id);
     let options: string[];
     let correctIdx: number;
     let gapInfo: { before: string; after: string } | null = null;
@@ -54,7 +65,15 @@ export default function McExercise({ item, onAnswered, onNext }: ExerciseProps) 
   useNumberShortcuts(built.options.length, select, chosen !== null);
 
   let promptNode: React.ReactNode;
-  if (built.variant === "word2trans") {
+  if (built.variant === "definition") {
+    promptNode = (
+      <>
+        <Badge word={word} />
+        <div className="text-[17px] font-semibold leading-snug mb-1">{word.definition}</div>
+        <Prompt>Which term matches this definition?</Prompt>
+      </>
+    );
+  } else if (built.variant === "word2trans") {
     promptNode = (
       <>
         <Badge word={word} />
