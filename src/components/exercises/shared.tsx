@@ -10,19 +10,19 @@ import { findGap } from "@/lib/utils";
 import { motionMs } from "@/lib/motion";
 import { Button } from "@/components/ui/button";
 
-/** Lets a desktop user pick a lettered multiple-choice option (A, B, C, …) by pressing that
- * letter key, instead of only being able to click — mirrors the A/B/C/D labels already shown on
+/** Lets a desktop user pick a numbered multiple-choice option (1, 2, 3, …) by pressing that
+ * number key, instead of only being able to click — mirrors the 1/2/3/4 labels already shown on
  * each option button. Ignored once answered, and while a modifier key is held (so it never fights
- * browser/OS shortcuts like Cmd+A). */
-export function useLetterShortcuts(optionCount: number, onSelect: (index: number) => void, disabled: boolean) {
+ * browser/OS shortcuts). */
+export function useNumberShortcuts(optionCount: number, onSelect: (index: number) => void, disabled: boolean) {
   useEffect(() => {
     if (disabled) return;
     function handleKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const key = e.key.toUpperCase();
-      if (key.length !== 1 || key < "A" || key > "Z") return;
-      const index = key.charCodeAt(0) - 65;
-      if (index < 0 || index >= optionCount) return;
+      const num = Number(e.key);
+      if (!Number.isInteger(num) || num < 1 || num > 9) return;
+      const index = num - 1;
+      if (index >= optionCount) return;
       e.preventDefault();
       onSelect(index);
     }
@@ -32,10 +32,9 @@ export function useLetterShortcuts(optionCount: number, onSelect: (index: number
 }
 
 /** Lets a desktop user trigger the Hint button by pressing "1" — deliberately global (fires even
- * while the answer field is focused, unlike useLetterShortcuts) since a hint request is something
- * you usually want mid-typing, not just before starting. Uses "1" rather than a letter specifically
- * so it can always preventDefault() and swallow the keystroke — a letter shortcut would otherwise
- * have no way to tell "wanted as a shortcut" apart from "being typed as part of the answer". */
+ * while the answer field is focused, unlike useNumberShortcuts) since a hint request is something
+ * you usually want mid-typing, not just before starting. Only used by the free-text exercises
+ * (translate/gap/sentence), which don't also register useNumberShortcuts, so "1" never double-fires. */
 export function useHintShortcut(onTrigger: () => void, disabled: boolean) {
   useEffect(() => {
     if (disabled) return;

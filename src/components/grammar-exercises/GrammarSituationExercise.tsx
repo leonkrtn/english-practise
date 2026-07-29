@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { choice } from "@/lib/utils";
-import { FeedbackPanel, useLetterShortcuts } from "@/components/exercises/shared";
+import { FeedbackPanel, useNumberShortcuts } from "@/components/exercises/shared";
 import { CategoryBadge, Prompt, type GrammarExerciseProps } from "./shared";
 
 /** Meaning-first recognition: two similar, both-grammatical sentences, but only one actually fits
@@ -19,7 +19,7 @@ export default function GrammarSituationExercise({ rule, onAnswered, onNext }: G
     onAnswered([{ ruleId: rule.id, format: "g-situation", result: isCorrect ? "correct" : "incorrect", errorType: isCorrect ? null : "wrong", hintsUsed: 0 }]);
   }
 
-  useLetterShortcuts(options.length, select, chosen !== null);
+  useNumberShortcuts(options.length, select, chosen !== null);
 
   const result = chosen === null ? null : chosen === variant.correctIndex ? "correct" : "incorrect";
 
@@ -51,7 +51,7 @@ export default function GrammarSituationExercise({ rule, onAnswered, onNext }: G
               className={"text-left border-[1.5px] rounded-xl px-4 py-3 text-[15px] font-medium text-ink flex items-center gap-3 transition-all " + cls}
             >
               <span className={"w-[22px] h-[22px] rounded-full border-[1.5px] flex items-center justify-center text-[11px] font-bold shrink-0 transition-colors " + keyCls}>
-                {String.fromCharCode(65 + i)}
+                {i + 1}
               </span>
               {o}
             </button>

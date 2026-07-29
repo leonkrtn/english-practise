@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { BookMarked } from "lucide-react";
 import { buildConnectorQuiz } from "@/lib/connectorQuiz";
 import type { AnswerResultKind } from "@/lib/types";
-import { FeedbackPanel, useLetterShortcuts } from "@/components/exercises/shared";
+import { FeedbackPanel, useNumberShortcuts } from "@/components/exercises/shared";
 import SessionScreen from "./SessionScreen";
 import { Badge } from "@/components/ui/badge";
 
@@ -30,7 +30,7 @@ export default function ConnectorLearnScreen({ onExit, onFinish }: { onExit: () 
     if (value === item.answer) setCorrectCount((c) => c + 1);
   }
 
-  useLetterShortcuts(item.options.length, select, chosen !== null);
+  useNumberShortcuts(item.options.length, select, chosen !== null);
 
   const result: AnswerResultKind | null = chosen === null ? null : chosen === item.answer ? "correct" : "incorrect";
 
@@ -81,7 +81,7 @@ export default function ConnectorLearnScreen({ onExit, onFinish }: { onExit: () 
               className={"text-left border-[1.5px] rounded-xl px-3.5 py-3 text-[15px] font-medium text-ink flex items-center gap-3 transition-all " + cls}
             >
               <span className={"w-[22px] h-[22px] rounded-full border-[1.5px] flex items-center justify-center text-[11px] font-bold shrink-0 transition-colors " + keyCls}>
-                {String.fromCharCode(65 + i)}
+                {i + 1}
               </span>
               {o}
             </button>

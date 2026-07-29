@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { VOCAB } from "@/lib/vocab";
 import { choice, findGap, sample, shuffle } from "@/lib/utils";
-import { Prompt, Badge, ContextNote, FeedbackPanel, useLetterShortcuts } from "./shared";
+import { Prompt, Badge, ContextNote, FeedbackPanel, useNumberShortcuts } from "./shared";
 import type { ExerciseProps } from "./types";
 
 export default function McExercise({ item, onAnswered, onNext }: ExerciseProps) {
@@ -51,7 +51,7 @@ export default function McExercise({ item, onAnswered, onNext }: ExerciseProps) 
     onAnswered([{ wordId: word.id, format: "mc", result: isCorrect ? "correct" : "incorrect", errorType: isCorrect ? null : "wrong", hintsUsed: 0 }]);
   }
 
-  useLetterShortcuts(built.options.length, select, chosen !== null);
+  useNumberShortcuts(built.options.length, select, chosen !== null);
 
   let promptNode: React.ReactNode;
   if (built.variant === "word2trans") {
@@ -114,7 +114,7 @@ export default function McExercise({ item, onAnswered, onNext }: ExerciseProps) 
               className={"text-left border-[1.5px] rounded-xl px-4 py-3 text-[15px] font-medium text-ink flex items-center gap-3 transition-all " + cls}
             >
               <span className={"w-[22px] h-[22px] rounded-full border-[1.5px] flex items-center justify-center text-[11px] font-bold shrink-0 transition-colors " + keyCls}>
-                {String.fromCharCode(65 + i)}
+                {i + 1}
               </span>
               {o}
             </button>

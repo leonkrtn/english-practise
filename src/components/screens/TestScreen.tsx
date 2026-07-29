@@ -57,8 +57,8 @@ export default function TestScreen({
     if (index > 0) onNavigate(index - 1);
   }, [index, onNavigate]);
 
-  // A-D picks an option, arrows walk the paper, Enter advances. Deliberately skipped while a text
-  // field has focus (except for the arrows-with-modifier case), so letters typed into a gap answer
+  // 1-4 picks an option, arrows walk the paper, Enter advances. Deliberately skipped while a text
+  // field has focus (except for the arrows-with-modifier case), so digits typed into a gap answer
   // aren't swallowed as shortcuts.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -85,9 +85,9 @@ export default function TestScreen({
         return;
       }
       if (question?.kind === "mc" && question.options) {
-        const key = e.key.toUpperCase();
-        if (key.length !== 1 || key < "A" || key > "Z") return;
-        const optionIndex = key.charCodeAt(0) - 65;
+        const num = Number(e.key);
+        if (!Number.isInteger(num) || num < 1 || num > 9) return;
+        const optionIndex = num - 1;
         if (optionIndex >= question.options.length) return;
         e.preventDefault();
         onAnswer(question.id, { kind: "mc", chosen: optionIndex });
@@ -166,7 +166,7 @@ export default function TestScreen({
                       (selected ? "bg-white/20 text-white" : "bg-line-soft text-ink-soft")
                     }
                   >
-                    {String.fromCharCode(65 + i)}
+                    {i + 1}
                   </span>
                   {option}
                 </button>
