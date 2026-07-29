@@ -421,11 +421,11 @@ function DatePillTrackerInner({
       style={{
         left: discreteInteraction ? xWithMargin : animatedX,
         transform: "translateX(-50%)",
-        // The x-axis label row sits at `bottom: 12` with ~16px of text (see BarXAxisLabel /
-        // XAxisLabel) — this pill is ~34px tall, so anchoring it at the old `bottom: 4` made it
-        // fully enclose that row instead of floating above it. 48 gives it clear breathing room
-        // above the label row instead of just clearing it by a few px.
-        bottom: 48,
+        // Anchored level with the x-axis label row (`bottom: 12`, see BarXAxisLabel / XAxisLabel)
+        // rather than floating above it — the tick label under the crosshair already fades to
+        // opacity 0 there (see XAxisLabel), so the pill replaces it in place instead of stacking a
+        // second row above whatever content sits above the chart.
+        bottom: 12,
       }}
     >
       <DateTicker
