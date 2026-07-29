@@ -1,4 +1,4 @@
-import { activeVocab, CONFUSABLE_PAIRS, type Word } from "./vocab";
+import { activeVocab, allowsSentenceExercises, CONFUSABLE_PAIRS, type Word } from "./vocab";
 import { shuffle } from "./utils";
 import type { AnswerResultKind, LearningStage, WordState } from "./types";
 import type { QueueItem } from "./sessionLogic";
@@ -50,10 +50,12 @@ const KINDS_BY_STAGE: Record<1 | 2 | 3 | 4, ActiveKind[]> = {
  * generate their own content from the word's fields, so no per-word authoring is needed. */
 export type ReviewFormat = "translate" | "build" | "mc" | "gap" | "multigap" | "confusable";
 const SINGLE_WORD_REVIEW_FORMATS: ReviewFormat[] = ["translate", "build", "mc", "gap"];
+const SINGLE_WORD_REVIEW_FORMATS_NO_SENTENCE: ReviewFormat[] = SINGLE_WORD_REVIEW_FORMATS.filter((f) => f !== "build");
 
-/** Picks a review format, avoiding the ones this word most recently appeared as. */
-export function pickReviewFormat(recent: string[] = []): ReviewFormat {
-  return pickAvoidingRecent(SINGLE_WORD_REVIEW_FORMATS, recent);
+/** Picks a review format, avoiding the ones this word most recently appeared as. `allowSentenceKinds`
+ * excludes "build" (Satz bauen) for finance/math terms — see allowsSentenceExercises(). */
+export function pickReviewFormat(recent: string[] = [], allowSentenceKinds: boolean = true): ReviewFormat {
+  return pickAvoidingRecent(allowSentenceKinds ? SINGLE_WORD_REVIEW_FORMATS : SINGLE_WORD_REVIEW_FORMATS_NO_SENTENCE, recent);
 }
 
 export interface LearningQueueItem {
@@ -87,13 +89,24 @@ export function toQueueItem(item: LearningQueueItem): QueueItem {
   return { format: formatForItem(item), words, direction: item.direction };
 }
 
+/** Kinds built around a full free-form sentence — excluded for finance/math terms. */
+const SENTENCE_KINDS: ActiveKind[] = ["build", "produce"];
+
 /**
  * Which task type to test a word with next. Stage 0 is always the learn card; everything above it
  * draws from that stage's format list while avoiding whatever this word was recently shown as.
+ * `allowSentenceKinds` excludes "build"/"produce" for finance/math terms — see
+ * allowsSentenceExercises(). Every stage's candidate list has at least one other kind left over
+ * once those two are removed, so this never runs out of options.
  */
-export function pickKindForStage(stage: LearningStage, recent: string[] = []): Exclude<StageKind, "match" | "review"> {
+export function pickKindForStage(
+  stage: LearningStage,
+  recent: string[] = [],
+  allowSentenceKinds: boolean = true
+): Exclude<StageKind, "match" | "review"> {
   if (stage === 0) return "learn";
-  const candidates = KINDS_BY_STAGE[stage as 1 | 2 | 3 | 4] ?? KINDS_BY_STAGE[3];
+  const stageCandidates = KINDS_BY_STAGE[stage as 1 | 2 | 3 | 4] ?? KINDS_BY_STAGE[3];
+  const candidates = allowSentenceKinds ? stageCandidates : stageCandidates.filter((k) => !SENTENCE_KINDS.includes(k));
   // The memory stores rendered formats ("gap"), the candidates are task kinds ("apply"). Translate
   // the history back into kinds, keeping its newest-last ordering so the most recent format is the
   // one that actually gets excluded.
@@ -214,7 +227,7 @@ export function buildInitialQueue(batch: LearningBatch, getState: (id: string) =
   };
 
   batch.activeWords.forEach((word) => {
-    const kind = pickKindForStage(getState(word.id).stage);
+    const kind = pickKindForStage(getState(word.id).stage, [], allowsSentenceExercises(word));
     // "quiz" words are held back so they can be batched into matching rounds — recognition
     // practice at lower cognitive load — whenever enough of them accumulate.
     if (kind === "quiz") quizWords.push(word);
@@ -247,7 +260,7 @@ export function buildInitialQueue(batch: LearningBatch, getState: (id: string) =
     items.push(remember({ kind: "review", words: pairWords, direction: directionForKind("review", "multigap"), reviewFormat: "multigap" }));
   }
   remainingReview.forEach((word) => {
-    const fmt = pickReviewFormat();
+    const fmt = pickReviewFormat([], allowsSentenceExercises(word));
     items.push(remember({ kind: "review", words: [word], direction: directionForKind("review", fmt), reviewFormat: fmt }));
   });
 
@@ -278,7 +291,8 @@ export function nextAfterAnswer(
   result: AnswerResultKind,
   totalPracticeSessions: number,
   recentFormats: string[],
-  tuning: LearningTuning
+  tuning: LearningTuning,
+  allowSentenceKinds: boolean = true
 ): StageOutcome {
   const transition = nextStage({
     isLearnCard: kind === "learn",
@@ -294,7 +308,7 @@ export function nextAfterAnswer(
     stage: transition.stage,
     reviewStreak: transition.reviewStreak,
     dueAtSession: transition.dueAtSession,
-    nextKind: transition.followUp ? pickKindForStage(transition.stage, recentFormats) : null,
+    nextKind: transition.followUp ? pickKindForStage(transition.stage, recentFormats, allowSentenceKinds) : null,
   };
 }
 
