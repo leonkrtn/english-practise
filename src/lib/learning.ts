@@ -18,7 +18,7 @@ import {
  * a session. Vocabulary and grammar share those maps, so the keys have to stay distinct. */
 export const vocabKey = (wordId: string) => "v:" + wordId;
 
-export type StageKind = "learn" | "quiz" | "match" | "apply" | "recall" | "build" | "produce" | "review";
+export type StageKind = "learn" | "quiz" | "match" | "apply" | "recall" | "produce" | "review";
 
 /** The active-learning task types, i.e. everything that can move a word up the ladder. */
 export type ActiveKind = Exclude<StageKind, "learn" | "match" | "review">;
@@ -32,15 +32,15 @@ export type ActiveKind = Exclude<StageKind, "learn" | "match" | "review">;
  * options it repeated constantly.
  *
  * Now the stages mean something, following the standard recognition → retrieval → production
- * progression, and each one offers three formats to rotate between:
+ * progression:
  *
- *  - **Stage 1 — wiedererkennen:** pick it out, or rebuild a sentence you were just shown.
+ *  - **Stage 1 — wiedererkennen:** pick it out, or fill it into a context gap.
  *  - **Stage 2 — abrufen:** produce the word itself, from German or from a context gap.
  *  - **Stage 3 — anwenden:** use it in a sentence of your own; the real test before mastery.
  */
 const KINDS_BY_STAGE: Record<1 | 2 | 3 | 4, ActiveKind[]> = {
-  1: ["quiz", "build", "recall"],
-  2: ["recall", "apply", "build"],
+  1: ["quiz", "recall"],
+  2: ["recall", "apply"],
   3: ["apply", "produce", "recall"],
   // Stage 4 is long-term review territory; only reached here if a word is re-tested after mastery.
   4: ["apply", "produce", "recall"],
@@ -48,14 +48,12 @@ const KINDS_BY_STAGE: Record<1 | 2 | 3 | 4, ActiveKind[]> = {
 
 /** Every exercise format a mastered word can resurface as during long-term review. All of these
  * generate their own content from the word's fields, so no per-word authoring is needed. */
-export type ReviewFormat = "translate" | "build" | "mc" | "gap" | "multigap" | "confusable";
-const SINGLE_WORD_REVIEW_FORMATS: ReviewFormat[] = ["translate", "build", "mc", "gap"];
-const SINGLE_WORD_REVIEW_FORMATS_NO_SENTENCE: ReviewFormat[] = SINGLE_WORD_REVIEW_FORMATS.filter((f) => f !== "build");
+export type ReviewFormat = "translate" | "mc" | "gap" | "multigap" | "confusable";
+const SINGLE_WORD_REVIEW_FORMATS: ReviewFormat[] = ["translate", "mc", "gap"];
 
-/** Picks a review format, avoiding the ones this word most recently appeared as. `allowSentenceKinds`
- * excludes "build" (Satz bauen) for finance/math terms — see allowsSentenceExercises(). */
-export function pickReviewFormat(recent: string[] = [], allowSentenceKinds: boolean = true): ReviewFormat {
-  return pickAvoidingRecent(allowSentenceKinds ? SINGLE_WORD_REVIEW_FORMATS : SINGLE_WORD_REVIEW_FORMATS_NO_SENTENCE, recent);
+/** Picks a review format, avoiding the ones this word most recently appeared as. */
+export function pickReviewFormat(recent: string[] = []): ReviewFormat {
+  return pickAvoidingRecent(SINGLE_WORD_REVIEW_FORMATS, recent);
 }
 
 export interface LearningQueueItem {
@@ -72,7 +70,6 @@ const KIND_TO_FORMAT: Record<StageKind, QueueItem["format"]> = {
   match: "match",
   apply: "gap",
   recall: "translate",
-  build: "build",
   produce: "sentence",
   review: "translate",
 };
@@ -89,15 +86,12 @@ export function toQueueItem(item: LearningQueueItem): QueueItem {
   return { format: formatForItem(item), words, direction: item.direction };
 }
 
-/** Kinds built around a full free-form sentence — excluded for finance/math terms. */
-const SENTENCE_KINDS: ActiveKind[] = ["build", "produce"];
-
 /**
  * Which task type to test a word with next. Stage 0 is always the learn card; everything above it
  * draws from that stage's format list while avoiding whatever this word was recently shown as.
- * `allowSentenceKinds` excludes "build"/"produce" for finance/math terms — see
+ * `allowSentenceKinds` excludes "produce" (writing a free sentence) for finance/math terms — see
  * allowsSentenceExercises(). Every stage's candidate list has at least one other kind left over
- * once those two are removed, so this never runs out of options.
+ * once "produce" is removed, so this never runs out of options.
  */
 export function pickKindForStage(
   stage: LearningStage,
@@ -106,7 +100,7 @@ export function pickKindForStage(
 ): Exclude<StageKind, "match" | "review"> {
   if (stage === 0) return "learn";
   const stageCandidates = KINDS_BY_STAGE[stage as 1 | 2 | 3 | 4] ?? KINDS_BY_STAGE[3];
-  const candidates = allowSentenceKinds ? stageCandidates : stageCandidates.filter((k) => !SENTENCE_KINDS.includes(k));
+  const candidates = allowSentenceKinds ? stageCandidates : stageCandidates.filter((k) => k !== "produce");
   // The memory stores rendered formats ("gap"), the candidates are task kinds ("apply"). Translate
   // the history back into kinds, keeping its newest-last ordering so the most recent format is the
   // one that actually gets excluded.
@@ -260,7 +254,7 @@ export function buildInitialQueue(batch: LearningBatch, getState: (id: string) =
     items.push(remember({ kind: "review", words: pairWords, direction: directionForKind("review", "multigap"), reviewFormat: "multigap" }));
   }
   remainingReview.forEach((word) => {
-    const fmt = pickReviewFormat([], allowsSentenceExercises(word));
+    const fmt = pickReviewFormat();
     items.push(remember({ kind: "review", words: [word], direction: directionForKind("review", fmt), reviewFormat: fmt }));
   });
 
@@ -354,8 +348,6 @@ export function stageKindLabel(kind: StageKind): string {
       return "Einbauen";
     case "recall":
       return "Abrufen";
-    case "build":
-      return "Satz bauen";
     case "produce":
       return "Schreiben";
     case "review":

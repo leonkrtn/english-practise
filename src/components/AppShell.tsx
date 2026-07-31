@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { useAuth } from "@/lib/auth";
-import { VOCAB, VOCAB_BY_ID, VOCAB_BY_EN, allowsSentenceExercises, inDomainScope, type DomainScope, type Word } from "@/lib/vocab";
+import { VOCAB, VOCAB_BY_ID, VOCAB_BY_EN, allowsSentenceExercises, inDomainScope, inGeneralVocab, type DomainScope, type Word } from "@/lib/vocab";
 import { GRAMMAR_RULES } from "@/lib/grammar-data";
 import { WRITING_TOPICS, type WritingTopic } from "@/lib/writingTopics";
 import { CLAUSE_PAIRS, type ClausePair } from "@/lib/connectors-data";
@@ -176,8 +176,7 @@ function useRefLatest<T>(value: T) {
   return ref;
 }
 
-const SIMPLE_FORMATS: QueueItem["format"][] = ["translate", "gap", "mc", "build"];
-const SIMPLE_FORMATS_NO_SENTENCE: QueueItem["format"][] = SIMPLE_FORMATS.filter((f) => f !== "build");
+const SIMPLE_FORMATS: QueueItem["format"][] = ["translate", "gap", "mc"];
 const NOOP = () => {};
 
 export default function AppShell() {
@@ -306,7 +305,7 @@ export default function AppShell() {
           store.blockedWordIds,
           includeReview,
           tuning,
-          domainScope ? inDomainScope(domainScope) : undefined
+          domainScope ? inDomainScope(domainScope) : inGeneralVocab
         );
         const built = buildInitialQueue(batch, store.wordState);
         vocabQueue = built.queue;
@@ -371,14 +370,14 @@ export default function AppShell() {
       beginRun();
       const maxAccuracy = options?.maxAccuracy ?? null;
       const belowThreshold = (score: number) => maxAccuracy === null || score * 20 < maxAccuracy;
-      const inScope = domainScope ? inDomainScope(domainScope) : () => true;
+      const inScope = domainScope ? inDomainScope(domainScope) : inGeneralVocab;
 
       const vocabQueue: LearningQueueItem[] =
         mode === "vocab"
           ? VOCAB.filter(
               (w) => inScope(w) && !store.blockedWordIds.has(w.id) && store.wordState(w.id).stage === 4 && belowThreshold(store.wordState(w.id).score)
             ).map((w) => {
-              const fmt = pickVocabReviewFormat([], allowsSentenceExercises(w));
+              const fmt = pickVocabReviewFormat();
               return { kind: "review" as const, words: [w], direction: directionForKind("review", fmt), reviewFormat: fmt };
             })
           : [];
@@ -436,7 +435,9 @@ export default function AppShell() {
   // speedEndsAt passes; an early exit through the "End session?" modal works exactly like review too.
   const startSpeedRound = useCallback(() => {
     beginRun();
-    const vocabQueue: LearningQueueItem[] = VOCAB.filter((w) => !store.blockedWordIds.has(w.id) && store.wordState(w.id).stage === 4).map((w) => ({
+    const vocabQueue: LearningQueueItem[] = VOCAB.filter(
+      (w) => inGeneralVocab(w) && !store.blockedWordIds.has(w.id) && store.wordState(w.id).stage === 4
+    ).map((w) => ({
       kind: "review" as const,
       words: [w],
       direction: directionForKind("review"),
@@ -1029,10 +1030,11 @@ export default function AppShell() {
   const startWithWords = useCallback((words: Word[]) => {
     beginRun();
     setLastStart(null);
-    const queue: QueueItem[] = words.map((w) => {
-      const formats = allowsSentenceExercises(w) ? SIMPLE_FORMATS : SIMPLE_FORMATS_NO_SENTENCE;
-      return { format: formats[Math.floor(Math.random() * formats.length)], words: [w], direction: "de-en" };
-    });
+    const queue: QueueItem[] = words.map((w) => ({
+      format: SIMPLE_FORMATS[Math.floor(Math.random() * SIMPLE_FORMATS.length)],
+      words: [w],
+      direction: "de-en",
+    }));
     setQuickSession({ queue, index: 0, results: [] });
     setScreen("session");
   }, [beginRun]);

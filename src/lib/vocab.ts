@@ -97,13 +97,20 @@ VOCAB.forEach((w) => {
   if (!VOCAB_BY_EN[key]) VOCAB_BY_EN[key] = w;
 });
 
-/** Finance/math terms skip the two exercise kinds built around a full free-form sentence —
- * "Satz bauen" (reorder word's own example sentence) and "Schreiben" (write your own sentence
- * using it). A term like EBITDA or a mathematical fixed expression isn't naturally used in an
- * improvised sentence the way a general verb or adjective is, so those drills would ask the
- * learner to invent English prose around a term rather than drill the term itself. */
+/** Finance/math terms skip "Schreiben" — the exercise kind that asks the learner to write their own
+ * free sentence with the word. A term like EBITDA or a mathematical fixed expression isn't
+ * naturally used in improvised prose the way a general verb or adjective is, so that drill would
+ * ask the learner to invent English around a term rather than drill the term itself. */
 export function allowsSentenceExercises(word: Word): boolean {
   return word.category === undefined;
+}
+
+/** Whether a word belongs in the general Vocabulary track. Math terms only surface through the
+ * Finance mode's math scope — mixing "median" or "quotient" into ordinary verb/adjective practice
+ * doesn't read as vocabulary in the same way. Finance terms are common enough in everyday business
+ * English that they stay mixed into the regular vocabulary session too. */
+export function inGeneralVocab(word: Word): boolean {
+  return word.category !== "math";
 }
 
 /** VOCAB minus any words the learner has permanently excluded — mirrors activeGrammarRules(). */
