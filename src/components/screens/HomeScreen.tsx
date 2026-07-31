@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BookMarked,
   BookOpen,
@@ -28,7 +28,7 @@ import {
 import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { useGrammarStore } from "@/lib/grammarStore";
-import { VOCAB, VOCAB_BY_ID, inDomainScope, inGeneralVocab, type DomainScope } from "@/lib/vocab";
+import { VOCAB, VOCAB_BY_ID, countsTowardVocab, generalVocabTotal, inDomainScope, inGeneralVocab, type DomainScope } from "@/lib/vocab";
 import { activeGrammarRules } from "@/lib/grammarLearning";
 import { needsIntensification } from "@/lib/intensify";
 import { computeGoalStatus } from "@/lib/goal";
@@ -212,16 +212,13 @@ export default function HomeScreen({
   const [testScope, setTestScope] = useState<TestScope>("both");
   const [testLength, setTestLength] = useState<TestLength>(25);
 
-  // Math terms are Finance-mode-only (see inGeneralVocab) — excluded here so the Vocabulary tab's
-  // total/progress isn't inflated by words that can never actually come up in that session.
-  const activeVocabTotal = useMemo(
-    () => VOCAB.filter((w) => inGeneralVocab(w) && !store.blockedWordIds.has(w.id)).length,
-    [store.blockedWordIds]
-  );
+  // Math terms are Finance-mode-only (see countsTowardVocab) — excluded here so the Vocabulary
+  // tab's total/progress isn't inflated by words that can never come up in that session.
+  const activeVocabTotal = useMemo(() => generalVocabTotal(store.blockedWordIds), [store.blockedWordIds]);
 
   const vocabStats = useMemo(() => {
     const words = Object.entries(store.words)
-      .filter(([id]) => !store.blockedWordIds.has(id) && VOCAB_BY_ID[id] && inGeneralVocab(VOCAB_BY_ID[id]))
+      .filter(([id]) => countsTowardVocab(id, store.blockedWordIds))
       .map(([, w]) => w);
     const learned = words.filter((w) => w.stage === 4).length;
     let totalCorrect = 0;
@@ -385,11 +382,12 @@ export default function HomeScreen({
     const belowThreshold = (score: number) => reviewMaxAccuracy === null || score * 20 < reviewMaxAccuracy;
     let count = 0;
     if (mode === "vocab" || mode === "domain") {
-      const inScope = mode === "domain" ? inDomainScope(domainScope) : inGeneralVocab;
       Object.entries(store.words).forEach(([id, w]) => {
-        if (store.blockedWordIds.has(id) || w.stage !== 4 || !belowThreshold(w.score)) return;
-        const word = VOCAB_BY_ID[id];
-        if (!word || !inScope(word)) return;
+        if (w.stage !== 4 || !belowThreshold(w.score)) return;
+        if (mode === "domain") {
+          const word = VOCAB_BY_ID[id];
+          if (store.blockedWordIds.has(id) || !word || !inDomainScope(domainScope)(word)) return;
+        } else if (!countsTowardVocab(id, store.blockedWordIds)) return;
         count++;
       });
     }
@@ -427,10 +425,11 @@ export default function HomeScreen({
     onReview(engine, { maxAccuracy: reviewMaxAccuracy, limit: reviewLimit }, mode === "domain" ? domainScope : undefined);
   }
 
-  // Home's own no-mouse shortcuts: 1-5 pick a mode tile (same left-to-right order as MODES),
+  // Home's own no-mouse shortcuts: 1-6 pick a mode tile (same left-to-right order as MODES),
   // R opens the review-filter dropdown, C the start-options dropdown, Q the speed round, and Enter
   // either starts a session or — while a dropdown is open — confirms it instead. Each shortcut
   // mirrors its control's own disabled state, so it can never do something the click couldn't.
+  const latestKeyHandler = useRef<((e: KeyboardEvent) => void) | null>(null);
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -487,9 +486,18 @@ export default function HomeScreen({
         start();
       }
     }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    latestKeyHandler.current = handleKeyDown;
   });
+
+  // The handler above reads a dozen pieces of state plus callbacks that AppShell recreates on every
+  // render, so declaring them as dependencies would re-subscribe the window listener constantly —
+  // which is what the missing dependency array used to do on *every* render. Registering once and
+  // forwarding to whatever the latest render produced keeps the behaviour and drops the churn.
+  useEffect(() => {
+    const listener = (e: KeyboardEvent) => latestKeyHandler.current?.(e);
+    window.addEventListener("keydown", listener);
+    return () => window.removeEventListener("keydown", listener);
+  }, []);
 
   return (
     <section className="flex flex-col pb-1">

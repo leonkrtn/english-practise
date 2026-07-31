@@ -4,7 +4,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { useAuth } from "@/lib/auth";
-import { VOCAB, VOCAB_BY_ID, VOCAB_BY_EN, allowsSentenceExercises, inDomainScope, inGeneralVocab, type DomainScope, type Word } from "@/lib/vocab";
+import {
+  VOCAB,
+  VOCAB_BY_ID,
+  VOCAB_BY_EN,
+  allowsSentenceExercises,
+  countsTowardVocab,
+  inDomainScope,
+  inGeneralVocab,
+  type DomainScope,
+  type Word,
+} from "@/lib/vocab";
 import { GRAMMAR_RULES } from "@/lib/grammar-data";
 import { WRITING_TOPICS, type WritingTopic } from "@/lib/writingTopics";
 import { CLAUSE_PAIRS, type ClausePair } from "@/lib/connectors-data";
@@ -222,7 +232,11 @@ export default function AppShell() {
   // account — startGoalIfNeeded itself no-ops if goal_started_at is already set.
   useEffect(() => {
     if (store.goalStartedAt !== null) return;
-    const vocabLearned = Object.values(store.words).filter((w) => w.stage === 4).length;
+    // Must use the same set the goal's *current* figure is read from (HomeScreen's vocabStats),
+    // or the baseline sits above the current count and the pace reads as zero progress.
+    const vocabLearned = Object.entries(store.words).filter(
+      ([id, w]) => w.stage === 4 && countsTowardVocab(id, store.blockedWordIds)
+    ).length;
     const grammarLearned = GRAMMAR_RULES.filter(
       (r) => !grammarStore.blockedRuleIds.has(r.id) && grammarStore.ruleState(r.id).stage === 4
     ).length;

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { isAuthError, supabase } from "./supabase";
 import { blankGrammarRuleState, type GrammarFormatStat, type GrammarRuleState, type GrammarSessionRecord } from "./grammarTypes";
 import type { AnswerResultKind, LearningStage } from "./types";
@@ -31,11 +31,40 @@ interface GrammarStoreApi {
 
 const GrammarStoreContext = createContext<GrammarStoreApi | null>(null);
 
+/** The slice living in the single `grammar_meta` row — diffed as a unit, written as one upsert. */
+type GrammarMetaSnapshot = Pick<GrammarStoreShape, "totalPracticeSessions" | "blockedRuleIds">;
+
+function ruleRow(userId: string, id: string, s: GrammarRuleState) {
+  return {
+    user_id: userId,
+    rule_id: id,
+    stage: s.stage,
+    review_streak: s.reviewStreak,
+    due_at_session: s.dueAtSession,
+    times_seen: s.timesSeen,
+    times_correct: s.timesCorrect,
+    times_incorrect: s.timesIncorrect,
+    times_almost: s.timesAlmost,
+    last_seen: s.lastSeen ? new Date(s.lastSeen).toISOString() : null,
+    recent_mistake: s.recentMistake,
+    streak: s.streak,
+    score: s.score,
+    mastered_at: s.masteredAt ? new Date(s.masteredAt).toISOString() : null,
+    updated_at: new Date().toISOString(),
+  };
+}
+
 /** Grammar progress, kept entirely separate from vocabulary progress (own tables, own session clock). */
 export function GrammarStoreProvider({ userId, children }: { userId: string; children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [state, setState] = useState<GrammarStoreShape>({ rules: {}, formatStats: {}, sessionHistory: [], totalPracticeSessions: 0, blockedRuleIds: new Set() });
+
+  // Mirrors the vocabulary store: mutations stay pure, the effects below diff against what the
+  // database is known to hold and write only what changed. See store.tsx for the full reasoning.
+  const persistedRules = useRef<Record<string, GrammarRuleState>>({});
+  const persistedFormatStats = useRef<Record<string, GrammarFormatStat>>({});
+  const persistedMeta = useRef<GrammarMetaSnapshot | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,13 +119,17 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
         }));
 
         if (cancelled) return;
-        setState({
+        const loaded: GrammarStoreShape = {
           rules,
           formatStats,
           sessionHistory,
           totalPracticeSessions: meta.data ? meta.data.total_practice_sessions : 0,
           blockedRuleIds: new Set(meta.data?.blocked_rule_ids || []),
-        });
+        };
+        persistedRules.current = loaded.rules;
+        persistedFormatStats.current = loaded.formatStats;
+        persistedMeta.current = { totalPracticeSessions: loaded.totalPracticeSessions, blockedRuleIds: loaded.blockedRuleIds };
+        setState(loaded);
         setReady(true);
       } catch (e) {
         console.error("Grammar store init failed", e);
@@ -121,164 +154,162 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
 
   const ruleState = useCallback((id: string): GrammarRuleState => state.rules[id] || blankGrammarRuleState(), [state.rules]);
 
-  const persistRule = useCallback(
-    (id: string, s: GrammarRuleState) => {
+  // ---------- Persistence: diff the state against what the database already has ----------
+
+  useEffect(() => {
+    if (!ready) return;
+    const previous = persistedRules.current;
+    persistedRules.current = state.rules;
+    for (const [id, r] of Object.entries(state.rules)) {
+      if (previous[id] === r) continue;
       supabase
         .from("grammar_progress")
-        .upsert(
-          {
-            user_id: userId,
-            rule_id: id,
-            stage: s.stage,
-            review_streak: s.reviewStreak,
-            due_at_session: s.dueAtSession,
-            times_seen: s.timesSeen,
-            times_correct: s.timesCorrect,
-            times_incorrect: s.timesIncorrect,
-            times_almost: s.timesAlmost,
-            last_seen: s.lastSeen ? new Date(s.lastSeen).toISOString() : null,
-            recent_mistake: s.recentMistake,
-            streak: s.streak,
-            score: s.score,
-            mastered_at: s.masteredAt ? new Date(s.masteredAt).toISOString() : null,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id,rule_id" }
-        )
+        .upsert(ruleRow(userId, id, r), { onConflict: "user_id,rule_id" })
         .then(({ error: err }) => {
           if (err) console.error("persistRule", err);
         });
-    },
-    [userId]
-  );
+    }
+  }, [state.rules, ready, userId]);
 
-  const updateRule = useCallback(
-    (id: string, result: AnswerResultKind, hintsUsed = 0) => {
-      setState((prev) => {
-        const s = { ...(prev.rules[id] || blankGrammarRuleState()) };
-        s.timesSeen++;
-        s.lastSeen = Date.now();
-        if (result === "correct") {
-          s.timesCorrect++;
-          s.streak++;
-          const inc = hintsUsed > 0 ? 0.5 : 1;
-          s.score = Math.min(5, s.score + inc);
-          s.recentMistake = false;
-        } else if (result === "almost") {
-          s.timesAlmost++;
-          s.streak = 0;
-          s.score = Math.min(5, Math.max(1, s.score + 0.25));
-          s.recentMistake = true;
-        } else {
-          s.timesIncorrect++;
-          s.streak = 0;
-          s.score = Math.max(0, s.score - 2);
-          s.recentMistake = true;
-        }
-        persistRule(id, s);
-        return { ...prev, rules: { ...prev.rules, [id]: s } };
+  useEffect(() => {
+    if (!ready) return;
+    const previous = persistedFormatStats.current;
+    persistedFormatStats.current = state.formatStats;
+    for (const [format, f] of Object.entries(state.formatStats)) {
+      if (previous[format] === f) continue;
+      supabase
+        .from("grammar_format_stats")
+        .upsert({ user_id: userId, format, correct: f.correct, almost: f.almost, incorrect: f.incorrect }, { onConflict: "user_id,format" })
+        .then(({ error: err }) => {
+          if (err) console.error("grammar recordFormatStat", err);
+        });
+    }
+  }, [state.formatStats, ready, userId]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const previous = persistedMeta.current;
+    const next: GrammarMetaSnapshot = { totalPracticeSessions: state.totalPracticeSessions, blockedRuleIds: state.blockedRuleIds };
+    persistedMeta.current = next;
+    if (!previous) return;
+
+    const patch: Record<string, unknown> = {};
+    if (next.totalPracticeSessions !== previous.totalPracticeSessions) patch.total_practice_sessions = next.totalPracticeSessions;
+    if (next.blockedRuleIds !== previous.blockedRuleIds) patch.blocked_rule_ids = [...next.blockedRuleIds];
+    if (Object.keys(patch).length === 0) return;
+
+    supabase
+      .from("grammar_meta")
+      .upsert({ user_id: userId, ...patch }, { onConflict: "user_id" })
+      .then(({ error: err }) => {
+        if (err) console.error("grammar_meta", err);
       });
-    },
-    [persistRule]
-  );
+  }, [state.totalPracticeSessions, state.blockedRuleIds, ready, userId]);
 
-  const recordFormatStat = useCallback(
-    (format: string, result: AnswerResultKind) => {
-      setState((prev) => {
-        const s = { ...(prev.formatStats[format] || { correct: 0, almost: 0, incorrect: 0 }) };
-        s[result]++;
-        supabase
-          .from("grammar_format_stats")
-          .upsert({ user_id: userId, format, correct: s.correct, almost: s.almost, incorrect: s.incorrect }, { onConflict: "user_id,format" })
-          .then(({ error: err }) => {
-            if (err) console.error("grammar recordFormatStat", err);
-          });
-        return { ...prev, formatStats: { ...prev.formatStats, [format]: s } };
-      });
-    },
-    [userId]
-  );
+  // ---------- Mutations: pure state updates, persisted by the effects above ----------
 
-  const setLearningStage = useCallback(
-    (id: string, stage: LearningStage, reviewStreak: number, dueAtSession: number | null) => {
-      setState((prev) => {
-        const s = { ...(prev.rules[id] || blankGrammarRuleState()) };
-        const justMastered = stage === 4 && s.stage !== 4;
-        s.stage = stage;
-        s.reviewStreak = reviewStreak;
-        s.dueAtSession = dueAtSession;
-        if (justMastered && s.masteredAt === null) s.masteredAt = Date.now();
-        persistRule(id, s);
-        return { ...prev, rules: { ...prev.rules, [id]: s } };
-      });
-    },
-    [persistRule]
-  );
+  const updateRule = useCallback((id: string, result: AnswerResultKind, hintsUsed = 0) => {
+    setState((prev) => {
+      const s = { ...(prev.rules[id] || blankGrammarRuleState()) };
+      s.timesSeen++;
+      s.lastSeen = Date.now();
+      if (result === "correct") {
+        s.timesCorrect++;
+        s.streak++;
+        const inc = hintsUsed > 0 ? 0.5 : 1;
+        s.score = Math.min(5, s.score + inc);
+        s.recentMistake = false;
+      } else if (result === "almost") {
+        s.timesAlmost++;
+        s.streak = 0;
+        s.score = Math.min(5, Math.max(1, s.score + 0.25));
+        s.recentMistake = true;
+      } else {
+        s.timesIncorrect++;
+        s.streak = 0;
+        s.score = Math.max(0, s.score - 2);
+        s.recentMistake = true;
+      }
+      return { ...prev, rules: { ...prev.rules, [id]: s } };
+    });
+  }, []);
 
+  const recordFormatStat = useCallback((format: string, result: AnswerResultKind) => {
+    setState((prev) => {
+      const s = { ...(prev.formatStats[format] || { correct: 0, almost: 0, incorrect: 0 }) };
+      s[result]++;
+      return { ...prev, formatStats: { ...prev.formatStats, [format]: s } };
+    });
+  }, []);
+
+  const setLearningStage = useCallback((id: string, stage: LearningStage, reviewStreak: number, dueAtSession: number | null) => {
+    setState((prev) => {
+      const s = { ...(prev.rules[id] || blankGrammarRuleState()) };
+      const justMastered = stage === 4 && s.stage !== 4;
+      s.stage = stage;
+      s.reviewStreak = reviewStreak;
+      s.dueAtSession = dueAtSession;
+      if (justMastered && s.masteredAt === null) s.masteredAt = Date.now();
+      return { ...prev, rules: { ...prev.rules, [id]: s } };
+    });
+  }, []);
+
+  // Append-only table, so the row is inserted straight from the argument — but still outside the
+  // updater, which must not run a side effect twice.
   const recordSession = useCallback(
     (session: GrammarSessionRecord) => {
-      setState((prev) => {
-        const total = (prev.totalPracticeSessions || 0) + 1;
-        supabase
-          .from("grammar_session_history")
-          .insert({
-            user_id: userId,
-            occurred_at: new Date(session.date).toISOString(),
-            total: session.total,
-            correct: session.correct,
-            almost: session.almost,
-            incorrect: session.incorrect,
-            accuracy: session.accuracy,
-            format: session.format,
-          })
-          .then(({ error: err }) => {
-            if (err) console.error("grammar recordSession", err);
-          });
-        supabase
-          .from("grammar_meta")
-          .upsert({ user_id: userId, total_practice_sessions: total }, { onConflict: "user_id" })
-          .then(({ error: err }) => {
-            if (err) console.error("grammar_meta", err);
-          });
-        return { ...prev, sessionHistory: [...prev.sessionHistory, session], totalPracticeSessions: total };
-      });
+      supabase
+        .from("grammar_session_history")
+        .insert({
+          user_id: userId,
+          occurred_at: new Date(session.date).toISOString(),
+          total: session.total,
+          correct: session.correct,
+          almost: session.almost,
+          incorrect: session.incorrect,
+          accuracy: session.accuracy,
+          format: session.format,
+        })
+        .then(({ error: err }) => {
+          if (err) console.error("grammar recordSession", err);
+        });
+      setState((prev) => ({
+        ...prev,
+        sessionHistory: [...prev.sessionHistory, session],
+        totalPracticeSessions: (prev.totalPracticeSessions || 0) + 1,
+      }));
     },
     [userId]
   );
 
-  const setRuleBlocked = useCallback(
-    (id: string, blocked: boolean) => {
-      setState((prev) => {
-        const next = new Set(prev.blockedRuleIds);
-        if (blocked) next.add(id);
-        else next.delete(id);
-        supabase
-          .from("grammar_meta")
-          .upsert({ user_id: userId, blocked_rule_ids: [...next] }, { onConflict: "user_id" })
-          .then(({ error: err }) => {
-            if (err) console.error("grammar_meta blocked_rule_ids", err);
-          });
-        return { ...prev, blockedRuleIds: next };
-      });
-    },
-    [userId]
-  );
+  const setRuleBlocked = useCallback((id: string, blocked: boolean) => {
+    setState((prev) => {
+      if (prev.blockedRuleIds.has(id) === blocked) return prev;
+      const next = new Set(prev.blockedRuleIds);
+      if (blocked) next.add(id);
+      else next.delete(id);
+      return { ...prev, blockedRuleIds: next };
+    });
+  }, []);
 
-  const api: GrammarStoreApi = {
-    ready,
-    error,
-    rules: state.rules,
-    formatStats: state.formatStats,
-    sessionHistory: state.sessionHistory,
-    totalPracticeSessions: state.totalPracticeSessions,
-    blockedRuleIds: state.blockedRuleIds,
-    ruleState,
-    updateRule,
-    recordFormatStat,
-    setLearningStage,
-    recordSession,
-    setRuleBlocked,
-  };
+  const api: GrammarStoreApi = useMemo(
+    () => ({
+      ready,
+      error,
+      rules: state.rules,
+      formatStats: state.formatStats,
+      sessionHistory: state.sessionHistory,
+      totalPracticeSessions: state.totalPracticeSessions,
+      blockedRuleIds: state.blockedRuleIds,
+      ruleState,
+      updateRule,
+      recordFormatStat,
+      setLearningStage,
+      recordSession,
+      setRuleBlocked,
+    }),
+    [ready, error, state, ruleState, updateRule, recordFormatStat, setLearningStage, recordSession, setRuleBlocked]
+  );
 
   return <GrammarStoreContext.Provider value={api}>{children}</GrammarStoreContext.Provider>;
 }

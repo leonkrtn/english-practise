@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Blocks, BookOpen, Flame, GraduationCap, LayoutGrid, Sparkles, Target, Trophy } from "lucide-react";
-import { VOCAB, VOCAB_BY_ID } from "@/lib/vocab";
+import { VOCAB, VOCAB_BY_ID, countsTowardVocab } from "@/lib/vocab";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { activeGrammarRules } from "@/lib/grammarLearning";
@@ -94,7 +94,9 @@ export default function StatsScreen() {
   }, []);
 
   const vocab = useMemo(() => {
-    const words = Object.entries(store.words);
+    // Same set the Vocabulary session and the Home card use — excluded words and Finance-mode-only
+    // math terms don't belong in this track's totals. See countsTowardVocab().
+    const words = Object.entries(store.words).filter(([id]) => countsTowardVocab(id, store.blockedWordIds));
     const practiced = words.filter(([, s]) => s.timesSeen > 0);
     const mastered = words.filter(([, s]) => s.stage === 4);
     const difficult = words.filter(([, s]) => s.timesSeen > 0 && s.score <= 2.5);
@@ -107,10 +109,12 @@ export default function StatsScreen() {
       totalAll += s.timesCorrect + s.timesAlmost + s.timesIncorrect;
     });
 
-    const verbsTotal = VOCAB.filter((w) => w.type === "verb").length;
-    const adjTotal = VOCAB.filter((w) => w.type === "adjective").length;
-    const financeTotal = VOCAB.filter((w) => w.category === "finance").length;
-    const mathTotal = VOCAB.filter((w) => w.category === "math").length;
+    const notBlocked = (w: { id: string }) => !store.blockedWordIds.has(w.id);
+    const verbsTotal = VOCAB.filter((w) => w.type === "verb" && notBlocked(w)).length;
+    const adjTotal = VOCAB.filter((w) => w.type === "adjective" && notBlocked(w)).length;
+    const financeTotal = VOCAB.filter((w) => w.category === "finance" && notBlocked(w)).length;
+    // Math is the one track the list above excludes, so it is counted straight from the catalogue.
+    const mathTotal = VOCAB.filter((w) => w.category === "math" && notBlocked(w)).length;
 
     return {
       practiced,
@@ -127,9 +131,13 @@ export default function StatsScreen() {
       verbsPracticed: practiced.filter(([id]) => VOCAB_BY_ID[id]?.type === "verb").length,
       adjPracticed: practiced.filter(([id]) => VOCAB_BY_ID[id]?.type === "adjective").length,
       financePracticed: practiced.filter(([id]) => VOCAB_BY_ID[id]?.category === "finance").length,
-      mathPracticed: practiced.filter(([id]) => VOCAB_BY_ID[id]?.category === "math").length,
+      // Math sits outside the Vocabulary track, so its progress is read from the raw store rather
+      // than from `practiced` — which by definition contains no math terms.
+      mathPracticed: Object.entries(store.words).filter(
+        ([id, s]) => s.timesSeen > 0 && !store.blockedWordIds.has(id) && VOCAB_BY_ID[id]?.category === "math"
+      ).length,
     };
-  }, [store.words]);
+  }, [store.words, store.blockedWordIds]);
 
   const topIntensify = useMemo(
     () =>
@@ -179,7 +187,17 @@ export default function StatsScreen() {
     return Math.round(((vocab.accuracy * vocab.answers + grammar.accuracy * grammar.answers) / all) * 1) / 1;
   }, [vocab.answers, vocab.accuracy, grammar.answers, grammar.accuracy]);
 
-  const vocabCumulative = useMemo(() => buildCumulativeSeries(Object.values(store.words), TREND_DAYS), [store.words]);
+  // "Words learned over time" charts the Vocabulary track, so it uses the same set as the counters.
+  const vocabCumulative = useMemo(
+    () =>
+      buildCumulativeSeries(
+        Object.entries(store.words)
+          .filter(([id]) => countsTowardVocab(id, store.blockedWordIds))
+          .map(([, s]) => s),
+        TREND_DAYS
+      ),
+    [store.words, store.blockedWordIds]
+  );
   const vocabAccuracySeries = useMemo(() => buildAccuracySeries(store.sessionHistory, TREND_DAYS), [store.sessionHistory]);
   const grammarCumulative = useMemo(() => buildCumulativeSeries(Object.values(grammarStore.rules), TREND_DAYS), [grammarStore.rules]);
   const grammarAccuracySeries = useMemo(() => buildAccuracySeries(grammarStore.sessionHistory, TREND_DAYS), [grammarStore.sessionHistory]);
