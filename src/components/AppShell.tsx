@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { useAuth } from "@/lib/auth";
-import { VOCAB, VOCAB_BY_ID, VOCAB_BY_EN, inDomainScope, type DomainScope, type Word } from "@/lib/vocab";
+import { VOCAB, VOCAB_BY_ID, VOCAB_BY_EN, allowsSentenceExercises, inDomainScope, inGeneralVocab, type DomainScope, type Word } from "@/lib/vocab";
 import { GRAMMAR_RULES } from "@/lib/grammar-data";
 import { WRITING_TOPICS, type WritingTopic } from "@/lib/writingTopics";
 import { CLAUSE_PAIRS, type ClausePair } from "@/lib/connectors-data";
@@ -176,7 +176,7 @@ function useRefLatest<T>(value: T) {
   return ref;
 }
 
-const SIMPLE_FORMATS: QueueItem["format"][] = ["translate", "gap", "mc", "build"];
+const SIMPLE_FORMATS: QueueItem["format"][] = ["translate", "gap", "mc"];
 const NOOP = () => {};
 
 export default function AppShell() {
@@ -305,7 +305,7 @@ export default function AppShell() {
           store.blockedWordIds,
           includeReview,
           tuning,
-          domainScope ? inDomainScope(domainScope) : undefined
+          domainScope ? inDomainScope(domainScope) : inGeneralVocab
         );
         const built = buildInitialQueue(batch, store.wordState);
         vocabQueue = built.queue;
@@ -370,7 +370,7 @@ export default function AppShell() {
       beginRun();
       const maxAccuracy = options?.maxAccuracy ?? null;
       const belowThreshold = (score: number) => maxAccuracy === null || score * 20 < maxAccuracy;
-      const inScope = domainScope ? inDomainScope(domainScope) : () => true;
+      const inScope = domainScope ? inDomainScope(domainScope) : inGeneralVocab;
 
       const vocabQueue: LearningQueueItem[] =
         mode === "vocab"
@@ -435,7 +435,9 @@ export default function AppShell() {
   // speedEndsAt passes; an early exit through the "End session?" modal works exactly like review too.
   const startSpeedRound = useCallback(() => {
     beginRun();
-    const vocabQueue: LearningQueueItem[] = VOCAB.filter((w) => !store.blockedWordIds.has(w.id) && store.wordState(w.id).stage === 4).map((w) => ({
+    const vocabQueue: LearningQueueItem[] = VOCAB.filter(
+      (w) => inGeneralVocab(w) && !store.blockedWordIds.has(w.id) && store.wordState(w.id).stage === 4
+    ).map((w) => ({
       kind: "review" as const,
       words: [w],
       direction: directionForKind("review"),
@@ -793,7 +795,8 @@ export default function AppShell() {
           entry.result,
           store.totalPracticeSessions,
           formatMemory[key] || [],
-          tuning
+          tuning,
+          allowsSentenceExercises(word)
         );
 
         store.setLearningStage(entry.wordId, outcome.stage, outcome.reviewStreak, outcome.dueAtSession);

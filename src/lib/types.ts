@@ -82,7 +82,6 @@ export type ExerciseFormat =
   | "mc"
   | "sentence"
   | "match"
-  | "build"
   | "multigap"
   | "confusable";
 export type SelectionMode = "all" | "new" | "difficult" | "mistakes" | "favorites";

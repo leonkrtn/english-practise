@@ -28,7 +28,7 @@ import {
 import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { useGrammarStore } from "@/lib/grammarStore";
-import { VOCAB, VOCAB_BY_ID, inDomainScope, type DomainScope } from "@/lib/vocab";
+import { VOCAB, VOCAB_BY_ID, inDomainScope, inGeneralVocab, type DomainScope } from "@/lib/vocab";
 import { activeGrammarRules } from "@/lib/grammarLearning";
 import { needsIntensification } from "@/lib/intensify";
 import { computeGoalStatus } from "@/lib/goal";
@@ -212,11 +212,16 @@ export default function HomeScreen({
   const [testScope, setTestScope] = useState<TestScope>("both");
   const [testLength, setTestLength] = useState<TestLength>(25);
 
-  const activeVocabTotal = useMemo(() => VOCAB.length - store.blockedWordIds.size, [store.blockedWordIds]);
+  // Math terms are Finance-mode-only (see inGeneralVocab) — excluded here so the Vocabulary tab's
+  // total/progress isn't inflated by words that can never actually come up in that session.
+  const activeVocabTotal = useMemo(
+    () => VOCAB.filter((w) => inGeneralVocab(w) && !store.blockedWordIds.has(w.id)).length,
+    [store.blockedWordIds]
+  );
 
   const vocabStats = useMemo(() => {
     const words = Object.entries(store.words)
-      .filter(([id]) => !store.blockedWordIds.has(id))
+      .filter(([id]) => !store.blockedWordIds.has(id) && VOCAB_BY_ID[id] && inGeneralVocab(VOCAB_BY_ID[id]))
       .map(([, w]) => w);
     const learned = words.filter((w) => w.stage === 4).length;
     let totalCorrect = 0;
@@ -294,10 +299,10 @@ export default function HomeScreen({
     Object.entries(store.words).forEach(([id, w]) => {
       if (store.blockedWordIds.has(id)) return;
       const word = VOCAB_BY_ID[id];
-      if (!word) return;
+      if (!word || !inGeneralVocab(word)) return;
       if (w.stage === 4) {
         if (word.type === "verb") verbsLearned++;
-        else adjLearned++;
+        else if (word.type === "adjective") adjLearned++;
       }
       if (w.favorite) favorites++;
       if (w.timesSeen > 0 && w.score <= 2.5) difficult++;
@@ -380,13 +385,11 @@ export default function HomeScreen({
     const belowThreshold = (score: number) => reviewMaxAccuracy === null || score * 20 < reviewMaxAccuracy;
     let count = 0;
     if (mode === "vocab" || mode === "domain") {
-      const inScope = mode === "domain" ? inDomainScope(domainScope) : null;
+      const inScope = mode === "domain" ? inDomainScope(domainScope) : inGeneralVocab;
       Object.entries(store.words).forEach(([id, w]) => {
         if (store.blockedWordIds.has(id) || w.stage !== 4 || !belowThreshold(w.score)) return;
-        if (inScope) {
-          const word = VOCAB_BY_ID[id];
-          if (!word || !inScope(word)) return;
-        }
+        const word = VOCAB_BY_ID[id];
+        if (!word || !inScope(word)) return;
         count++;
       });
     }

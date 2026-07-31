@@ -5,7 +5,6 @@ import GapExercise from "./GapExercise";
 import McExercise from "./McExercise";
 import SentenceExercise from "./SentenceExercise";
 import MatchExercise from "./MatchExercise";
-import BuildExercise from "./BuildExercise";
 import MultigapExercise from "./MultigapExercise";
 import ConfusableExercise from "./ConfusableExercise";
 import LearnExercise from "./LearnExercise";
@@ -25,8 +24,6 @@ export default function ExerciseRouter(props: ExerciseProps) {
       return <SentenceExercise {...props} />;
     case "match":
       return <MatchExercise {...props} />;
-    case "build":
-      return <BuildExercise {...props} />;
     case "multigap":
       return <MultigapExercise {...props} />;
     case "confusable":
