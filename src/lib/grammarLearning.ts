@@ -99,10 +99,6 @@ const KIND_TO_FORMAT: Record<GrammarStageKind, string> = {
   review: "g-error",
 };
 
-export function grammarFormatFor(kind: GrammarStageKind): string {
-  return KIND_TO_FORMAT[kind];
-}
-
 /** The format a queue item actually renders as — what the format memory compares against. */
 export function formatForGrammarItem(item: GrammarQueueItem): string {
   return item.kind === "review" ? item.reviewFormat || "g-error" : KIND_TO_FORMAT[item.kind];
@@ -252,27 +248,3 @@ export function maxAttemptsPerRule(tuning: LearningTuning): number {
   return tuning.maxAttemptsPerItem;
 }
 
-export function grammarStageKindLabel(kind: GrammarStageKind): string {
-  switch (kind) {
-    case "learn":
-      return "Kennenlernen";
-    case "quiz":
-      return "Abfragen";
-    case "apply":
-      return "Einbauen";
-    case "produce":
-      return "Schreiben";
-    case "situation":
-      return "Situation wählen";
-    case "conjugate":
-      return "Form wählen";
-    case "error":
-      return "Fehler finden";
-    case "translate":
-      return "Übersetzen";
-    case "transform":
-      return "Umformen";
-    case "review":
-      return "Wiederholung";
-  }
-}

@@ -1,3 +1,5 @@
+import type { Word } from "./vocab";
+
 /** 0 new · 1 learned (needs quiz) · 2 quizzed (needs contextual use) · 3 applied (needs free production) · 4 produced (mastered-active, long-term review) */
 export type LearningStage = 0 | 1 | 2 | 3 | 4;
 
@@ -84,7 +86,14 @@ export type ExerciseFormat =
   | "match"
   | "multigap"
   | "confusable";
-export type SelectionMode = "all" | "new" | "difficult" | "mistakes" | "favorites";
+
+/** One rendered question: the format to show, the word(s) it is about, and which way round it asks.
+ * `match`, `multigap` and `confusable` are the only formats that carry more than one word. */
+export interface QueueItem {
+  format: Exclude<ExerciseFormat, "mixed">;
+  words: Word[];
+  direction: "en-de" | "de-en";
+}
 
 export type AnswerResultKind = "correct" | "almost" | "incorrect";
 

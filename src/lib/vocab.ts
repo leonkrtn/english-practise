@@ -128,8 +128,6 @@ export function inDomainScope(scope: DomainScope): (word: Word) => boolean {
   return (w) => w.category === scope;
 }
 
-export const DOMAIN_WORDS: Word[] = VOCAB.filter((w) => w.category !== undefined);
-
 /**
  * The German side to show wherever a word is paired against its translation. Specialist terms are
  * often used untranslated in German too (Tranche, EBITDA), so `de[0]` can literally repeat the

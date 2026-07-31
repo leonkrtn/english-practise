@@ -9,7 +9,6 @@ import { GRAMMAR_RULES } from "@/lib/grammar-data";
 import { WRITING_TOPICS, type WritingTopic } from "@/lib/writingTopics";
 import { CLAUSE_PAIRS, type ClausePair } from "@/lib/connectors-data";
 import { READING_TEXTS, eligibleGapIds as computeEligibleGapIds, type ReadingText } from "@/lib/financeReading";
-import type { QueueItem } from "@/lib/sessionLogic";
 import {
   buildLearningBatch,
   buildInitialQueue,
@@ -49,7 +48,7 @@ import {
 } from "@/lib/gamification";
 import { buildBadgeSnapshot } from "@/lib/progressStats";
 import { buildTest, gradeTest, scoreAnswer, type TestAnswer, type TestQuestion, type TestScope, type TestLength } from "@/lib/testMode";
-import type { AnswerResultKind, ResultEntry } from "@/lib/types";
+import type { AnswerResultKind, QueueItem, ResultEntry } from "@/lib/types";
 import type { GrammarResultEntry } from "@/lib/grammarTypes";
 import ExerciseRouter from "@/components/exercises/ExerciseRouter";
 import GrammarExerciseRouter from "@/components/grammar-exercises/GrammarExerciseRouter";
