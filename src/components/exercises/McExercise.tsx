@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { VOCAB } from "@/lib/vocab";
-import { choice, findGap, sample, shuffle } from "@/lib/utils";
+import { choice, sample, shuffle } from "@/lib/utils";
+import { findGap } from "@/lib/answerCheck";
 import { Prompt, Badge, ContextNote, FeedbackPanel, useNumberShortcuts } from "./shared";
 import type { ExerciseProps } from "./types";
 

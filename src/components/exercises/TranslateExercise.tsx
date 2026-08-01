@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { classifyAnswer } from "@/lib/utils";
+import { classifyAnswer } from "@/lib/answerCheck";
 import type { AnswerResultKind } from "@/lib/types";
 import { Prompt, Badge, ContextNote, FeedbackPanel, AnswerInput, ExerciseFooter, HintButton, HintIcon, KeyBadge, PrimaryButton, useHints, useHintShortcut, DetailRow } from "./shared";
 import type { ExerciseProps } from "./types";

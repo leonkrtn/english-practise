@@ -1,6 +1,7 @@
 import { VOCAB, type Word } from "./vocab";
 import { GRAMMAR_RULES, type GrammarRule } from "./grammar-data";
-import { choice, classifyAnswer, findGap, sample, shuffle } from "./utils";
+import { choice, sample, shuffle } from "./utils";
+import { classifyAnswer, findGap } from "./answerCheck";
 import type { WordState } from "./types";
 import type { GrammarRuleState } from "./grammarTypes";
 

@@ -144,9 +144,7 @@ export default function SessionScreen({
             <TooltipTrigger
               render={
                 <Button
-                  onClick={() => {
-                    if (window.confirm("Dieses Wort für immer aus dem Training ausschließen?")) onBlock();
-                  }}
+                  onClick={onBlock}
                   aria-label="Wort ausschließen (X)"
                   variant="ghost"
                   size="icon"
