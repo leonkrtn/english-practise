@@ -17,6 +17,7 @@ import {
   Link2,
   Newspaper,
   PenLine,
+  Quote,
   Repeat,
   Sigma,
   Sparkles,
@@ -28,14 +29,14 @@ import {
 import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { useGrammarStore } from "@/lib/grammarStore";
-import { VOCAB, VOCAB_BY_ID, countsTowardVocab, generalVocabTotal, inDomainScope, inGeneralVocab, type DomainScope } from "@/lib/vocab";
+import { VOCAB, VOCAB_BY_ID, countsTowardVocab, generalVocabTotal, inDomainScope, inGeneralVocab, inIdiomScope, type DomainScope } from "@/lib/vocab";
 import { activeGrammarRules } from "@/lib/grammarLearning";
 import { needsIntensification } from "@/lib/intensify";
 import { computeGoalStatus } from "@/lib/goal";
 import { computeStreak, DAY_MS } from "@/lib/progressStats";
 import { levelProgress } from "@/lib/gamification";
 import { BAND_STYLES, bandForGrade, TEST_LENGTH_OPTIONS, TEST_SCOPE_OPTIONS, type TestLength, type TestScope } from "@/lib/testMode";
-import type { SessionMode, LearningMode, LinkingSubMode, ReviewOptions } from "@/components/AppShell";
+import type { SessionMode, LearningMode, LinkingSubMode, ReviewOptions, VocabScope } from "@/components/AppShell";
 import type { SessionRecord } from "@/lib/types";
 import type { GrammarSessionRecord } from "@/lib/grammarTypes";
 
@@ -84,6 +85,15 @@ const MODES: {
     ring: ["#1eb676", "#0e9464"],
   },
   {
+    val: "idioms",
+    label: "Idioms",
+    icon: Quote,
+    grad: "from-amber to-amber-dark",
+    tint: "bg-amber-light text-amber",
+    glow: "shadow-[0_10px_24px_-8px_rgba(232,161,46,0.5)]",
+    ring: ["#e8a12e", "#c9860f"],
+  },
+  {
     val: "linking",
     label: "Linking",
     icon: Link2,
@@ -114,16 +124,21 @@ const MODES: {
 
 /** The modes that run the adaptive stage engine — the only ones with a review pool, a
  * "Session-Inhalt" choice, or a learned/total progress ring. */
-const LEARNING_MODES: SessionMode[] = ["vocab", "grammar", "domain"];
+const LEARNING_MODES: SessionMode[] = ["vocab", "grammar", "domain", "idioms"];
 const isLearningMode = (m: SessionMode): boolean => LEARNING_MODES.includes(m);
 
 /**
- * Which engine a mode drives. "domain" is not a track of its own — it is the vocabulary engine
- * pointed at the finance/math slice of the same word bank, so it reports "vocab" here and carries
- * its scope separately.
+ * Which engine a mode drives. "domain" and "idioms" are not tracks of their own — they are the
+ * vocabulary engine pointed at one slice of the same word bank, so they report "vocab" here and
+ * carry their scope separately (see VocabScope).
  */
 const learningModeFor = (m: SessionMode): LearningMode | null =>
-  m === "vocab" || m === "domain" ? "vocab" : m === "grammar" ? "grammar" : null;
+  m === "vocab" || m === "domain" || m === "idioms" ? "vocab" : m === "grammar" ? "grammar" : null;
+
+/** The VocabScope to start an "idioms" session with — passed through the same channel Finance uses
+ * for its own scope, since both are just the vocab engine pointed at a category slice. */
+const scopeFor = (m: SessionMode, domainScope: DomainScope): VocabScope | undefined =>
+  m === "domain" ? domainScope : m === "idioms" ? "idiom" : undefined;
 
 const DOMAIN_SCOPES: { val: DomainScope; label: string; icon: typeof Link2 }[] = [
   { val: "both", label: "Beides", icon: Layers },
@@ -193,11 +208,11 @@ export default function HomeScreen({
   onLinkingSubModeChange: (mode: LinkingSubMode) => void;
   domainScope: DomainScope;
   onDomainScopeChange: (scope: DomainScope) => void;
-  onStartLearning: (mode: LearningMode, includeReview: boolean, domainScope?: DomainScope) => void;
+  onStartLearning: (mode: LearningMode, includeReview: boolean, domainScope?: VocabScope) => void;
   onStartLinking: (subMode: LinkingSubMode) => void;
   onStartReading: () => void;
   onStartTest: (scope: TestScope, length: TestLength) => void;
-  onReview: (mode: LearningMode, options?: ReviewOptions, domainScope?: DomainScope) => void;
+  onReview: (mode: LearningMode, options?: ReviewOptions, domainScope?: VocabScope) => void;
   onSpeedRound: () => void;
   onGoal: () => void;
 }) {
@@ -248,6 +263,23 @@ export default function HomeScreen({
     const accuracy = totalAll ? Math.round((totalCorrect / totalAll) * 100) : 0;
     return { learned, total: pool.length, sessions: store.totalPracticeSessions || 0, accuracy };
   }, [domainScope, store.words, store.blockedWordIds, store.totalPracticeSessions]);
+
+  /** The idiom slice, scored the same way as domainStats — its own category, no scope selector. */
+  const idiomsStats = useMemo(() => {
+    const pool = VOCAB.filter((w) => inIdiomScope(w) && !store.blockedWordIds.has(w.id));
+    let learned = 0;
+    let totalCorrect = 0;
+    let totalAll = 0;
+    pool.forEach((word) => {
+      const s = store.words[word.id];
+      if (!s) return;
+      if (s.stage === 4) learned++;
+      totalCorrect += s.timesCorrect;
+      totalAll += s.timesCorrect + s.timesAlmost + s.timesIncorrect;
+    });
+    const accuracy = totalAll ? Math.round((totalCorrect / totalAll) * 100) : 0;
+    return { learned, total: pool.length, sessions: store.totalPracticeSessions || 0, accuracy };
+  }, [store.words, store.blockedWordIds, store.totalPracticeSessions]);
 
   /** Learned/total per track, for the two bars under the Finance card. */
   const domainBreakdown = useMemo(() => {
@@ -335,7 +367,7 @@ export default function HomeScreen({
     return rows.sort((a, b) => b.date - a.date).slice(0, 6);
   }, [store.sessionHistory, grammarStore.sessionHistory]);
 
-  const stats = mode === "grammar" ? grammarStats : mode === "domain" ? domainStats : vocabStats;
+  const stats = mode === "grammar" ? grammarStats : mode === "domain" ? domainStats : mode === "idioms" ? idiomsStats : vocabStats;
 
   const linkingSessionsCount = useMemo(
     () => grammarStore.sessionHistory.filter((s) => LINKING_FORMATS.includes(s.format)).length,
@@ -381,12 +413,15 @@ export default function HomeScreen({
   const reviewMatchCount = useMemo(() => {
     const belowThreshold = (score: number) => reviewMaxAccuracy === null || score * 20 < reviewMaxAccuracy;
     let count = 0;
-    if (mode === "vocab" || mode === "domain") {
+    if (mode === "vocab" || mode === "domain" || mode === "idioms") {
       Object.entries(store.words).forEach(([id, w]) => {
         if (w.stage !== 4 || !belowThreshold(w.score)) return;
         if (mode === "domain") {
           const word = VOCAB_BY_ID[id];
           if (store.blockedWordIds.has(id) || !word || !inDomainScope(domainScope)(word)) return;
+        } else if (mode === "idioms") {
+          const word = VOCAB_BY_ID[id];
+          if (store.blockedWordIds.has(id) || !word || !inIdiomScope(word)) return;
         } else if (!countsTowardVocab(id, store.blockedWordIds)) return;
         count++;
       });
@@ -414,7 +449,7 @@ export default function HomeScreen({
     else if (mode === "reading") onStartReading();
     else {
       const engine = learningModeFor(mode);
-      if (engine) onStartLearning(engine, includeReview, mode === "domain" ? domainScope : undefined);
+      if (engine) onStartLearning(engine, includeReview, scopeFor(mode, domainScope));
     }
   }
 
@@ -422,10 +457,10 @@ export default function HomeScreen({
     const engine = learningModeFor(mode);
     if (!engine) return;
     setOpenMenu(null);
-    onReview(engine, { maxAccuracy: reviewMaxAccuracy, limit: reviewLimit }, mode === "domain" ? domainScope : undefined);
+    onReview(engine, { maxAccuracy: reviewMaxAccuracy, limit: reviewLimit }, scopeFor(mode, domainScope));
   }
 
-  // Home's own no-mouse shortcuts: 1-6 pick a mode tile (same left-to-right order as MODES),
+  // Home's own no-mouse shortcuts: number keys pick a mode tile (same left-to-right order as MODES),
   // R opens the review-filter dropdown, C the start-options dropdown, Q the speed round, and Enter
   // either starts a session or — while a dropdown is open — confirms it instead. Each shortcut
   // mirrors its control's own disabled state, so it can never do something the click couldn't.
@@ -527,8 +562,8 @@ export default function HomeScreen({
 
       <div className="lg:grid lg:grid-cols-[1.35fr_1fr] lg:gap-6 lg:items-start">
         <div>
-          {/* Three per row on a phone (six labels across ~360px would clip), all six once there's room. */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5 mt-1">
+          {/* Four per row on a phone (seven labels across ~360px would clip), all seven once there's room. */}
+          <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mb-5 mt-1">
             {MODES.map((m) => {
               const Icon = m.icon;
               const isActive = mode === m.val;

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Blocks, BookOpen, Flame, GraduationCap, LayoutGrid, Sparkles, Target, Trophy } from "lucide-react";
-import { VOCAB, VOCAB_BY_ID, countsTowardVocab } from "@/lib/vocab";
+import { VOCAB, VOCAB_BY_ID, countsTowardVocab, inIdiomScope } from "@/lib/vocab";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { activeGrammarRules } from "@/lib/grammarLearning";
@@ -115,6 +115,8 @@ export default function StatsScreen() {
     const financeTotal = VOCAB.filter((w) => w.category === "finance" && notBlocked(w)).length;
     // Math is the one track the list above excludes, so it is counted straight from the catalogue.
     const mathTotal = VOCAB.filter((w) => w.category === "math" && notBlocked(w)).length;
+    // Idioms are excluded from the Vocabulary track too — same reasoning as math.
+    const idiomTotal = VOCAB.filter((w) => inIdiomScope(w) && notBlocked(w)).length;
 
     return {
       practiced,
@@ -128,13 +130,17 @@ export default function StatsScreen() {
       adjTotal,
       financeTotal,
       mathTotal,
+      idiomTotal,
       verbsPracticed: practiced.filter(([id]) => VOCAB_BY_ID[id]?.type === "verb").length,
       adjPracticed: practiced.filter(([id]) => VOCAB_BY_ID[id]?.type === "adjective").length,
       financePracticed: practiced.filter(([id]) => VOCAB_BY_ID[id]?.category === "finance").length,
-      // Math sits outside the Vocabulary track, so its progress is read from the raw store rather
-      // than from `practiced` — which by definition contains no math terms.
+      // Math and idioms sit outside the Vocabulary track, so their progress is read from the raw
+      // store rather than from `practiced` — which by definition contains neither.
       mathPracticed: Object.entries(store.words).filter(
         ([id, s]) => s.timesSeen > 0 && !store.blockedWordIds.has(id) && VOCAB_BY_ID[id]?.category === "math"
+      ).length,
+      idiomPracticed: Object.entries(store.words).filter(
+        ([id, s]) => s.timesSeen > 0 && !store.blockedWordIds.has(id) && VOCAB_BY_ID[id]?.category === "idiom"
       ).length,
     };
   }, [store.words, store.blockedWordIds]);
@@ -319,6 +325,7 @@ export default function StatsScreen() {
             <BarRow label="Adjectives" value={`${vocab.adjPracticed}/${vocab.adjTotal}`} pct={pct(vocab.adjPracticed, vocab.adjTotal)} />
             <BarRow label="Finance" value={`${vocab.financePracticed}/${vocab.financeTotal}`} pct={pct(vocab.financePracticed, vocab.financeTotal)} />
             <BarRow label="Math" value={`${vocab.mathPracticed}/${vocab.mathTotal}`} pct={pct(vocab.mathPracticed, vocab.mathTotal)} />
+            <BarRow label="Idioms" value={`${vocab.idiomPracticed}/${vocab.idiomTotal}`} pct={pct(vocab.idiomPracticed, vocab.idiomTotal)} />
             <BarRow label="Grammar" value={`${grammar.practiced.length}/${grammar.total}`} pct={pct(grammar.practiced.length, grammar.total)} last />
           </div>
 

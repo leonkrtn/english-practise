@@ -11,6 +11,7 @@ import {
   MATH_DESCRIBING,
   type DomainEntry,
 } from "./domain-vocab-raw";
+import { IDIOMS_BUSINESS, IDIOMS_EVERYDAY, IDIOMS_COMMUNICATION, IDIOMS_EXTRA } from "./idioms-vocab-raw";
 
 export type WordType = "verb" | "adjective" | "noun" | "term";
 
@@ -31,7 +32,7 @@ export const WORD_TYPE_SHORT: Record<WordType, string> = {
 
 /** Which specialist track a word belongs to. Undefined means the general vocabulary — the bulk of
  * VOCAB — which every mode may draw from. */
-export type WordCategory = "finance" | "math";
+export type WordCategory = "finance" | "math" | "idiom";
 
 export interface Word {
   id: string;
@@ -80,12 +81,14 @@ const RAW_VERBS = ([] as RawEntry[]).concat(V1, V2, V3, V4, V5);
 const RAW_ADJ = ([] as RawEntry[]).concat(A1, A2, A3, A4, A5);
 const RAW_FINANCE = ([] as DomainEntry[]).concat(FIN_ACCOUNTING, FIN_VALUATION, FIN_DEALS, FIN_CAPITAL, FIN_MARKETS);
 const RAW_MATH = ([] as DomainEntry[]).concat(MATH_OPERATIONS, MATH_ALGEBRA, MATH_STATS, MATH_DESCRIBING);
+const RAW_IDIOMS = ([] as DomainEntry[]).concat(IDIOMS_BUSINESS, IDIOMS_EVERYDAY, IDIOMS_COMMUNICATION, IDIOMS_EXTRA);
 
 export const VOCAB: Word[] = [
   ...buildFrom(RAW_VERBS, "v", "verb"),
   ...buildFrom(RAW_ADJ, "a", "adjective"),
   ...buildDomainFrom(RAW_FINANCE, "f", "finance"),
   ...buildDomainFrom(RAW_MATH, "m", "math"),
+  ...buildDomainFrom(RAW_IDIOMS, "i", "idiom"),
 ];
 
 export const VOCAB_BY_ID: Record<string, Word> = {};
@@ -102,15 +105,16 @@ VOCAB.forEach((w) => {
  * naturally used in improvised prose the way a general verb or adjective is, so that drill would
  * ask the learner to invent English around a term rather than drill the term itself. */
 export function allowsSentenceExercises(word: Word): boolean {
-  return word.category === undefined;
+  return word.category === undefined || word.category === "idiom";
 }
 
 /** Whether a word belongs in the general Vocabulary track. Math terms only surface through the
  * Finance mode's math scope — mixing "median" or "quotient" into ordinary verb/adjective practice
  * doesn't read as vocabulary in the same way. Finance terms are common enough in everyday business
- * English that they stay mixed into the regular vocabulary session too. */
+ * English that they stay mixed into the regular vocabulary session too. Idioms are likewise kept
+ * out — they only surface through the dedicated Idioms mode. */
 export function inGeneralVocab(word: Word): boolean {
-  return word.category !== "math";
+  return word.category !== "math" && word.category !== "idiom";
 }
 
 /**
@@ -140,10 +144,17 @@ export function activeVocab(blockedWordIds: ReadonlySet<string> = new Set()): Wo
 export type DomainScope = "finance" | "math" | "both";
 
 /** Predicate form of a DomainScope, for filtering a word pool down to that slice. General
- * vocabulary is always excluded — that is the whole point of the mode. */
+ * vocabulary is always excluded — that is the whole point of the mode. Explicitly finance-or-math
+ * rather than "any category" so idioms (a category of their own, drawn only by the Idioms mode)
+ * don't leak into a Finance-mode "Beides" session. */
 export function inDomainScope(scope: DomainScope): (word: Word) => boolean {
-  if (scope === "both") return (w) => w.category !== undefined;
+  if (scope === "both") return (w) => w.category === "finance" || w.category === "math";
   return (w) => w.category === scope;
+}
+
+/** Predicate for the Idioms mode's word pool — its own category, no scope selector needed. */
+export function inIdiomScope(word: Word): boolean {
+  return word.category === "idiom";
 }
 
 /**

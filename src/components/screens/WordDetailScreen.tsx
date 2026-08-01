@@ -29,12 +29,14 @@ export default function WordDetailScreen({ wordId, onBack, onPractice }: { wordI
             ? "text-green bg-green-light"
             : w.category === "math"
             ? "text-amber bg-amber-light"
+            : w.category === "idiom"
+            ? "text-red bg-red-light"
             : w.type === "adjective"
             ? "text-purple bg-purple-light"
             : "text-blue bg-blue-light")
         }
       >
-        {w.category === "finance" ? "Finance · " : w.category === "math" ? "Math · " : ""}
+        {w.category === "finance" ? "Finance · " : w.category === "math" ? "Math · " : w.category === "idiom" ? "Idiom · " : ""}
         {WORD_TYPE_LABEL[w.type]}
       </Badge>
       <h1 className="text-[26px] font-bold tracking-tight mt-1 mb-1">{w.en}</h1>

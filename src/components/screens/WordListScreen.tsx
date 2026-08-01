@@ -17,6 +17,7 @@ const FILTERS = [
   { val: "adjective", label: "Adjectives" },
   { val: "finance", label: "Finance" },
   { val: "math", label: "Math" },
+  { val: "idiom", label: "Idioms" },
   { val: "favorites", label: "Favorites" },
   { val: "mistakes", label: "Mistakes" },
   { val: "unpracticed", label: "Unpracticed" },
@@ -49,6 +50,7 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
     if (filter === "adjective") l = l.filter((w) => w.type === "adjective");
     if (filter === "finance") l = l.filter((w) => w.category === "finance");
     if (filter === "math") l = l.filter((w) => w.category === "math");
+    if (filter === "idiom") l = l.filter((w) => w.category === "idiom");
     if (filter === "favorites") l = l.filter((w) => store.wordState(w.id).favorite);
     if (filter === "mistakes") l = l.filter((w) => store.wordState(w.id).recentMistake);
     if (filter === "known") l = l.filter((w) => store.wordState(w.id).stage === 4);
@@ -107,6 +109,8 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
                       ? "text-green bg-green-light"
                       : w.category === "math"
                       ? "text-amber bg-amber-light"
+                      : w.category === "idiom"
+                      ? "text-red bg-red-light"
                       : w.type === "adjective"
                       ? "text-purple bg-purple-light"
                       : "text-blue bg-blue-light")

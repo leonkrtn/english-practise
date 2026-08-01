@@ -13,6 +13,7 @@ import {
   countsTowardVocab,
   inDomainScope,
   inGeneralVocab,
+  inIdiomScope,
   type DomainScope,
   type Word,
 } from "@/lib/vocab";
@@ -109,10 +110,13 @@ export type Screen =
   | "reading"
   | "test"
   | "test-result";
-export type SessionMode = "vocab" | "grammar" | "domain" | "linking" | "reading" | "test";
+export type SessionMode = "vocab" | "grammar" | "domain" | "idioms" | "linking" | "reading" | "test";
 /** The two modes that run through the adaptive stage engine — everything else is its own flow. */
 export type LearningMode = "vocab" | "grammar";
 export type LinkingSubMode = "combine" | "learn" | "essay";
+/** Which slice of the vocabulary a "vocab" learning session draws from: a Finance-mode scope, the
+ * Idioms mode's own category, or (when omitted) the general Vocabulary pool. */
+export type VocabScope = DomainScope | "idiom";
 /** Options for the "Gelerntes wiederholen" dropdown on Home: restrict the review pool to items
  * below a score-based mastery percentage (null = no restriction) and/or cap how many are drawn
  * (null = everyone that matches). */
@@ -120,8 +124,8 @@ export type ReviewOptions = { maxAccuracy: number | null; limit: number | null }
 /** Snapshot of whichever preset-driven start the learner most recently launched from Home, so it
  * can be replayed verbatim by the "Weiter" action on the summary/test-result screens. */
 type LastStartConfig =
-  | { kind: "learning"; mode: LearningMode; includeReview: boolean; domainScope?: DomainScope }
-  | { kind: "review"; mode: LearningMode; options?: ReviewOptions; domainScope?: DomainScope }
+  | { kind: "learning"; mode: LearningMode; includeReview: boolean; domainScope?: VocabScope }
+  | { kind: "review"; mode: LearningMode; options?: ReviewOptions; domainScope?: VocabScope }
   | { kind: "speed" }
   | { kind: "test"; scope: TestScope; length: TestLength };
 
@@ -258,7 +262,7 @@ export default function AppShell() {
   // ---------- Primary flow: the adaptive learning-stage engine (vocab or grammar) ----------
 
   const startLearningSession = useCallback(
-    (mode: LearningMode, includeReview: boolean = true, domainScope?: DomainScope) => {
+    (mode: LearningMode, includeReview: boolean = true, domainScope?: VocabScope) => {
       beginRun();
       let vocabQueue: LearningQueueItem[] = [];
       let matchPool: Word[] = [];
@@ -266,15 +270,15 @@ export default function AppShell() {
       let formatMemory: FormatMemory = {};
 
       if (mode === "vocab") {
-        // The Finance mode is the vocabulary engine pointed at one slice of the word bank rather
-        // than a track of its own — same stages, same review schedule, same stats.
+        // The Finance and Idioms modes are the vocabulary engine pointed at one slice of the word
+        // bank rather than a track of their own — same stages, same review schedule, same stats.
         const batch = buildLearningBatch(
           store.wordState,
           store.totalPracticeSessions,
           store.blockedWordIds,
           includeReview,
           tuning,
-          domainScope ? inDomainScope(domainScope) : inGeneralVocab
+          domainScope === "idiom" ? inIdiomScope : domainScope ? inDomainScope(domainScope) : inGeneralVocab
         );
         const built = buildInitialQueue(batch, store.wordState);
         vocabQueue = built.queue;
@@ -335,11 +339,11 @@ export default function AppShell() {
   // growing/interleaved session machinery as startLearningSession, just seeded differently: every
   // already-mastered item at once instead of an adaptive ~10-word batch.
   const startReviewSession = useCallback(
-    (mode: LearningMode, options?: ReviewOptions, domainScope?: DomainScope) => {
+    (mode: LearningMode, options?: ReviewOptions, domainScope?: VocabScope) => {
       beginRun();
       const maxAccuracy = options?.maxAccuracy ?? null;
       const belowThreshold = (score: number) => maxAccuracy === null || score * 20 < maxAccuracy;
-      const inScope = domainScope ? inDomainScope(domainScope) : inGeneralVocab;
+      const inScope = domainScope === "idiom" ? inIdiomScope : domainScope ? inDomainScope(domainScope) : inGeneralVocab;
 
       const vocabQueue: LearningQueueItem[] =
         mode === "vocab"
