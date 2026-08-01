@@ -1,6 +1,5 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { VOCAB, type Word } from "./vocab";
 
 /** Merges Tailwind class lists, letting a later conflicting utility (e.g. a caller-supplied
  * rounded-full) win over an earlier one — used by every shadcn/ui component. */
@@ -20,6 +19,16 @@ export function normalize(s: string | null | undefined): string {
     .replace(/[.,!?;:'"()\-–—]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * normalize() with spaces removed too. Hyphenated terms lose their hyphen ("earn-out" → "earnout")
+ * while the same term typed with a space keeps it ("earn out" → "earn out"), so the two forms only
+ * line up once whitespace goes as well. Used purely for the equality check — the levenshtein
+ * distance below still runs on the spaced form, so genuine typos are graded as before.
+ */
+export function normalizeTight(s: string): string {
+  return normalize(s).replace(/ /g, "");
 }
 
 export function levenshtein(a: string, b: string): number {
@@ -59,42 +68,4 @@ export function choice<T>(arr: T[]): T {
 
 export function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-export type AnswerResult = "correct" | "almost" | "incorrect";
-export type ErrorType = "empty" | "spelling" | "confused" | "wrong" | "skipped" | "unnatural" | "word order" | null;
-
-export function classifyAnswer(userRaw: string, accepted: string[]): { result: AnswerResult; errorType: ErrorType } {
-  const user = normalize(userRaw);
-  if (!user) return { result: "incorrect", errorType: "empty" };
-  const acceptedNorm = accepted.map(normalize);
-  if (acceptedNorm.includes(user)) return { result: "correct", errorType: null };
-
-  let minDist = Infinity;
-  acceptedNorm.forEach((a) => {
-    const d = levenshtein(user, a);
-    if (d < minDist) minDist = d;
-  });
-  const threshold = Math.max(1, Math.round(Math.max(...acceptedNorm.map((a) => a.length)) * 0.22));
-  if (minDist > 0 && minDist <= threshold) {
-    return { result: "almost", errorType: "spelling" };
-  }
-
-  const hitOther = VOCAB.some((w) => {
-    return (
-      (w.en.toLowerCase() !== user && w.de.some((d) => normalize(d) === user)) ||
-      (w.de.every((d) => normalize(d) !== user) &&
-        w.en.toLowerCase() === user &&
-        !accepted.map((a) => a.toLowerCase()).includes(user))
-    );
-  });
-  if (hitOther) return { result: "incorrect", errorType: "confused" };
-  return { result: "incorrect", errorType: "wrong" };
-}
-
-export function findGap(sentence: string, word: Word): { matched: string; index: number } | null {
-  const re = new RegExp("\\b" + escapeRegExp(word.en) + "\\w*", "i");
-  const m = sentence.match(re);
-  if (!m || m.index === undefined) return null;
-  return { matched: m[0], index: m.index };
 }

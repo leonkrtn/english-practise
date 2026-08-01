@@ -10,9 +10,11 @@ import { renderHighlighted } from "@/lib/textHighlight";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { MIN_CATEGORIES } from "@/lib/linkingEssay";
+
+export { MIN_CATEGORIES };
 
 const MIN_WORDS = 60;
-export const MIN_CATEGORIES = 3;
 
 export interface LinkingEssayResult {
   text: string;

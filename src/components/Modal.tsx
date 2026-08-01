@@ -9,12 +9,19 @@ export default function Modal({
   body,
   onCancel,
   onConfirm,
+  cancelLabel = "Cancel",
+  confirmLabel = "Confirm",
+  destructive = false,
 }: {
   open: boolean;
   title: string;
   body: string;
   onCancel: () => void;
   onConfirm: () => void;
+  cancelLabel?: string;
+  confirmLabel?: string;
+  /** Colours the confirm button red — for actions that can't be undone from the UI. */
+  destructive?: boolean;
 }) {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
@@ -29,13 +36,16 @@ export default function Modal({
             variant="secondary"
             className="flex-1 h-auto rounded-full bg-line-soft hover:bg-line text-ink font-semibold py-3.5 text-[15px]"
           >
-            Cancel
+            {cancelLabel}
           </Button>
           <Button
             onClick={onConfirm}
-            className="flex-1 h-auto rounded-full bg-blue hover:bg-blue-dark text-white font-semibold py-3.5 text-[15px]"
+            className={
+              "flex-1 h-auto rounded-full text-white font-semibold py-3.5 text-[15px] " +
+              (destructive ? "bg-red hover:bg-red-dark" : "bg-blue hover:bg-blue-dark")
+            }
           >
-            Confirm
+            {confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -6,7 +6,7 @@ import { animate, createScope } from "animejs";
 import { WORD_TYPE_LABEL, type Word } from "@/lib/vocab";
 import type { AnswerResultKind } from "@/lib/types";
 import { playFeedbackSound } from "@/lib/sound";
-import { findGap } from "@/lib/utils";
+import { findGap } from "@/lib/answerCheck";
 import { motionMs } from "@/lib/motion";
 import { Button } from "@/components/ui/button";
 

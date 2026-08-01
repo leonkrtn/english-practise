@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { classifyAnswer, findGap } from "@/lib/utils";
+import { classifyAnswer, findGap } from "@/lib/answerCheck";
 import type { AnswerResultKind } from "@/lib/types";
 import {
   Badge,

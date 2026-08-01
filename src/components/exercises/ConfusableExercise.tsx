@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { choice, findGap, shuffle } from "@/lib/utils";
+import { choice, shuffle } from "@/lib/utils";
+import { findGap } from "@/lib/answerCheck";
 import type { AnswerResultKind } from "@/lib/types";
 import { Prompt, FeedbackPanel, useNumberShortcuts } from "./shared";
 import type { ExerciseProps } from "./types";

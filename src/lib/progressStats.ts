@@ -1,4 +1,3 @@
-import { VOCAB } from "./vocab";
 import { activeGrammarRules } from "./grammarLearning";
 import { levelFromXp, type BadgeSnapshot } from "./gamification";
 import type { SessionRecord, TestRecord, WordState } from "./types";
@@ -25,17 +24,6 @@ export function computeStreak(dates: number[]): number {
   return streak;
 }
 
-/** Answer counts summed over every word/rule, used for the accuracy badges' minimum-sample gate. */
-function totals(states: { timesCorrect: number; timesAlmost: number; timesIncorrect: number }[]) {
-  let correct = 0;
-  let all = 0;
-  states.forEach((s) => {
-    correct += s.timesCorrect;
-    all += s.timesCorrect + s.timesAlmost + s.timesIncorrect;
-  });
-  return { correct, all };
-}
-
 export interface BadgeSnapshotInput {
   words: Record<string, WordState>;
   blockedWordIds: ReadonlySet<string>;
@@ -49,41 +37,58 @@ export interface BadgeSnapshotInput {
   bestCombo?: number;
 }
 
-/** Collapses both stores into the flat shape every badge condition reads. Single place that knows
- * how a badge's raw numbers are derived, so adding a badge never means touching a store or screen. */
+/**
+ * Collapses both stores into the flat shape every badge condition reads. Single place that knows
+ * how a badge's raw numbers are derived, so adding a badge never means touching a store or screen.
+ *
+ * Written as single passes with plain accumulators rather than chained filter/map: this runs after
+ * every single answer (see the badge memo in AppShell), and the intermediate arrays over ~2,300
+ * words cost about a millisecond each time.
+ */
 export function buildBadgeSnapshot(input: BadgeSnapshotInput): BadgeSnapshot {
-  const wordStates = Object.entries(input.words)
-    .filter(([id]) => !input.blockedWordIds.has(id))
-    .map(([, w]) => w);
+  let wordsLearned = 0;
+  let correct = 0;
+  let answers = 0;
+  for (const id in input.words) {
+    if (input.blockedWordIds.has(id)) continue;
+    const w = input.words[id];
+    if (w.stage === 4) wordsLearned++;
+    correct += w.timesCorrect;
+    answers += w.timesCorrect + w.timesAlmost + w.timesIncorrect;
+  }
+
   const activeRules = activeGrammarRules(input.blockedRuleIds);
-  const ruleStates = activeRules.map((r) => input.rules[r.id]).filter((s): s is GrammarRuleState => !!s);
+  let rulesLearned = 0;
+  for (const rule of activeRules) {
+    const r = input.rules[rule.id];
+    if (!r) continue;
+    if (r.stage === 4) rulesLearned++;
+    correct += r.timesCorrect;
+    answers += r.timesCorrect + r.timesAlmost + r.timesIncorrect;
+  }
 
-  const vocabTotals = totals(wordStates);
-  const grammarTotals = totals(ruleStates);
-  const allAnswers = vocabTotals.all + grammarTotals.all;
-  const allCorrect = vocabTotals.correct + grammarTotals.correct;
+  const dates: number[] = [];
+  for (const s of input.sessionHistory) dates.push(s.date);
+  for (const s of input.grammarSessionHistory) dates.push(s.date);
 
-  const grades = input.testHistory.map((t) => t.grade);
+  // A loop rather than Math.max(...grades): the spread would blow the call stack once the history
+  // grows past the argument limit.
+  let bestTestGrade: number | null = null;
+  for (const t of input.testHistory) {
+    if (bestTestGrade === null || t.grade > bestTestGrade) bestTestGrade = t.grade;
+  }
 
   return {
-    wordsLearned: wordStates.filter((w) => w.stage === 4).length,
-    rulesLearned: ruleStates.filter((r) => r.stage === 4).length,
+    wordsLearned,
+    rulesLearned,
     rulesTotal: activeRules.length,
-    streakDays: computeStreak([
-      ...input.sessionHistory.map((s) => s.date),
-      ...input.grammarSessionHistory.map((s) => s.date),
-    ]),
+    streakDays: computeStreak(dates),
     totalSessions: input.sessionHistory.length + input.grammarSessionHistory.length,
-    overallAccuracy: allAnswers ? Math.round((allCorrect / allAnswers) * 100) : 0,
-    totalAnswers: allAnswers,
+    overallAccuracy: answers ? Math.round((correct / answers) * 100) : 0,
+    totalAnswers: answers,
     level: levelFromXp(input.xp),
     bestCombo: input.bestCombo ?? 0,
-    bestTestGrade: grades.length ? Math.max(...grades) : null,
+    bestTestGrade,
     testsCompleted: input.testHistory.length,
   };
-}
-
-/** Non-blocked vocabulary count — the denominator every "x / y words" readout uses. */
-export function activeVocabTotal(blockedWordIds: ReadonlySet<string>): number {
-  return VOCAB.length - blockedWordIds.size;
 }

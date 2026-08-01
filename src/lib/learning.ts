@@ -1,7 +1,6 @@
 import { activeVocab, allowsSentenceExercises, CONFUSABLE_PAIRS, type Word } from "./vocab";
 import { shuffle } from "./utils";
-import type { AnswerResultKind, LearningStage, WordState } from "./types";
-import type { QueueItem } from "./sessionLogic";
+import type { AnswerResultKind, LearningStage, QueueItem, WordState } from "./types";
 import type { LearningTuning } from "./learningProfile";
 import {
   balancedDirection,
@@ -336,21 +335,3 @@ export function maxAttemptsPerWord(tuning: LearningTuning): number {
   return tuning.maxAttemptsPerItem;
 }
 
-export function stageKindLabel(kind: StageKind): string {
-  switch (kind) {
-    case "learn":
-      return "Kennenlernen";
-    case "quiz":
-      return "Abfragen";
-    case "match":
-      return "Wörter verbinden";
-    case "apply":
-      return "Einbauen";
-    case "recall":
-      return "Abrufen";
-    case "produce":
-      return "Schreiben";
-    case "review":
-      return "Wiederholung";
-  }
-}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { classifyAnswer, findGap, type ErrorType } from "@/lib/utils";
+import { classifyAnswer, findGap, type ErrorType } from "@/lib/answerCheck";
 import type { AnswerResultKind } from "@/lib/types";
 import { Prompt, AnswerInput, FeedbackPanel, PrimaryButton } from "./shared";
 import type { ExerciseProps } from "./types";

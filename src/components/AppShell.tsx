@@ -1,15 +1,25 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useStore } from "@/lib/store";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { useAuth } from "@/lib/auth";
-import { VOCAB, VOCAB_BY_ID, VOCAB_BY_EN, allowsSentenceExercises, inDomainScope, inGeneralVocab, type DomainScope, type Word } from "@/lib/vocab";
+import {
+  VOCAB,
+  VOCAB_BY_ID,
+  VOCAB_BY_EN,
+  allowsSentenceExercises,
+  countsTowardVocab,
+  inDomainScope,
+  inGeneralVocab,
+  type DomainScope,
+  type Word,
+} from "@/lib/vocab";
 import { GRAMMAR_RULES } from "@/lib/grammar-data";
 import { WRITING_TOPICS, type WritingTopic } from "@/lib/writingTopics";
 import { CLAUSE_PAIRS, type ClausePair } from "@/lib/connectors-data";
 import { READING_TEXTS, eligibleGapIds as computeEligibleGapIds, type ReadingText } from "@/lib/financeReading";
-import type { QueueItem } from "@/lib/sessionLogic";
 import {
   buildLearningBatch,
   buildInitialQueue,
@@ -38,18 +48,11 @@ import { rememberFormat, type FormatMemory } from "@/lib/learningEngine";
 import { tuningFor } from "@/lib/learningProfile";
 import { sample, shuffle } from "@/lib/utils";
 import { toggleMuted } from "@/lib/sound";
-import {
-  BADGES_BY_ID,
-  newlyEarnedBadges,
-  xpForAnswer,
-  xpForTest,
-  XP_ITEM_MASTERED,
-  XP_SESSION_COMPLETE,
-  type Badge,
-} from "@/lib/gamification";
-import { buildBadgeSnapshot } from "@/lib/progressStats";
+import { xpForAnswer, xpForTest, XP_ITEM_MASTERED, XP_SESSION_COMPLETE } from "@/lib/gamification";
+import { MIN_CATEGORIES as LINKING_ESSAY_MIN_CATEGORIES } from "@/lib/linkingEssay";
+import { useBadgeTracking } from "@/lib/useBadgeTracking";
 import { buildTest, gradeTest, scoreAnswer, type TestAnswer, type TestQuestion, type TestScope, type TestLength } from "@/lib/testMode";
-import type { AnswerResultKind, ResultEntry } from "@/lib/types";
+import type { AnswerResultKind, QueueItem, ResultEntry } from "@/lib/types";
 import type { GrammarResultEntry } from "@/lib/grammarTypes";
 import ExerciseRouter from "@/components/exercises/ExerciseRouter";
 import GrammarExerciseRouter from "@/components/grammar-exercises/GrammarExerciseRouter";
@@ -59,17 +62,37 @@ import ShortcutsHelp from "./ShortcutsHelp";
 import HomeScreen from "./screens/HomeScreen";
 import SessionScreen from "./screens/SessionScreen";
 import SummaryScreen, { type SummaryStats } from "./screens/SummaryScreen";
-import WordListScreen from "./screens/WordListScreen";
-import WordDetailScreen from "./screens/WordDetailScreen";
-import StatsScreen from "./screens/StatsScreen";
-import SettingsScreen from "./screens/SettingsScreen";
-import GoalScreen from "./screens/GoalScreen";
-import ReadingScreen, { type ReadingCheckResult } from "./screens/ReadingScreen";
-import ConnectorLearnScreen, { type ConnectorLearnResult } from "./screens/ConnectorLearnScreen";
-import LinkingEssayScreen, { type LinkingEssayResult, MIN_CATEGORIES as LINKING_ESSAY_MIN_CATEGORIES } from "./screens/LinkingEssayScreen";
-import LinkingExercise, { type LinkingResult } from "./exercises/LinkingExercise";
-import TestScreen from "./screens/TestScreen";
-import TestResultScreen, { type TestResult } from "./screens/TestResultScreen";
+import type { ReadingCheckResult } from "./screens/ReadingScreen";
+import type { ConnectorLearnResult } from "./screens/ConnectorLearnScreen";
+import type { LinkingEssayResult } from "./screens/LinkingEssayScreen";
+import type { LinkingResult } from "./exercises/LinkingExercise";
+import type { TestResult } from "./screens/TestResultScreen";
+
+/**
+ * Everything outside the core practice loop is loaded on demand. Home, the session screen and the
+ * exercise routers stay static because they are what the app opens into; the rest — above all the
+ * statistics screen, which drags in the whole charting layer — only cost their bytes once the
+ * learner actually navigates there. The type imports above are erased at compile time, so they do
+ * not pull these modules back into the initial chunk.
+ */
+const ScreenFallback = () => <div className="flex-1" aria-busy="true" />;
+// ssr:false is what actually keeps these out of the initial payload — with server rendering left
+// on, their chunks are still emitted as scripts on the prerendered page even though nothing
+// renders them. The app sits behind a login and never renders a screen server-side anyway.
+const lazyScreen = <P,>(load: () => Promise<{ default: React.ComponentType<P> }>) =>
+  dynamic(load, { loading: ScreenFallback, ssr: false });
+
+const WordListScreen = lazyScreen(() => import("./screens/WordListScreen"));
+const WordDetailScreen = lazyScreen(() => import("./screens/WordDetailScreen"));
+const StatsScreen = lazyScreen(() => import("./screens/StatsScreen"));
+const SettingsScreen = lazyScreen(() => import("./screens/SettingsScreen"));
+const GoalScreen = lazyScreen(() => import("./screens/GoalScreen"));
+const ReadingScreen = lazyScreen(() => import("./screens/ReadingScreen"));
+const ConnectorLearnScreen = lazyScreen(() => import("./screens/ConnectorLearnScreen"));
+const LinkingEssayScreen = lazyScreen(() => import("./screens/LinkingEssayScreen"));
+const LinkingExercise = lazyScreen(() => import("./exercises/LinkingExercise"));
+const TestScreen = lazyScreen(() => import("./screens/TestScreen"));
+const TestResultScreen = lazyScreen(() => import("./screens/TestResultScreen"));
 
 export type Screen =
   | "home"
@@ -208,22 +231,21 @@ export default function AppShell() {
   // preset-driven, so they clear this rather than leave a stale preset behind.
   const [lastStart, setLastStart] = useState<LastStartConfig | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  // Word id awaiting confirmation of "exclude this word forever". Excluding is irreversible from
+  // the session UI, so it is confirmed — but through the app's own dialog rather than the native
+  // window.confirm, which blocks the main thread and looks foreign inside the installed PWA.
+  const [blockPrompt, setBlockPrompt] = useState<string | null>(null);
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
-  // Longest combo of the session that just ended — fed into the badge snapshot below, which is why
-  // it lives in state (a ref wouldn't re-trigger the evaluation).
-  const [lastBestCombo, setLastBestCombo] = useState(0);
-  // Which badges were already unlocked when the current session/test began. Everything unlocked
-  // since is what the summary celebrates — captured at start rather than accumulated as the
-  // session runs, so "new" stays a pure comparison against a fixed point instead of state that
-  // has to be appended to and cleared at exactly the right moments.
-  const [badgeBaseline, setBadgeBaseline] = useState<ReadonlySet<string>>(() => new Set());
-
   // Starts the 5-week basics goal's clock exactly once, snapshotting current combined progress
   // as the baseline so pace can be computed as (current - baseline) / days elapsed. Runs once per
   // account — startGoalIfNeeded itself no-ops if goal_started_at is already set.
   useEffect(() => {
     if (store.goalStartedAt !== null) return;
-    const vocabLearned = Object.values(store.words).filter((w) => w.stage === 4).length;
+    // Must use the same set the goal's *current* figure is read from (HomeScreen's vocabStats),
+    // or the baseline sits above the current count and the pace reads as zero progress.
+    const vocabLearned = Object.entries(store.words).filter(
+      ([id, w]) => w.stage === 4 && countsTowardVocab(id, store.blockedWordIds)
+    ).length;
     const grammarLearned = GRAMMAR_RULES.filter(
       (r) => !grammarStore.blockedRuleIds.has(r.id) && grammarStore.ruleState(r.id).stage === 4
     ).length;
@@ -231,60 +253,7 @@ export default function AppShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.goalStartedAt]);
 
-  // ---------- Badges ----------
-
-  // Evaluated continuously rather than at the end of each session, for two reasons: progress
-  // writes are asynchronous (checking inside endLearningSession would read pre-update counts and
-  // miss the very word that earned the badge), and some conditions — a streak ticking over at
-  // midnight, a level-up from banked XP — aren't tied to a session ending at all.
-  const badgesEarnedNow = useMemo(() => {
-    if (!store.ready || !grammarStore.ready) return [];
-    const snapshot = buildBadgeSnapshot({
-      words: store.words,
-      blockedWordIds: store.blockedWordIds,
-      rules: grammarStore.rules,
-      blockedRuleIds: grammarStore.blockedRuleIds,
-      sessionHistory: store.sessionHistory,
-      grammarSessionHistory: grammarStore.sessionHistory,
-      testHistory: store.testHistory,
-      xp: store.xp,
-      bestCombo: lastBestCombo,
-    });
-    return newlyEarnedBadges(snapshot, store.badgeIds);
-  }, [
-    store.ready,
-    grammarStore.ready,
-    store.words,
-    store.blockedWordIds,
-    store.badgeIds,
-    store.xp,
-    store.sessionHistory,
-    store.testHistory,
-    grammarStore.rules,
-    grammarStore.blockedRuleIds,
-    grammarStore.sessionHistory,
-    lastBestCombo,
-  ]);
-
-  // Persisting is the only side effect here; what the summary shows is derived from the store
-  // below, so this effect neither owns nor duplicates that list.
-  const unlockBadges = store.unlockBadges;
-  useEffect(() => {
-    if (badgesEarnedNow.length === 0) return;
-    unlockBadges(badgesEarnedNow.map((b) => b.id));
-  }, [badgesEarnedNow, unlockBadges]);
-
-  /** Badges unlocked since the current session/test started — what the summary/result celebrates. */
-  const newBadges: Badge[] = useMemo(
-    () => [...store.badgeIds].filter((id) => !badgeBaseline.has(id)).map((id) => BADGES_BY_ID[id]).filter(Boolean),
-    [store.badgeIds, badgeBaseline]
-  );
-
-  /** Called by every "start something" path: freezes the badge baseline so the run that follows
-   * can report exactly what it earned. */
-  const beginRun = useCallback(() => {
-    setBadgeBaseline(new Set(store.badgeIds));
-  }, [store.badgeIds]);
+  const { newBadges, beginRun, setLastBestCombo } = useBadgeTracking();
 
   // ---------- Primary flow: the adaptive learning-stage engine (vocab or grammar) ----------
 
@@ -718,7 +687,7 @@ export default function AppShell() {
       setLearningSession(null);
       setScreen("summary");
     },
-    [store, grammarStore]
+    [store, grammarStore, setLastBestCombo]
   );
 
   // Speed Round countdown: ticks while a timed session is active and auto-finishes it once the
@@ -1116,9 +1085,22 @@ export default function AppShell() {
   // equivalent of whatever "leave this" affordance is already on screen (the exit-confirm modal
   // during an active exercise, a direct exit for screens that don't need confirmation, "back" on
   // Word Detail, "home" everywhere else).
+  /** Carries out the pending "exclude this word" confirmation against whichever session is live. */
+  const confirmBlockWord = useCallback(() => {
+    const id = blockPrompt;
+    setBlockPrompt(null);
+    if (!id) return;
+    if (learningSession) blockWordAndAdvance(id);
+    else if (quickSession) blockWordAndAdvanceQuick(id);
+  }, [blockPrompt, learningSession, quickSession, blockWordAndAdvance, blockWordAndAdvanceQuick]);
+
   const handleEscape = useCallback(() => {
     if (shortcutsHelpOpen) {
       setShortcutsHelpOpen(false);
+      return;
+    }
+    if (blockPrompt) {
+      setBlockPrompt(null);
       return;
     }
     if (modalOpen) {
@@ -1150,7 +1132,7 @@ export default function AppShell() {
       default:
         goHome();
     }
-  }, [shortcutsHelpOpen, modalOpen, screen, goHome]);
+  }, [shortcutsHelpOpen, blockPrompt, modalOpen, screen, goHome]);
 
   /** True while something is in progress that leaving would discard. */
   const isRunActive = screen === "session" || screen === "linking" || screen === "test" || screen === "reading" || screen === "linking-essay";
@@ -1175,8 +1157,17 @@ export default function AppShell() {
         handleEscape();
         return;
       }
-      // Checked before the "typing" bail below: once the modal/help overlay is up it visually owns
+      // Checked before the "typing" bail below: once a dialog/help overlay is up it visually owns
       // the keyboard even if an exercise input underneath still technically holds DOM focus.
+      if (blockPrompt) {
+        if (e.key === "Enter") {
+          const activeTag = (document.activeElement as HTMLElement | null)?.tagName;
+          if (activeTag === "BUTTON" || activeTag === "A") return;
+          e.preventDefault();
+          confirmBlockWord();
+        }
+        return;
+      }
       if (modalOpen) {
         if (e.key === "Enter") {
           // A focused button/link already reacts to Enter on its own (e.g. tabbing to Cancel) —
@@ -1207,10 +1198,7 @@ export default function AppShell() {
         }
         if (e.key.toLowerCase() === "x") {
           e.preventDefault();
-          if (window.confirm("Dieses Wort für immer aus dem Training ausschließen?")) {
-            if (learningSession) blockWordAndAdvance(currentWordId);
-            else if (quickSession) blockWordAndAdvanceQuick(currentWordId);
-          }
+          setBlockPrompt(currentWordId);
           return;
         }
       }
@@ -1257,6 +1245,8 @@ export default function AppShell() {
   }, [
     handleEscape,
     modalOpen,
+    blockPrompt,
+    confirmBlockWord,
     shortcutsHelpOpen,
     confirmEndSession,
     screen,
@@ -1418,7 +1408,7 @@ export default function AppShell() {
             xpPop={learningSession.lastXp}
             onExit={() => setModalOpen(true)}
             onToggleFav={() => currentWordId && store.toggleFavorite(currentWordId)}
-            onBlock={currentWordId ? () => blockWordAndAdvance(currentWordId) : undefined}
+            onBlock={currentWordId ? () => setBlockPrompt(currentWordId) : undefined}
           >
             {currentItem.domain === "vocab" ? (
               <ExerciseRouter
@@ -1446,7 +1436,7 @@ export default function AppShell() {
             favorite={favorite}
             onExit={() => setModalOpen(true)}
             onToggleFav={() => currentWordId && store.toggleFavorite(currentWordId)}
-            onBlock={currentWordId ? () => blockWordAndAdvanceQuick(currentWordId) : undefined}
+            onBlock={currentWordId ? () => setBlockPrompt(currentWordId) : undefined}
           >
             <ExerciseRouter item={quickSession.queue[quickSession.index]} onAnswered={onQuickAnswered} onNext={nextQuickQuestion} />
           </SessionScreen>
@@ -1495,6 +1485,20 @@ export default function AppShell() {
         }
         onCancel={() => setModalOpen(false)}
         onConfirm={confirmEndSession}
+      />
+      <Modal
+        open={blockPrompt !== null}
+        title="Wort ausschließen?"
+        body={
+          blockPrompt
+            ? `„${VOCAB_BY_ID[blockPrompt]?.en ?? blockPrompt}" wird dauerhaft aus dem Training entfernt. Du kannst das in den Einstellungen rückgängig machen.`
+            : ""
+        }
+        cancelLabel="Abbrechen"
+        confirmLabel="Ausschließen"
+        destructive
+        onCancel={() => setBlockPrompt(null)}
+        onConfirm={confirmBlockWord}
       />
       <ShortcutsHelp open={shortcutsHelpOpen} onClose={() => setShortcutsHelpOpen(false)} />
     </div>

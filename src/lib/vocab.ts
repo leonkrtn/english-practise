@@ -113,6 +113,24 @@ export function inGeneralVocab(word: Word): boolean {
   return word.category !== "math";
 }
 
+/**
+ * Whether a stored progress row counts towards the Vocabulary track's "x of y words" readouts.
+ *
+ * The single definition every screen must agree on: Home, the statistics screen and the 5-week
+ * goal's baseline each used to filter differently, so the same account showed three different
+ * "words learned" numbers. Rejects rows whose word no longer exists, words the learner excluded,
+ * and math terms — none of which the Vocabulary session can ever draw.
+ */
+export function countsTowardVocab(wordId: string, blockedWordIds: ReadonlySet<string>): boolean {
+  const word = VOCAB_BY_ID[wordId];
+  return !!word && !blockedWordIds.has(wordId) && inGeneralVocab(word);
+}
+
+/** How many words the Vocabulary track can draw from at all — the denominator for those readouts. */
+export function generalVocabTotal(blockedWordIds: ReadonlySet<string>): number {
+  return VOCAB.reduce((n, w) => (inGeneralVocab(w) && !blockedWordIds.has(w.id) ? n + 1 : n), 0);
+}
+
 /** VOCAB minus any words the learner has permanently excluded — mirrors activeGrammarRules(). */
 export function activeVocab(blockedWordIds: ReadonlySet<string> = new Set()): Word[] {
   return blockedWordIds.size === 0 ? VOCAB : VOCAB.filter((w) => !blockedWordIds.has(w.id));
@@ -127,8 +145,6 @@ export function inDomainScope(scope: DomainScope): (word: Word) => boolean {
   if (scope === "both") return (w) => w.category !== undefined;
   return (w) => w.category === scope;
 }
-
-export const DOMAIN_WORDS: Word[] = VOCAB.filter((w) => w.category !== undefined);
 
 /**
  * The German side to show wherever a word is paired against its translation. Specialist terms are

@@ -1,5 +1,4 @@
-import type { QueueItem } from "@/lib/sessionLogic";
-import type { ResultEntry } from "@/lib/types";
+import type { QueueItem, ResultEntry } from "@/lib/types";
 
 export interface ExerciseProps {
   item: QueueItem;

@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { choice, classifyAnswer } from "@/lib/utils";
+import { choice } from "@/lib/utils";
+import { classifyAnswer } from "@/lib/answerCheck";
 import type { AnswerResultKind } from "@/lib/types";
 import { AnswerInput, ExerciseFooter, FeedbackPanel, HintButton, KeyBadge, PrimaryButton, useHintShortcut } from "@/components/exercises/shared";
 import { CategoryBadge, Prompt, type GrammarExerciseProps } from "./shared";

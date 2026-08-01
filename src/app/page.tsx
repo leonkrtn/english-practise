@@ -1,10 +1,15 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { StoreProvider, useStore } from "@/lib/store";
 import { GrammarStoreProvider, useGrammarStore } from "@/lib/grammarStore";
-import AppShell from "@/components/AppShell";
 import AuthScreen from "@/components/screens/AuthScreen";
+
+// The app itself only ever renders behind the login, and it carries the whole ~2,300-word
+// catalogue with it. Loading it on demand keeps that off the login screen entirely, and for a
+// signed-in visitor it downloads in parallel with the progress fetch that gates it anyway.
+const AppShell = dynamic(() => import("@/components/AppShell"), { ssr: false });
 
 function StoreBoot() {
   const store = useStore();
