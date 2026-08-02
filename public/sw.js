@@ -9,7 +9,7 @@
 //  - Everything else (hashed /_next/static assets, icons, manifest): cache-first, since hashed
 //    build assets never change content under the same URL — safe to serve from cache forever and
 //    only fetch once.
-const CACHE_NAME = "vocab-trainer-v1";
+const CACHE_NAME = "vocab-trainer-v2";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
