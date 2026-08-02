@@ -1,4 +1,5 @@
 import { V1, V2, V3, V4, V5, A1, A2, A3, A4, A5, type RawEntry } from "./vocab-raw";
+import { N1, N2 } from "./noun-vocab-raw";
 import {
   FIN_ACCOUNTING,
   FIN_VALUATION,
@@ -79,6 +80,7 @@ function buildDomainFrom(raw: DomainEntry[], prefix: string, category: WordCateg
 
 const RAW_VERBS = ([] as RawEntry[]).concat(V1, V2, V3, V4, V5);
 const RAW_ADJ = ([] as RawEntry[]).concat(A1, A2, A3, A4, A5);
+const RAW_NOUNS = ([] as RawEntry[]).concat(N1, N2);
 const RAW_FINANCE = ([] as DomainEntry[]).concat(FIN_ACCOUNTING, FIN_VALUATION, FIN_DEALS, FIN_CAPITAL, FIN_MARKETS);
 const RAW_MATH = ([] as DomainEntry[]).concat(MATH_OPERATIONS, MATH_ALGEBRA, MATH_STATS, MATH_DESCRIBING);
 const RAW_IDIOMS = ([] as DomainEntry[]).concat(IDIOMS_BUSINESS, IDIOMS_EVERYDAY, IDIOMS_COMMUNICATION, IDIOMS_EXTRA);
@@ -86,6 +88,7 @@ const RAW_IDIOMS = ([] as DomainEntry[]).concat(IDIOMS_BUSINESS, IDIOMS_EVERYDAY
 export const VOCAB: Word[] = [
   ...buildFrom(RAW_VERBS, "v", "verb"),
   ...buildFrom(RAW_ADJ, "a", "adjective"),
+  ...buildFrom(RAW_NOUNS, "n", "noun"),
   ...buildDomainFrom(RAW_FINANCE, "f", "finance"),
   ...buildDomainFrom(RAW_MATH, "m", "math"),
   ...buildDomainFrom(RAW_IDIOMS, "i", "idiom"),

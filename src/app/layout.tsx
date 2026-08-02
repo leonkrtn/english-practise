@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 
 export const metadata: Metadata = {
   title: "Vocab Trainer — EN/DE",
@@ -29,6 +30,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-[var(--bg)] text-[var(--ink)]">
+        <ServiceWorkerRegistration />
         <TooltipProvider>{children}</TooltipProvider>
       </body>
     </html>
