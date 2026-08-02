@@ -6,10 +6,12 @@ import { useSoundMuted } from "@/lib/sound";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import LevelPill from "./LevelPill";
+import SyncStatus from "./SyncStatus";
 
 export default function TopBar({
   screen,
   xp,
+  pendingSync,
   goHome,
   goList,
   goStats,
@@ -20,6 +22,7 @@ export default function TopBar({
 }: {
   screen: Screen;
   xp: number;
+  pendingSync: number;
   goHome: () => void;
   goList: () => void;
   goStats: () => void;
@@ -38,6 +41,7 @@ export default function TopBar({
           </span>
         </button>
         <LevelPill xp={xp} onClick={goStats} />
+        <SyncStatus pendingSync={pendingSync} />
       </div>
       <div className="flex items-center gap-1">
         <IconButton onClick={toggleMuted} title={muted ? "Sound aktivieren" : "Sound stummschalten"}>

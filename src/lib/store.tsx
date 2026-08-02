@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { isAuthError, supabase } from "./supabase";
 import { blankWordState, type FormatStat, type SessionRecord, type TestRecord, type WordState, type AnswerResultKind, type LearningStage } from "./types";
 import { DEFAULT_PROFILE_ID, isLearningProfileId, type LearningProfileId } from "./learningProfile";
+import { enqueueWrite, flushQueue, loadSnapshot, pendingCount, saveSnapshot } from "./offlineSync";
 
 interface StoreShape {
   words: Record<string, WordState>;
@@ -22,6 +23,12 @@ interface StoreShape {
 interface StoreApi {
   ready: boolean;
   error: string | null;
+  /** True while the learner's progress came from the local offline cache rather than a confirmed
+   * Supabase fetch — either because the app booted without a connection, or a write since then
+   * failed and is waiting in the outbox. */
+  offline: boolean;
+  /** Number of writes queued in the local outbox, waiting to be replayed once back online. */
+  pendingSync: number;
   words: Record<string, WordState>;
   formatStats: Record<string, FormatStat>;
   sessionHistory: SessionRecord[];
@@ -68,6 +75,21 @@ function metaSnapshot(s: StoreShape): MetaSnapshot {
   };
 }
 
+/** JSON-safe mirror of StoreShape — Sets don't survive JSON.stringify, so the two Set fields are
+ * carried as arrays while cached locally. */
+type SerializedStoreShape = Omit<StoreShape, "blockedWordIds" | "badgeIds"> & {
+  blockedWordIds: string[];
+  badgeIds: string[];
+};
+
+function serializeSnapshot(s: StoreShape): SerializedStoreShape {
+  return { ...s, blockedWordIds: [...s.blockedWordIds], badgeIds: [...s.badgeIds] };
+}
+
+function deserializeSnapshot(s: SerializedStoreShape): StoreShape {
+  return { ...s, blockedWordIds: new Set(s.blockedWordIds || []), badgeIds: new Set(s.badgeIds || []) };
+}
+
 function wordRow(userId: string, id: string, w: WordState) {
   return {
     user_id: userId,
@@ -94,8 +116,12 @@ function wordRow(userId: string, id: string, w: WordState) {
 
 /** Loads and persists this signed-in user's progress. Mount only once `userId` (a real account, not anonymous) is known. */
 export function StoreProvider({ userId, children }: { userId: string; children: React.ReactNode }) {
+  const namespace = `vocab:${userId}`;
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [pendingSync, setPendingSync] = useState(0);
+  const refreshPendingSync = useCallback(() => setPendingSync(pendingCount(namespace)), [namespace]);
   const [state, setState] = useState<StoreShape>({
     words: {},
     formatStats: {},
@@ -219,6 +245,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
         persistedFormatStats.current = loaded.formatStats;
         persistedMeta.current = metaSnapshot(loaded);
         setState(loaded);
+        setOffline(false);
         setReady(true);
       } catch (e) {
         console.error("Supabase init failed", e);
@@ -233,13 +260,56 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
           }
           return;
         }
+        // The fetch above needs a connection; a locally cached snapshot from the last time it
+        // succeeded lets the learner keep practicing offline instead of hitting a dead end. Any
+        // answers given from here are queued (see the persistence effects below) and replayed
+        // once back online.
+        const cached = loadSnapshot<SerializedStoreShape>(namespace);
+        if (cached) {
+          const loaded = deserializeSnapshot(cached);
+          persistedWords.current = loaded.words;
+          persistedFormatStats.current = loaded.formatStats;
+          persistedMeta.current = metaSnapshot(loaded);
+          setState(loaded);
+          setOffline(true);
+          refreshPendingSync();
+          setReady(true);
+          return;
+        }
         setError(e instanceof Error ? e.message : "Could not connect to Supabase.");
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, namespace, refreshPendingSync]);
+
+  // Keeps a local copy of the whole store in sync so a later fully-offline boot has something to
+  // load from. Local-only, no network — cheap to run on every state change.
+  useEffect(() => {
+    if (!ready) return;
+    saveSnapshot(namespace, serializeSnapshot(state));
+  }, [state, ready, namespace]);
+
+  // Replays any writes still stuck in the outbox from a previous offline stretch, once right after
+  // boot and again every time the browser regains connectivity.
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    async function tryFlush() {
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
+      const { remaining } = await flushQueue(namespace, supabase);
+      if (cancelled) return;
+      refreshPendingSync();
+      if (remaining === 0) setOffline(false);
+    }
+    tryFlush();
+    window.addEventListener("online", tryFlush);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("online", tryFlush);
+    };
+  }, [ready, namespace, refreshPendingSync]);
 
   const wordState = useCallback(
     (id: string): WordState => state.words[id] || blankWordState(),
@@ -254,14 +324,19 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     persistedWords.current = state.words;
     for (const [id, w] of Object.entries(state.words)) {
       if (previous[id] === w) continue;
+      const row = wordRow(userId, id, w);
       supabase
         .from("word_progress")
-        .upsert(wordRow(userId, id, w), { onConflict: "user_id,word_id" })
+        .upsert(row, { onConflict: "user_id,word_id" })
         .then(({ error: err }) => {
-          if (err) console.error("persistWord", err);
+          if (!err) return;
+          console.error("persistWord", err);
+          enqueueWrite(namespace, { table: "word_progress", mode: "upsert", values: row, onConflict: "user_id,word_id", dedupeKey: id });
+          setOffline(true);
+          refreshPendingSync();
         });
     }
-  }, [state.words, ready, userId]);
+  }, [state.words, ready, userId, namespace, refreshPendingSync]);
 
   useEffect(() => {
     if (!ready) return;
@@ -269,14 +344,19 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     persistedFormatStats.current = state.formatStats;
     for (const [format, s] of Object.entries(state.formatStats)) {
       if (previous[format] === s) continue;
+      const row = { user_id: userId, format, correct: s.correct, almost: s.almost, incorrect: s.incorrect };
       supabase
         .from("format_stats")
-        .upsert({ user_id: userId, format, correct: s.correct, almost: s.almost, incorrect: s.incorrect }, { onConflict: "user_id,format" })
+        .upsert(row, { onConflict: "user_id,format" })
         .then(({ error: err }) => {
-          if (err) console.error("recordFormatStat", err);
+          if (!err) return;
+          console.error("recordFormatStat", err);
+          enqueueWrite(namespace, { table: "format_stats", mode: "upsert", values: row, onConflict: "user_id,format", dedupeKey: format });
+          setOffline(true);
+          refreshPendingSync();
         });
     }
-  }, [state.formatStats, ready, userId]);
+  }, [state.formatStats, ready, userId, namespace, refreshPendingSync]);
 
   useEffect(() => {
     if (!ready) return;
@@ -295,13 +375,18 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     if (next.learningProfile !== previous.learningProfile) patch.learning_profile = next.learningProfile;
     if (Object.keys(patch).length === 0) return;
 
+    const row = { user_id: userId, ...patch };
     supabase
       .from("app_meta")
-      .upsert({ user_id: userId, ...patch }, { onConflict: "user_id" })
+      .upsert(row, { onConflict: "user_id" })
       .then(({ error: err }) => {
-        if (err) console.error("app_meta", err);
+        if (!err) return;
+        console.error("app_meta", err);
+        enqueueWrite(namespace, { table: "app_meta", mode: "upsert", values: row, onConflict: "user_id", dedupeKey: "app_meta" });
+        setOffline(true);
+        refreshPendingSync();
       });
-  }, [state, ready, userId]);
+  }, [state, ready, userId, namespace, refreshPendingSync]);
 
   // ---------- Mutations: pure state updates, persisted by the effects above ----------
 
@@ -364,20 +449,25 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
   // rather than diffed — but still outside the updater, which must not run a side effect twice.
   const recordSession = useCallback(
     (session: SessionRecord) => {
+      const row = {
+        user_id: userId,
+        occurred_at: new Date(session.date).toISOString(),
+        total: session.total,
+        correct: session.correct,
+        almost: session.almost,
+        incorrect: session.incorrect,
+        accuracy: session.accuracy,
+        format: session.format,
+      };
       supabase
         .from("session_history")
-        .insert({
-          user_id: userId,
-          occurred_at: new Date(session.date).toISOString(),
-          total: session.total,
-          correct: session.correct,
-          almost: session.almost,
-          incorrect: session.incorrect,
-          accuracy: session.accuracy,
-          format: session.format,
-        })
+        .insert(row)
         .then(({ error: err }) => {
-          if (err) console.error("recordSession", err);
+          if (!err) return;
+          console.error("recordSession", err);
+          enqueueWrite(namespace, { table: "session_history", mode: "insert", values: row });
+          setOffline(true);
+          refreshPendingSync();
         });
       setState((prev) => ({
         ...prev,
@@ -385,29 +475,34 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
         totalPracticeSessions: (prev.totalPracticeSessions || 0) + 1,
       }));
     },
-    [userId]
+    [userId, namespace, refreshPendingSync]
   );
 
   const recordTest = useCallback(
     (test: TestRecord) => {
+      const row = {
+        user_id: userId,
+        occurred_at: new Date(test.date).toISOString(),
+        scope: test.scope,
+        total: test.total,
+        correct: test.correct,
+        accuracy: test.accuracy,
+        grade: test.grade,
+        duration_seconds: test.durationSeconds,
+      };
       supabase
         .from("test_history")
-        .insert({
-          user_id: userId,
-          occurred_at: new Date(test.date).toISOString(),
-          scope: test.scope,
-          total: test.total,
-          correct: test.correct,
-          accuracy: test.accuracy,
-          grade: test.grade,
-          duration_seconds: test.durationSeconds,
-        })
+        .insert(row)
         .then(({ error: err }) => {
-          if (err) console.error("recordTest", err);
+          if (!err) return;
+          console.error("recordTest", err);
+          enqueueWrite(namespace, { table: "test_history", mode: "insert", values: row });
+          setOffline(true);
+          refreshPendingSync();
         });
       setState((prev) => ({ ...prev, testHistory: [...prev.testHistory, test] }));
     },
-    [userId]
+    [userId, namespace, refreshPendingSync]
   );
 
   // Deliberately called once per finished session/test with the whole payout, not once per answer:
@@ -455,6 +550,8 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     () => ({
       ready,
       error,
+      offline,
+      pendingSync,
       words: state.words,
       formatStats: state.formatStats,
       sessionHistory: state.sessionHistory,
@@ -482,6 +579,8 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     [
       ready,
       error,
+      offline,
+      pendingSync,
       state,
       wordState,
       updateWord,

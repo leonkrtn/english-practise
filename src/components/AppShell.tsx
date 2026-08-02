@@ -1287,6 +1287,7 @@ export default function AppShell() {
       <TopBar
         screen={screen}
         xp={store.xp}
+        pendingSync={store.pendingSync + grammarStore.pendingSync}
         goHome={goHome}
         goList={goList}
         goStats={goStats}

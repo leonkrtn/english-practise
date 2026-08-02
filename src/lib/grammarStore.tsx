@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { isAuthError, supabase } from "./supabase";
 import { blankGrammarRuleState, type GrammarFormatStat, type GrammarRuleState, type GrammarSessionRecord } from "./grammarTypes";
 import type { AnswerResultKind, LearningStage } from "./types";
+import { enqueueWrite, flushQueue, loadSnapshot, pendingCount, saveSnapshot } from "./offlineSync";
 
 interface GrammarStoreShape {
   rules: Record<string, GrammarRuleState>;
@@ -16,6 +17,9 @@ interface GrammarStoreShape {
 interface GrammarStoreApi {
   ready: boolean;
   error: string | null;
+  /** See StoreApi.offline (store.tsx) — same meaning, mirrored for grammar progress. */
+  offline: boolean;
+  pendingSync: number;
   rules: Record<string, GrammarRuleState>;
   formatStats: Record<string, GrammarFormatStat>;
   sessionHistory: GrammarSessionRecord[];
@@ -33,6 +37,17 @@ const GrammarStoreContext = createContext<GrammarStoreApi | null>(null);
 
 /** The slice living in the single `grammar_meta` row — diffed as a unit, written as one upsert. */
 type GrammarMetaSnapshot = Pick<GrammarStoreShape, "totalPracticeSessions" | "blockedRuleIds">;
+
+/** JSON-safe mirror of GrammarStoreShape — see the equivalent in store.tsx. */
+type SerializedGrammarStoreShape = Omit<GrammarStoreShape, "blockedRuleIds"> & { blockedRuleIds: string[] };
+
+function serializeSnapshot(s: GrammarStoreShape): SerializedGrammarStoreShape {
+  return { ...s, blockedRuleIds: [...s.blockedRuleIds] };
+}
+
+function deserializeSnapshot(s: SerializedGrammarStoreShape): GrammarStoreShape {
+  return { ...s, blockedRuleIds: new Set(s.blockedRuleIds || []) };
+}
 
 function ruleRow(userId: string, id: string, s: GrammarRuleState) {
   return {
@@ -56,8 +71,12 @@ function ruleRow(userId: string, id: string, s: GrammarRuleState) {
 
 /** Grammar progress, kept entirely separate from vocabulary progress (own tables, own session clock). */
 export function GrammarStoreProvider({ userId, children }: { userId: string; children: React.ReactNode }) {
+  const namespace = `grammar:${userId}`;
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [pendingSync, setPendingSync] = useState(0);
+  const refreshPendingSync = useCallback(() => setPendingSync(pendingCount(namespace)), [namespace]);
   const [state, setState] = useState<GrammarStoreShape>({ rules: {}, formatStats: {}, sessionHistory: [], totalPracticeSessions: 0, blockedRuleIds: new Set() });
 
   // Mirrors the vocabulary store: mutations stay pure, the effects below diff against what the
@@ -130,6 +149,7 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
         persistedFormatStats.current = loaded.formatStats;
         persistedMeta.current = { totalPracticeSessions: loaded.totalPracticeSessions, blockedRuleIds: loaded.blockedRuleIds };
         setState(loaded);
+        setOffline(false);
         setReady(true);
       } catch (e) {
         console.error("Grammar store init failed", e);
@@ -144,13 +164,50 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
           }
           return;
         }
+        // Same offline fallback as the vocabulary store: fall back to the last locally cached
+        // snapshot instead of a dead end, and queue writes from here for replay once reconnected.
+        const cached = loadSnapshot<SerializedGrammarStoreShape>(namespace);
+        if (cached) {
+          const loaded = deserializeSnapshot(cached);
+          persistedRules.current = loaded.rules;
+          persistedFormatStats.current = loaded.formatStats;
+          persistedMeta.current = { totalPracticeSessions: loaded.totalPracticeSessions, blockedRuleIds: loaded.blockedRuleIds };
+          setState(loaded);
+          setOffline(true);
+          refreshPendingSync();
+          setReady(true);
+          return;
+        }
         setError(e instanceof Error ? e.message : "Could not load grammar progress.");
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, namespace, refreshPendingSync]);
+
+  useEffect(() => {
+    if (!ready) return;
+    saveSnapshot(namespace, serializeSnapshot(state));
+  }, [state, ready, namespace]);
+
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    async function tryFlush() {
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
+      const { remaining } = await flushQueue(namespace, supabase);
+      if (cancelled) return;
+      refreshPendingSync();
+      if (remaining === 0) setOffline(false);
+    }
+    tryFlush();
+    window.addEventListener("online", tryFlush);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("online", tryFlush);
+    };
+  }, [ready, namespace, refreshPendingSync]);
 
   const ruleState = useCallback((id: string): GrammarRuleState => state.rules[id] || blankGrammarRuleState(), [state.rules]);
 
@@ -162,14 +219,19 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
     persistedRules.current = state.rules;
     for (const [id, r] of Object.entries(state.rules)) {
       if (previous[id] === r) continue;
+      const row = ruleRow(userId, id, r);
       supabase
         .from("grammar_progress")
-        .upsert(ruleRow(userId, id, r), { onConflict: "user_id,rule_id" })
+        .upsert(row, { onConflict: "user_id,rule_id" })
         .then(({ error: err }) => {
-          if (err) console.error("persistRule", err);
+          if (!err) return;
+          console.error("persistRule", err);
+          enqueueWrite(namespace, { table: "grammar_progress", mode: "upsert", values: row, onConflict: "user_id,rule_id", dedupeKey: id });
+          setOffline(true);
+          refreshPendingSync();
         });
     }
-  }, [state.rules, ready, userId]);
+  }, [state.rules, ready, userId, namespace, refreshPendingSync]);
 
   useEffect(() => {
     if (!ready) return;
@@ -177,14 +239,19 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
     persistedFormatStats.current = state.formatStats;
     for (const [format, f] of Object.entries(state.formatStats)) {
       if (previous[format] === f) continue;
+      const row = { user_id: userId, format, correct: f.correct, almost: f.almost, incorrect: f.incorrect };
       supabase
         .from("grammar_format_stats")
-        .upsert({ user_id: userId, format, correct: f.correct, almost: f.almost, incorrect: f.incorrect }, { onConflict: "user_id,format" })
+        .upsert(row, { onConflict: "user_id,format" })
         .then(({ error: err }) => {
-          if (err) console.error("grammar recordFormatStat", err);
+          if (!err) return;
+          console.error("grammar recordFormatStat", err);
+          enqueueWrite(namespace, { table: "grammar_format_stats", mode: "upsert", values: row, onConflict: "user_id,format", dedupeKey: format });
+          setOffline(true);
+          refreshPendingSync();
         });
     }
-  }, [state.formatStats, ready, userId]);
+  }, [state.formatStats, ready, userId, namespace, refreshPendingSync]);
 
   useEffect(() => {
     if (!ready) return;
@@ -198,13 +265,18 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
     if (next.blockedRuleIds !== previous.blockedRuleIds) patch.blocked_rule_ids = [...next.blockedRuleIds];
     if (Object.keys(patch).length === 0) return;
 
+    const row = { user_id: userId, ...patch };
     supabase
       .from("grammar_meta")
-      .upsert({ user_id: userId, ...patch }, { onConflict: "user_id" })
+      .upsert(row, { onConflict: "user_id" })
       .then(({ error: err }) => {
-        if (err) console.error("grammar_meta", err);
+        if (!err) return;
+        console.error("grammar_meta", err);
+        enqueueWrite(namespace, { table: "grammar_meta", mode: "upsert", values: row, onConflict: "user_id", dedupeKey: "grammar_meta" });
+        setOffline(true);
+        refreshPendingSync();
       });
-  }, [state.totalPracticeSessions, state.blockedRuleIds, ready, userId]);
+  }, [state.totalPracticeSessions, state.blockedRuleIds, ready, userId, namespace, refreshPendingSync]);
 
   // ---------- Mutations: pure state updates, persisted by the effects above ----------
 
@@ -258,20 +330,25 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
   // updater, which must not run a side effect twice.
   const recordSession = useCallback(
     (session: GrammarSessionRecord) => {
+      const row = {
+        user_id: userId,
+        occurred_at: new Date(session.date).toISOString(),
+        total: session.total,
+        correct: session.correct,
+        almost: session.almost,
+        incorrect: session.incorrect,
+        accuracy: session.accuracy,
+        format: session.format,
+      };
       supabase
         .from("grammar_session_history")
-        .insert({
-          user_id: userId,
-          occurred_at: new Date(session.date).toISOString(),
-          total: session.total,
-          correct: session.correct,
-          almost: session.almost,
-          incorrect: session.incorrect,
-          accuracy: session.accuracy,
-          format: session.format,
-        })
+        .insert(row)
         .then(({ error: err }) => {
-          if (err) console.error("grammar recordSession", err);
+          if (!err) return;
+          console.error("grammar recordSession", err);
+          enqueueWrite(namespace, { table: "grammar_session_history", mode: "insert", values: row });
+          setOffline(true);
+          refreshPendingSync();
         });
       setState((prev) => ({
         ...prev,
@@ -279,7 +356,7 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
         totalPracticeSessions: (prev.totalPracticeSessions || 0) + 1,
       }));
     },
-    [userId]
+    [userId, namespace, refreshPendingSync]
   );
 
   const setRuleBlocked = useCallback((id: string, blocked: boolean) => {
@@ -296,6 +373,8 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
     () => ({
       ready,
       error,
+      offline,
+      pendingSync,
       rules: state.rules,
       formatStats: state.formatStats,
       sessionHistory: state.sessionHistory,
@@ -308,7 +387,7 @@ export function GrammarStoreProvider({ userId, children }: { userId: string; chi
       recordSession,
       setRuleBlocked,
     }),
-    [ready, error, state, ruleState, updateRule, recordFormatStat, setLearningStage, recordSession, setRuleBlocked]
+    [ready, error, offline, pendingSync, state, ruleState, updateRule, recordFormatStat, setLearningStage, recordSession, setRuleBlocked]
   );
 
   return <GrammarStoreContext.Provider value={api}>{children}</GrammarStoreContext.Provider>;
