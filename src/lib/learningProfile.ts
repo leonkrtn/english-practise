@@ -29,14 +29,20 @@ export interface LearningTuning {
   vocabBatchSize: number;
   /** Grammar rules worked on per session. */
   grammarBatchSize: number;
+  /** Math rules worked on per session. Sits between the vocabulary and grammar sizes: a math rule
+   * costs more than a word (its learn card is a page of explanation) but its practice tasks are
+   * short, so a session can carry more of them than grammar's multi-sentence production drills. */
+  mathBatchSize: number;
   /** How many brand-new (stage 0) items may enter a single session. Kept well below the batch
    * size on purpose: a session made entirely of unknown words needs a learn + several test tasks
    * for every single one, which is exactly the "same handful of words over and over" grind. */
   maxNewVocabPerSession: number;
   maxNewGrammarPerSession: number;
+  maxNewMathPerSession: number;
   /** Due long-term reviews mixed into a normal session. */
   vocabReviewSample: number;
   grammarReviewSample: number;
+  mathReviewSample: number;
 
   // ---- How often the same item comes back ----
   /** Hard floor on how many other questions must sit between two sightings of the same item.
@@ -71,10 +77,13 @@ export const LEARNING_PROFILES: Record<LearningProfileId, LearningTuning> = {
     summary: "Kleine Portionen, viel Abstand zwischen Wiederholungen. Gut, wenn sich Sessions gehetzt anfühlen.",
     vocabBatchSize: 6,
     grammarBatchSize: 3,
+    mathBatchSize: 5,
     maxNewVocabPerSession: 3,
     maxNewGrammarPerSession: 1,
+    maxNewMathPerSession: 2,
     vocabReviewSample: 3,
     grammarReviewSample: 2,
+    mathReviewSample: 3,
     minRepeatGap: 6,
     repeatGapGrowth: 4,
     repeatGapJitter: 2,
@@ -88,10 +97,13 @@ export const LEARNING_PROFILES: Record<LearningProfileId, LearningTuning> = {
     summary: "Ausgewogenes Tempo — genug Abwechslung, damit du die Wörter lernst und nicht die Aufgaben.",
     vocabBatchSize: 10,
     grammarBatchSize: 5,
+    mathBatchSize: 8,
     maxNewVocabPerSession: 4,
     maxNewGrammarPerSession: 2,
+    maxNewMathPerSession: 4,
     vocabReviewSample: 5,
     grammarReviewSample: 3,
+    mathReviewSample: 4,
     minRepeatGap: 5,
     repeatGapGrowth: 3,
     repeatGapJitter: 2,
@@ -105,10 +117,13 @@ export const LEARNING_PROFILES: Record<LearningProfileId, LearningTuning> = {
     summary: "Mehr Stoff pro Session und strengere Mastery. Für Tage, an denen du wirklich Druck machen willst.",
     vocabBatchSize: 14,
     grammarBatchSize: 7,
+    mathBatchSize: 12,
     maxNewVocabPerSession: 6,
     maxNewGrammarPerSession: 3,
+    maxNewMathPerSession: 6,
     vocabReviewSample: 8,
     grammarReviewSample: 4,
+    mathReviewSample: 6,
     minRepeatGap: 4,
     repeatGapGrowth: 3,
     repeatGapJitter: 3,
