@@ -6,6 +6,7 @@ import {
   BookOpen,
   Blocks,
   Calculator,
+  ChevronRight,
   ChevronUp,
   Flag,
   Flame,
@@ -31,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { VOCAB, VOCAB_BY_ID, countsTowardVocab, generalVocabTotal, inDomainScope, inGeneralVocab, inIdiomScope, type DomainScope } from "@/lib/vocab";
 import { activeGrammarRules } from "@/lib/grammarLearning";
+import { MATH_RULES } from "@/lib/mathRules";
 import { needsIntensification } from "@/lib/intensify";
 import { computeGoalStatus } from "@/lib/goal";
 import { computeStreak, DAY_MS } from "@/lib/progressStats";
@@ -201,6 +203,7 @@ export default function HomeScreen({
   onReview,
   onSpeedRound,
   onGoal,
+  onOpenMath,
 }: {
   mode: SessionMode;
   onModeChange: (mode: SessionMode) => void;
@@ -215,6 +218,7 @@ export default function HomeScreen({
   onReview: (mode: LearningMode, options?: ReviewOptions, domainScope?: VocabScope) => void;
   onSpeedRound: () => void;
   onGoal: () => void;
+  onOpenMath: () => void;
 }) {
   const store = useStore();
   const grammarStore = useGrammarStore();
@@ -697,6 +701,19 @@ export default function HomeScreen({
                 grad="from-green to-green-dark"
               />
               <MiniBar label="Mathematik" learned={domainBreakdown.math.learned} total={domainBreakdown.math.total} grad="from-amber to-amber-dark" />
+              <button
+                onClick={onOpenMath}
+                className="w-full flex items-center gap-3.5 rounded-2xl px-4 py-3.5 text-left bg-card border border-line-soft shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all"
+              >
+                <span className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-amber-light text-amber">
+                  <Sigma size={16} />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-semibold text-ink">Differentiation Rules</div>
+                  <div className="text-[11.5px] text-ink-faint">{MATH_RULES.length} Regeln zum Lernen</div>
+                </div>
+                <ChevronRight size={16} className="text-ink-faint shrink-0" />
+              </button>
             </div>
           )}
 
