@@ -94,6 +94,7 @@ const LinkingEssayScreen = lazyScreen(() => import("./screens/LinkingEssayScreen
 const LinkingExercise = lazyScreen(() => import("./exercises/LinkingExercise"));
 const TestScreen = lazyScreen(() => import("./screens/TestScreen"));
 const TestResultScreen = lazyScreen(() => import("./screens/TestResultScreen"));
+const MathScreen = lazyScreen(() => import("./screens/MathScreen"));
 
 export type Screen =
   | "home"
@@ -109,7 +110,8 @@ export type Screen =
   | "goal"
   | "reading"
   | "test"
-  | "test-result";
+  | "test-result"
+  | "math";
 export type SessionMode = "vocab" | "grammar" | "domain" | "idioms" | "linking" | "reading" | "test";
 /** The two modes that run through the adaptive stage engine — everything else is its own flow. */
 export type LearningMode = "vocab" | "grammar";
@@ -1069,6 +1071,7 @@ export default function AppShell() {
   const goStats = useCallback(() => setScreen("stats"), []);
   const goSettings = useCallback(() => setScreen("settings"), []);
   const goGoal = useCallback(() => setScreen("goal"), []);
+  const goMath = useCallback(() => setScreen("math"), []);
 
   // Shared by the "End session?" modal's Confirm button and the Escape/Enter keyboard path below,
   // so both ways of confirming an early exit stay in sync.
@@ -1329,8 +1332,11 @@ export default function AppShell() {
               startSpeedRound();
             }}
             onGoal={goGoal}
+            onOpenMath={goMath}
           />
         )}
+
+        {screen === "math" && <MathScreen onExit={goHome} />}
 
         {screen === "linking" && linkingSession && linkingSession.queue[linkingSession.index] && (
           <SessionScreen

@@ -8,10 +8,12 @@ import { useStore } from "@/lib/store";
 import { VOCAB_BY_ID } from "@/lib/vocab";
 import { Button } from "@/components/ui/button";
 import { LEARNING_PROFILES, PROFILE_ORDER } from "@/lib/learningProfile";
+import { useMathSolveEnabled } from "@/lib/mathSettings";
 
 export default function SettingsScreen() {
   const store = useStore();
   const grammarStore = useGrammarStore();
+  const [mathSolveEnabled, setMathSolveEnabled] = useMathSolveEnabled();
   // Account state (app_meta.learning_profile), same source of truth the session engine reads —
   // no separate client-only copy to keep in sync.
   const profile = store.learningProfile;
@@ -64,6 +66,19 @@ export default function SettingsScreen() {
               </button>
             );
           })}
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">Mathematics</h2>
+        <div className="flex items-center justify-between gap-3 rounded-xl border-[1.5px] border-line-soft bg-card px-3.5 py-3">
+          <div>
+            <div className="text-[14px] font-medium text-ink">Solve-Aufgaben anzeigen</div>
+            <p className="text-[12.5px] text-ink-soft leading-snug mt-0.5">
+              Nach jeder Regel eine Ableitung selbst berechnen. Ausgeschaltet zeigt nur die Lernkarte und Simplify-Aufgaben.
+            </p>
+          </div>
+          <Switch checked={mathSolveEnabled} onChange={setMathSolveEnabled} />
         </div>
       </div>
 
