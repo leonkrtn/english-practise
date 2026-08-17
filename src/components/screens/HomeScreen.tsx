@@ -5,22 +5,17 @@ import {
   BookMarked,
   BookOpen,
   Blocks,
-  Calculator,
-  ChevronRight,
   ChevronUp,
   Flag,
   Flame,
   GraduationCap,
   Heart,
-  Landmark,
-  Layers,
   Lightbulb,
   Link2,
   Newspaper,
   PenLine,
   Quote,
   Repeat,
-  Sigma,
   Sparkles,
   Target,
   Timer,
@@ -32,7 +27,6 @@ import { Button } from "@/components/ui/button";
 import { useGrammarStore } from "@/lib/grammarStore";
 import { VOCAB, VOCAB_BY_ID, countsTowardVocab, generalVocabTotal, inDomainScope, inGeneralVocab, inIdiomScope, type DomainScope } from "@/lib/vocab";
 import { activeGrammarRules } from "@/lib/grammarLearning";
-import { MATH_RULES } from "@/lib/mathRules";
 import { needsIntensification } from "@/lib/intensify";
 import { computeGoalStatus } from "@/lib/goal";
 import { computeStreak, DAY_MS } from "@/lib/progressStats";
@@ -78,15 +72,6 @@ const MODES: {
     ring: ["#8b5cf6", "#6d3fd4"],
   },
   {
-    val: "domain",
-    label: "Finance",
-    icon: Calculator,
-    grad: "from-green to-green-dark",
-    tint: "bg-green-light text-green",
-    glow: "shadow-[0_10px_24px_-8px_rgba(30,182,118,0.5)]",
-    ring: ["#1eb676", "#0e9464"],
-  },
-  {
     val: "idioms",
     label: "Idioms",
     icon: Quote,
@@ -126,7 +111,7 @@ const MODES: {
 
 /** The modes that run the adaptive stage engine — the only ones with a review pool, a
  * "Session-Inhalt" choice, or a learned/total progress ring. */
-const LEARNING_MODES: SessionMode[] = ["vocab", "grammar", "domain", "idioms"];
+const LEARNING_MODES: SessionMode[] = ["vocab", "grammar", "idioms"];
 const isLearningMode = (m: SessionMode): boolean => LEARNING_MODES.includes(m);
 
 /**
@@ -141,12 +126,6 @@ const learningModeFor = (m: SessionMode): LearningMode | null =>
  * for its own scope, since both are just the vocab engine pointed at a category slice. */
 const scopeFor = (m: SessionMode, domainScope: DomainScope): VocabScope | undefined =>
   m === "domain" ? domainScope : m === "idioms" ? "idiom" : undefined;
-
-const DOMAIN_SCOPES: { val: DomainScope; label: string; icon: typeof Link2 }[] = [
-  { val: "both", label: "Beides", icon: Layers },
-  { val: "finance", label: "Corporate Finance", icon: Landmark },
-  { val: "math", label: "Mathematik", icon: Sigma },
-];
 
 const SESSION_CONTENT_OPTIONS: { val: boolean; label: string; hint: string }[] = [
   { val: true, label: "Neu + Wiederholung", hint: "Neue Inhalte, gemischt mit fälligen Wiederholungen" },
@@ -195,7 +174,6 @@ export default function HomeScreen({
   linkingSubMode,
   onLinkingSubModeChange,
   domainScope,
-  onDomainScopeChange,
   onStartLearning,
   onStartLinking,
   onStartReading,
@@ -203,14 +181,12 @@ export default function HomeScreen({
   onReview,
   onSpeedRound,
   onGoal,
-  onOpenMath,
 }: {
   mode: SessionMode;
   onModeChange: (mode: SessionMode) => void;
   linkingSubMode: LinkingSubMode;
   onLinkingSubModeChange: (mode: LinkingSubMode) => void;
   domainScope: DomainScope;
-  onDomainScopeChange: (scope: DomainScope) => void;
   onStartLearning: (mode: LearningMode, includeReview: boolean, domainScope?: VocabScope) => void;
   onStartLinking: (subMode: LinkingSubMode) => void;
   onStartReading: () => void;
@@ -218,7 +194,6 @@ export default function HomeScreen({
   onReview: (mode: LearningMode, options?: ReviewOptions, domainScope?: VocabScope) => void;
   onSpeedRound: () => void;
   onGoal: () => void;
-  onOpenMath: () => void;
 }) {
   const store = useStore();
   const grammarStore = useGrammarStore();
@@ -284,16 +259,6 @@ export default function HomeScreen({
     const accuracy = totalAll ? Math.round((totalCorrect / totalAll) * 100) : 0;
     return { learned, total: pool.length, sessions: store.totalPracticeSessions || 0, accuracy };
   }, [store.words, store.blockedWordIds, store.totalPracticeSessions]);
-
-  /** Learned/total per track, for the two bars under the Finance card. */
-  const domainBreakdown = useMemo(() => {
-    const count = (category: "finance" | "math") => {
-      const pool = VOCAB.filter((w) => w.category === category && !store.blockedWordIds.has(w.id));
-      const learned = pool.filter((w) => store.words[w.id]?.stage === 4).length;
-      return { learned, total: pool.length };
-    };
-    return { finance: count("finance"), math: count("math") };
-  }, [store.words, store.blockedWordIds]);
 
   const activeRules = useMemo(() => activeGrammarRules(grammarStore.blockedRuleIds), [grammarStore.blockedRuleIds]);
 
@@ -594,30 +559,6 @@ export default function HomeScreen({
             })}
           </div>
 
-          {mode === "domain" && (
-            <div className="grid grid-cols-3 gap-2 mb-5">
-              {DOMAIN_SCOPES.map((sc) => {
-                const Icon = sc.icon;
-                const isActive = domainScope === sc.val;
-                return (
-                  <button
-                    key={sc.val}
-                    onClick={() => onDomainScopeChange(sc.val)}
-                    className={
-                      "flex flex-col items-center gap-1 rounded-xl px-1.5 py-2.5 text-center transition-all " +
-                      (isActive
-                        ? "bg-green-light border-[1.5px] border-green text-[#0d7a4f]"
-                        : "bg-card border-[1.5px] border-line-soft text-ink-soft hover:border-line")
-                    }
-                  >
-                    <Icon size={15} />
-                    <span className="text-[11px] font-semibold leading-tight">{sc.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
           {mode === "linking" && (
             <div className="grid grid-cols-3 gap-2 mb-5">
               {LINKING_SUB_MODES.map((sm) => {
@@ -689,31 +630,6 @@ export default function HomeScreen({
                 <StatChip icon={<TrendingDown size={14} />} value={wordTypeBreakdown.difficult} label="Schwierig" tint="bg-amber-light text-amber" />
                 <StatChip icon={<Lightbulb size={14} />} value={wordTypeBreakdown.intensify} label="Intensivieren" tint="bg-amber-light text-amber" />
               </div>
-            </div>
-          )}
-
-          {mode === "domain" && (
-            <div className="flex flex-col gap-2.5 mt-3">
-              <MiniBar
-                label="Corporate Finance"
-                learned={domainBreakdown.finance.learned}
-                total={domainBreakdown.finance.total}
-                grad="from-green to-green-dark"
-              />
-              <MiniBar label="Mathematik" learned={domainBreakdown.math.learned} total={domainBreakdown.math.total} grad="from-amber to-amber-dark" />
-              <button
-                onClick={onOpenMath}
-                className="w-full flex items-center gap-3.5 rounded-2xl px-4 py-3.5 text-left bg-card border border-line-soft shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all"
-              >
-                <span className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-amber-light text-amber">
-                  <Sigma size={16} />
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-semibold text-ink">Differentiation Rules</div>
-                  <div className="text-[11.5px] text-ink-faint">{MATH_RULES.length} Regeln zum Lernen</div>
-                </div>
-                <ChevronRight size={16} className="text-ink-faint shrink-0" />
-              </button>
             </div>
           )}
 

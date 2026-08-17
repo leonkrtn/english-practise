@@ -53,10 +53,15 @@ import { xpForAnswer, xpForTest, XP_ITEM_MASTERED, XP_SESSION_COMPLETE } from "@
 import { MIN_CATEGORIES as LINKING_ESSAY_MIN_CATEGORIES } from "@/lib/linkingEssay";
 import { useBadgeTracking } from "@/lib/useBadgeTracking";
 import { buildTest, gradeTest, scoreAnswer, type TestAnswer, type TestQuestion, type TestScope, type TestLength } from "@/lib/testMode";
+import { buildMathQueue, type MathQueueItem, type MathResultEntry } from "@/lib/mathLearning";
+import { useMathSolveEnabled } from "@/lib/mathSettings";
+import { useProduct } from "@/lib/product";
 import type { AnswerResultKind, QueueItem, ResultEntry } from "@/lib/types";
 import type { GrammarResultEntry } from "@/lib/grammarTypes";
 import ExerciseRouter from "@/components/exercises/ExerciseRouter";
 import GrammarExerciseRouter from "@/components/grammar-exercises/GrammarExerciseRouter";
+import MathExerciseRouter from "@/components/math-exercises/MathExerciseRouter";
+import ProductChooser from "@/components/screens/ProductChooser";
 import TopBar from "./TopBar";
 import Modal from "./Modal";
 import ShortcutsHelp from "./ShortcutsHelp";
@@ -94,7 +99,7 @@ const LinkingEssayScreen = lazyScreen(() => import("./screens/LinkingEssayScreen
 const LinkingExercise = lazyScreen(() => import("./exercises/LinkingExercise"));
 const TestScreen = lazyScreen(() => import("./screens/TestScreen"));
 const TestResultScreen = lazyScreen(() => import("./screens/TestResultScreen"));
-const MathScreen = lazyScreen(() => import("./screens/MathScreen"));
+const FinanceHomeScreen = lazyScreen(() => import("./screens/FinanceHomeScreen"));
 
 export type Screen =
   | "home"
@@ -146,6 +151,14 @@ interface LinkingSessionState {
   queue: ClausePair[];
   index: number;
   results: LinkingResult[];
+}
+
+/** Differentiation-rules drill: a queue of Learn/Solve/Simplify tasks across several rules, each
+ * checked independently — same shape as LinkingSessionState, not run through the stage engine. */
+interface MathSessionState {
+  queue: MathQueueItem[];
+  index: number;
+  results: MathResultEntry[];
 }
 
 /** Finance reading drill: one multi-gap text, with the subset of its gaps that are actually
@@ -217,15 +230,21 @@ export default function AppShell() {
   const tuning = useMemo(() => tuningFor(store.learningProfile), [store.learningProfile]);
   const { signOut } = useAuth();
   const [screen, setScreen] = useState<Screen>("home");
+  const [product, setProduct] = useProduct();
+  const [mathSolveEnabled] = useMathSolveEnabled();
   const [detailWordId, setDetailWordId] = useState<string | null>(null);
   // Lifted out of HomeScreen so the selected tab survives leaving and returning to Home (e.g.
   // after finishing a session) instead of always resetting back to Vocabulary.
   const [homeMode, setHomeMode] = useState<SessionMode>("vocab");
   const [homeLinkingSubMode, setHomeLinkingSubMode] = useState<LinkingSubMode>("combine");
-  const [homeDomainScope, setHomeDomainScope] = useState<DomainScope>("both");
+  // Finance mode moved to its own product/shell — HomeScreen's domain-scope machinery stays wired
+  // (scopeFor/reviewMatchCount still reference it) but is never reachable through the UI anymore,
+  // so this never needs to change.
+  const homeDomainScope: DomainScope = "both";
   const [quickSession, setQuickSession] = useState<QuickSessionState | null>(null);
   const [learningSession, setLearningSession] = useState<LearningSessionState | null>(null);
   const [linkingSession, setLinkingSession] = useState<LinkingSessionState | null>(null);
+  const [mathSession, setMathSession] = useState<MathSessionState | null>(null);
   const [readingSession, setReadingSession] = useState<ReadingSessionState | null>(null);
   const [testSession, setTestSession] = useState<TestSessionState | null>(null);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
@@ -586,6 +605,47 @@ export default function AppShell() {
       setLinkingSession({ ...linkingSession, index: nextIndex });
     }
   }, [linkingSession, finishLinking]);
+
+  // ---------- Differentiation rules: Learn/Solve/Simplify queue over the finance-mode math rules ----------
+
+  const startMathSession = useCallback(() => {
+    const queue = buildMathQueue(store.wordState, mathSolveEnabled);
+    setMathSession({ queue, index: 0, results: [] });
+    setScreen("math");
+  }, [store.wordState, mathSolveEnabled]);
+
+  const finishMathSession = useCallback(
+    (s: MathSessionState) => {
+      const correct = s.results.filter((r) => r.result === "correct").length;
+      const incorrect = s.results.filter((r) => r.result === "incorrect").length;
+      const total = s.results.length || 1;
+      const accuracy = Math.round((correct / total) * 100);
+      store.recordSession({ date: Date.now(), total, correct, almost: 0, incorrect, accuracy, format: "math" });
+      store.addXp(correct * 10 + XP_SESSION_COMPLETE);
+      setMathSession(null);
+      setScreen("home");
+    },
+    [store]
+  );
+
+  const onMathAnswered = useCallback(
+    (r: MathResultEntry) => {
+      store.updateWord(r.ruleId, r.result);
+      store.recordFormatStat(r.format, r.result);
+      // Reaching a rule's Learn card (shown once, the first time it's seen) marks it introduced —
+      // there's no spaced-repetition scheduling here, just a simple "seen it" flag for the progress bar.
+      if (r.format === "math-learn") store.setLearningStage(r.ruleId, 4, 0, null);
+      setMathSession((prev) => (prev ? { ...prev, results: [...prev.results, r] } : prev));
+    },
+    [store]
+  );
+
+  const nextMathQuestion = useCallback(() => {
+    if (!mathSession) return;
+    const nextIndex = mathSession.index + 1;
+    if (nextIndex >= mathSession.queue.length) finishMathSession(mathSession);
+    else setMathSession({ ...mathSession, index: nextIndex });
+  }, [mathSession, finishMathSession]);
 
   // ---------- Linking: connector-recall quiz ("which word expresses this relationship") ----------
 
@@ -1071,7 +1131,6 @@ export default function AppShell() {
   const goStats = useCallback(() => setScreen("stats"), []);
   const goSettings = useCallback(() => setScreen("settings"), []);
   const goGoal = useCallback(() => setScreen("goal"), []);
-  const goMath = useCallback(() => setScreen("math"), []);
 
   // Shared by the "End session?" modal's Confirm button and the Escape/Enter keyboard path below,
   // so both ways of confirming an early exit stay in sync.
@@ -1080,13 +1139,14 @@ export default function AppShell() {
     if (learningSession) endLearningSession(learningSession);
     else if (quickSession) endQuickSession(quickSession);
     else if (linkingSession) finishLinking(linkingSession);
+    else if (mathSession) finishMathSession(mathSession);
     else if (testSession) {
       // An abandoned exam is not graded — a partial paper would produce a grade that says nothing
       // about the learner, and filing it would drag the "best grade" record down for no reason.
       setTestSession(null);
       setScreen("home");
     }
-  }, [learningSession, quickSession, linkingSession, testSession, endLearningSession, endQuickSession, finishLinking]);
+  }, [learningSession, quickSession, linkingSession, mathSession, testSession, endLearningSession, endQuickSession, finishLinking, finishMathSession]);
 
   // Escape is the one key that always makes sense regardless of screen — it's the keyboard
   // equivalent of whatever "leave this" affordance is already on screen (the exit-confirm modal
@@ -1118,6 +1178,7 @@ export default function AppShell() {
       case "session":
       case "linking":
       case "test":
+      case "math":
         setModalOpen(true);
         return;
       case "reading":
@@ -1142,7 +1203,8 @@ export default function AppShell() {
   }, [shortcutsHelpOpen, blockPrompt, modalOpen, screen, goHome]);
 
   /** True while something is in progress that leaving would discard. */
-  const isRunActive = screen === "session" || screen === "linking" || screen === "test" || screen === "reading" || screen === "linking-essay";
+  const isRunActive =
+    screen === "session" || screen === "linking" || screen === "test" || screen === "reading" || screen === "linking-essay" || screen === "math";
 
   const currentWordId =
     learningSession && currentItem?.domain === "vocab"
@@ -1280,7 +1342,22 @@ export default function AppShell() {
   const testResultWithBadges = useMemo(() => (testResult ? { ...testResult, newBadges } : null), [testResult, newBadges]);
 
   const isFullHeightScreen =
-    screen === "session" || screen === "linking" || screen === "linking-learn" || screen === "linking-essay" || screen === "reading" || screen === "test";
+    screen === "session" ||
+    screen === "linking" ||
+    screen === "linking-learn" ||
+    screen === "linking-essay" ||
+    screen === "reading" ||
+    screen === "test" ||
+    screen === "math";
+
+  if (product === null) {
+    return <ProductChooser onChoose={setProduct} />;
+  }
+
+  const switchProduct = () => {
+    setProduct(product === "finance" ? "english" : "finance");
+    setScreen("home");
+  };
 
   return (
     <div
@@ -1291,6 +1368,8 @@ export default function AppShell() {
         screen={screen}
         xp={store.xp}
         pendingSync={store.pendingSync + grammarStore.pendingSync}
+        product={product}
+        onSwitchProduct={switchProduct}
         goHome={goHome}
         goList={goList}
         goStats={goStats}
@@ -1305,14 +1384,23 @@ export default function AppShell() {
           (isFullHeightScreen ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden")
         }
       >
-        {screen === "home" && (
+        {screen === "home" && product === "finance" && (
+          <FinanceHomeScreen
+            onStartVocab={(scope) => {
+              setLastStart({ kind: "learning", mode: "vocab", includeReview: true, domainScope: scope });
+              startLearningSession("vocab", true, scope);
+            }}
+            onStartMath={startMathSession}
+          />
+        )}
+
+        {screen === "home" && product === "english" && (
           <HomeScreen
             mode={homeMode}
             onModeChange={setHomeMode}
             linkingSubMode={homeLinkingSubMode}
             onLinkingSubModeChange={setHomeLinkingSubMode}
             domainScope={homeDomainScope}
-            onDomainScopeChange={setHomeDomainScope}
             onStartLearning={(mode, includeReview, domainScope) => {
               setLastStart({ kind: "learning", mode, includeReview, domainScope });
               startLearningSession(mode, includeReview, domainScope);
@@ -1332,11 +1420,22 @@ export default function AppShell() {
               startSpeedRound();
             }}
             onGoal={goGoal}
-            onOpenMath={goMath}
           />
         )}
 
-        {screen === "math" && <MathScreen onExit={goHome} />}
+        {screen === "math" && mathSession && mathSession.queue[mathSession.index] && (
+          <SessionScreen
+            renderKey={`${mathSession.index}-${mathSession.queue[mathSession.index].ruleId}-${mathSession.queue[mathSession.index].kind}`}
+            progressPct={Math.round((mathSession.index / mathSession.queue.length) * 100)}
+            progressLabel={`${mathSession.index + 1} / ${mathSession.queue.length}`}
+            favorite={false}
+            showFavorite={false}
+            onExit={() => setModalOpen(true)}
+            onToggleFav={NOOP}
+          >
+            <MathExerciseRouter item={mathSession.queue[mathSession.index]} onAnswered={onMathAnswered} onNext={nextMathQuestion} />
+          </SessionScreen>
+        )}
 
         {screen === "linking" && linkingSession && linkingSession.queue[linkingSession.index] && (
           <SessionScreen

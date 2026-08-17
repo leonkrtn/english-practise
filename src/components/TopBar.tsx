@@ -1,7 +1,8 @@
 "use client";
 
-import { BarChart3, Flag, Keyboard, LogOut, ScrollText, Settings, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeftRight, BarChart3, Flag, Keyboard, LogOut, ScrollText, Settings, Volume2, VolumeX } from "lucide-react";
 import type { Screen } from "./AppShell";
+import type { Product } from "@/lib/product";
 import { useSoundMuted } from "@/lib/sound";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -12,6 +13,8 @@ export default function TopBar({
   screen,
   xp,
   pendingSync,
+  product,
+  onSwitchProduct,
   goHome,
   goList,
   goStats,
@@ -23,6 +26,8 @@ export default function TopBar({
   screen: Screen;
   xp: number;
   pendingSync: number;
+  product: Product;
+  onSwitchProduct: () => void;
   goHome: () => void;
   goList: () => void;
   goStats: () => void;
@@ -44,6 +49,9 @@ export default function TopBar({
         <SyncStatus pendingSync={pendingSync} />
       </div>
       <div className="flex items-center gap-1">
+        <IconButton onClick={onSwitchProduct} title={product === "finance" ? "Zu Englisch wechseln" : "Zu Finance wechseln"}>
+          <ArrowLeftRight size={18} />
+        </IconButton>
         <IconButton onClick={toggleMuted} title={muted ? "Sound aktivieren" : "Sound stummschalten"}>
           {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
         </IconButton>
