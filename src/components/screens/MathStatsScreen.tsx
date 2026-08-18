@@ -3,7 +3,9 @@
 import { useMemo } from "react";
 import { Target, TrendingDown, Trophy, X } from "lucide-react";
 import { MATH_RULES, MATH_TOPICS, MATH_TOPIC_META } from "@/lib/math";
+import { MEMO_RULES, MEMO_SETS, MEMO_SET_META } from "@/lib/memo";
 import { topicProgress } from "@/lib/mathLearning";
+import { memoSetProgress } from "@/lib/memoLearning";
 import { labelForScopeId, mathBandFor, type MathTestRecord } from "@/lib/mathTest";
 import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
@@ -11,6 +13,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 /** Every math-exercise format, with the label shown in the per-format accuracy table. */
 const FORMAT_LABELS: [string, string][] = [
+  ["memo-learn", "Rule cards"],
+  ["memo-flashcard", "Flashcards"],
+  ["memo-cloze", "Rule cloze"],
+  ["memo-mc", "Rule multiple choice"],
+  ["memo-truefalse", "True / false"],
+  ["memo-order", "Step ordering"],
+  ["memo-facts", "Fact recall"],
   ["math-learn", "Learn cards"],
   ["math-mc", "Multiple Choice"],
   ["math-solve", "Solve"],
@@ -25,6 +34,11 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
 
   const topics = useMemo(
     () => MATH_TOPICS.map((t) => topicProgress(t, store.wordState, store.totalPracticeSessions)),
+    [store.wordState, store.totalPracticeSessions]
+  );
+
+  const memoSets = useMemo(
+    () => MEMO_SETS.map((id) => memoSetProgress(id, store.wordState, store.totalPracticeSessions)),
     [store.wordState, store.totalPracticeSessions]
   );
 
@@ -45,7 +59,11 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
 
   /** The rules that most need work: seen at least twice, ranked by how often they went wrong. */
   const weakest = useMemo(() => {
-    return MATH_RULES.map((r) => {
+    const all = [
+      ...MATH_RULES.map((r) => ({ id: r.id, title: r.title, area: MATH_TOPIC_META[r.topic].label })),
+      ...MEMO_RULES.map((r) => ({ id: r.id, title: r.title, area: MEMO_SET_META[r.setId].label })),
+    ];
+    return all.map((r) => {
       const s = store.words[r.id];
       const seen = s ? s.timesCorrect + s.timesAlmost + s.timesIncorrect : 0;
       const wrong = s ? s.timesIncorrect : 0;
@@ -119,6 +137,32 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
         })}
       </div>
 
+      {memoSets.length > 0 && (
+        <>
+          <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">By rule set</h2>
+          <div className="flex flex-col gap-2 mb-5">
+            {memoSets.map((set) => {
+              const meta = MEMO_SET_META[set.setId];
+              const pct = set.total ? Math.round((set.learned / set.total) * 100) : 0;
+              return (
+                <div key={set.setId} className="bg-card border border-line-soft rounded-xl px-4 py-3">
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <span className="text-[13.5px] font-semibold text-ink truncate">{meta.label}</span>
+                    <span className="text-[12px] text-ink-faint tabular-nums shrink-0">
+                      {set.learned}/{set.total}
+                      {set.due > 0 && <span className="text-blue font-semibold"> · {set.due} due</span>}
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-line-soft overflow-hidden">
+                    <div className={"h-full rounded-full bg-gradient-to-r " + meta.grad} style={{ width: pct + "%" }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
       {formats.length > 0 && (
         <>
           <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">By exercise type</h2>
@@ -143,7 +187,7 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
               <div key={e.rule.id} className={"flex items-center gap-3 px-4 py-2.5 " + (i > 0 ? "border-t border-line-soft" : "")}>
                 <div className="flex-1 min-w-0">
                   <div className="text-[13.5px] font-medium text-ink truncate">{e.rule.title}</div>
-                  <div className="text-[11px] text-ink-faint">{MATH_TOPIC_META[e.rule.topic].label}</div>
+                  <div className="text-[11px] text-ink-faint">{e.rule.area}</div>
                 </div>
                 <span className="text-[12px] font-semibold text-red tabular-nums shrink-0">
                   {e.wrong}/{e.seen} wrong

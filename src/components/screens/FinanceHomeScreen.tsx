@@ -10,6 +10,7 @@ import {
   Flame,
   GraduationCap,
   Landmark,
+  ListChecks,
   Repeat,
   Sigma,
   Target,
@@ -27,6 +28,8 @@ import {
   type MathTestScope,
   type MathTopicGroup,
 } from "@/lib/mathTest";
+import { MEMO_RULES, MEMO_SETS, MEMO_SET_META, type MemoSetId } from "@/lib/memo";
+import { memoSetProgress } from "@/lib/memoLearning";
 import { computeStreak } from "@/lib/progressStats";
 import {
   ActivityStrip,
@@ -42,8 +45,9 @@ import {
   formatRelativeDate,
 } from "@/components/home/shared";
 
-/** The three tabs, styled exactly like the Vocabulary home's mode tabs. */
-type FinanceTab = "vocab" | "math" | "test";
+/** The four tabs, styled exactly like the Vocabulary home's mode tabs. Owned by AppShell so the
+ * selection survives leaving and returning to Home — the same reason HomeScreen's mode is lifted. */
+export type FinanceTab = "vocab" | "math" | "rules" | "test";
 
 const TABS: { val: FinanceTab; label: string; icon: typeof BookOpen; grad: string; tint: string; glow: string; ring: [string, string] }[] = [
   {
@@ -65,6 +69,15 @@ const TABS: { val: FinanceTab; label: string; icon: typeof BookOpen; grad: strin
     ring: ["#8b5cf6", "#6d3fd4"],
   },
   {
+    val: "rules",
+    label: "Rules",
+    icon: ListChecks,
+    grad: "from-amber to-amber-dark",
+    tint: "bg-amber-light text-amber",
+    glow: "shadow-[0_10px_24px_-8px_rgba(232,161,46,0.5)]",
+    ring: ["#e8a12e", "#c9860f"],
+  },
+  {
     val: "test",
     label: "Test",
     icon: GraduationCap,
@@ -81,20 +94,27 @@ const SCOPE_OPTIONS: { val: "finance" | "math"; label: string }[] = [
 ];
 
 export default function FinanceHomeScreen({
+  tab,
+  onTabChange,
   onStartVocab,
   onStartMath,
+  onStartMemo,
   onOpenTheory,
+  onOpenRules,
   onOpenStats,
   onStartTest,
 }: {
+  tab: FinanceTab;
+  onTabChange: (tab: FinanceTab) => void;
   onStartVocab: (scope: "finance" | "math") => void;
   onStartMath: (topic: MathTopic | null, drill: boolean) => void;
+  onStartMemo: (setId: MemoSetId | null, drill: boolean) => void;
   onOpenTheory: () => void;
+  onOpenRules: () => void;
   onOpenStats: () => void;
   onStartTest: (scope: MathTestScope, length: MathTestLength) => void;
 }) {
   const store = useStore();
-  const [tab, setTab] = useState<FinanceTab>("math");
   const [vocabScope, setVocabScope] = useState<"finance" | "math">("finance");
   const [testScope, setTestScope] = useState<MathTestScope>({ kind: "all" });
   const [testLength, setTestLength] = useState<MathTestLength>(10);
@@ -147,19 +167,39 @@ export default function FinanceHomeScreen({
     return { learned, inProgress, due, total: MATH_RULES.length, accuracy: answered ? Math.round((correct / answered) * 100) : 0 };
   }, [topics, store.words]);
 
+  const memoSets = useMemo(
+    () => MEMO_SETS.map((id) => memoSetProgress(id, store.wordState, store.totalPracticeSessions)),
+    [store.wordState, store.totalPracticeSessions]
+  );
+
+  const memoStats = useMemo(() => {
+    const learned = memoSets.reduce((n, s) => n + s.learned, 0);
+    const inProgress = memoSets.reduce((n, s) => n + s.inProgress, 0);
+    const due = memoSets.reduce((n, s) => n + s.due, 0);
+    let correct = 0;
+    let answered = 0;
+    MEMO_RULES.forEach((r) => {
+      const s = store.words[r.id];
+      if (!s) return;
+      correct += s.timesCorrect;
+      answered += s.timesCorrect + s.timesAlmost + s.timesIncorrect;
+    });
+    return { learned, inProgress, due, total: MEMO_RULES.length, accuracy: answered ? Math.round((correct / answered) * 100) : 0 };
+  }, [memoSets, store.words]);
+
   const allDates = useMemo(() => store.sessionHistory.map((s) => s.date), [store.sessionHistory]);
   const streak = useMemo(() => computeStreak(allDates), [allDates]);
   const recentSessions = useMemo(() => store.sessionHistory.slice(-6).reverse(), [store.sessionHistory]);
 
   const active = TABS.find((t) => t.val === tab)!;
-  const stats = tab === "vocab" ? vocabStats : mathStats;
+  const stats = tab === "vocab" ? vocabStats : tab === "rules" ? memoStats : mathStats;
   const progressPct = stats.total ? Math.round((stats.learned / stats.total) * 100) : 0;
 
   return (
     <section className="flex flex-col pb-1">
       <div className="lg:grid lg:grid-cols-[1.35fr_1fr] lg:gap-6 lg:items-start">
         <div>
-          <ModeTabs modes={TABS} active={tab} onChange={setTab} columns="grid-cols-3" />
+          <ModeTabs modes={TABS} active={tab} onChange={onTabChange} columns="grid-cols-4" />
 
           {tab === "vocab" && (
             <div className="grid grid-cols-2 gap-2 mb-5">
@@ -227,6 +267,32 @@ export default function FinanceHomeScreen({
             </div>
           )}
 
+          {tab === "rules" && (
+            <div className="flex flex-col gap-2.5 mt-3">
+              <div className="grid grid-cols-3 gap-2.5">
+                <StatChip icon={<CircleCheck size={14} />} value={memoStats.learned} label="Learned" tint="bg-green-light text-green" />
+                <StatChip icon={<Zap size={14} />} value={memoStats.inProgress} label="In progress" tint="bg-amber-light text-amber" />
+                <StatChip icon={<Clock size={14} />} value={memoStats.due} label="Due" tint="bg-blue-light text-blue" />
+              </div>
+              <div className="text-[11px] font-bold uppercase tracking-wide text-ink-faint mt-1.5 px-0.5">Rule sets · tap to practise</div>
+              {memoSets.map((set) => {
+                const meta = MEMO_SET_META[set.setId];
+                return (
+                  <MiniBar
+                    key={set.setId}
+                    label={meta.label}
+                    learned={set.learned}
+                    inProgress={set.inProgress}
+                    total={set.total}
+                    grad={meta.grad}
+                    onClick={() => onStartMemo(set.setId, false)}
+                    trailing={set.due > 0 ? <span className="text-blue font-semibold">{set.due} due</span> : undefined}
+                  />
+                );
+              })}
+            </div>
+          )}
+
           {tab === "math" && (
             <div className="flex flex-col gap-2.5 mt-3">
               <div className="grid grid-cols-3 gap-2.5">
@@ -260,6 +326,19 @@ export default function FinanceHomeScreen({
           {tab === "math" && (
             <div className="grid grid-cols-2 gap-2.5">
               <SideAction icon={<BookOpen size={16} />} tint="bg-blue-light text-blue" label="Theory" sub={`${MATH_RULES.length} rules`} onClick={onOpenTheory} />
+              <SideAction icon={<BarChart3 size={16} />} tint="bg-green-light text-green" label="Statistics" sub="Progress & tests" onClick={onOpenStats} />
+            </div>
+          )}
+
+          {tab === "rules" && (
+            <div className="grid grid-cols-2 gap-2.5">
+              <SideAction
+                icon={<BookOpen size={16} />}
+                tint="bg-amber-light text-amber"
+                label="Reference"
+                sub={`${MEMO_RULES.length} rules`}
+                onClick={onOpenRules}
+              />
               <SideAction icon={<BarChart3 size={16} />} tint="bg-green-light text-green" label="Statistics" sub="Progress & tests" onClick={onOpenStats} />
             </div>
           )}
@@ -305,6 +384,20 @@ export default function FinanceHomeScreen({
               <Timer size={15} /> Drill only
             </button>
             <StartButton onClick={() => onStartMath(null, false)} grad="from-purple to-purple-dark">
+              Start session
+            </StartButton>
+          </>
+        )}
+
+        {tab === "rules" && (
+          <>
+            <button
+              onClick={() => onStartMemo(null, true)}
+              className="w-full lg:flex-1 rounded-full border-[1.5px] border-line bg-card text-ink font-semibold py-3.5 text-[15px] transition-all active:scale-[0.98] hover:bg-line-soft inline-flex items-center justify-center gap-2"
+            >
+              <Timer size={15} /> Drill only
+            </button>
+            <StartButton onClick={() => onStartMemo(null, false)} grad="from-amber to-amber-dark">
               Start session
             </StartButton>
           </>
