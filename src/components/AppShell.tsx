@@ -53,8 +53,31 @@ import { xpForAnswer, xpForTest, XP_ITEM_MASTERED, XP_SESSION_COMPLETE } from "@
 import { MIN_CATEGORIES as LINKING_ESSAY_MIN_CATEGORIES } from "@/lib/linkingEssay";
 import { useBadgeTracking } from "@/lib/useBadgeTracking";
 import { buildTest, gradeTest, scoreAnswer, type TestAnswer, type TestQuestion, type TestScope, type TestLength } from "@/lib/testMode";
-import { buildMathQueue, type MathQueueItem, type MathResultEntry } from "@/lib/mathLearning";
+import {
+  buildMathBatch,
+  buildMathQueue,
+  formatForMathItem,
+  mathInsertionIndex,
+  mathKey,
+  mathNextAfterAnswer,
+  maxAttemptsPerRule as maxAttemptsPerMathRule,
+  type MathQueueItem,
+  type MathResultEntry,
+} from "@/lib/mathLearning";
+import {
+  buildMathTest,
+  gradeMathTest,
+  scopeId,
+  scopeLabel,
+  scoreMathAnswer,
+  type MathTestAnswer,
+  type MathTestLength,
+  type MathTestQuestion,
+  type MathTestScope,
+} from "@/lib/mathTest";
+import { useMathTestHistory } from "@/lib/mathTestStore";
 import { useMathSolveEnabled } from "@/lib/mathSettings";
+import type { MathTopic } from "@/lib/math";
 import { useProduct } from "@/lib/product";
 import type { AnswerResultKind, QueueItem, ResultEntry } from "@/lib/types";
 import type { GrammarResultEntry } from "@/lib/grammarTypes";
@@ -73,6 +96,7 @@ import type { ConnectorLearnResult } from "./screens/ConnectorLearnScreen";
 import type { LinkingEssayResult } from "./screens/LinkingEssayScreen";
 import type { LinkingResult } from "./exercises/LinkingExercise";
 import type { TestResult } from "./screens/TestResultScreen";
+import type { MathTestResult } from "./screens/MathTestResultScreen";
 
 /**
  * Everything outside the core practice loop is loaded on demand. Home, the session screen and the
@@ -100,6 +124,10 @@ const LinkingExercise = lazyScreen(() => import("./exercises/LinkingExercise"));
 const TestScreen = lazyScreen(() => import("./screens/TestScreen"));
 const TestResultScreen = lazyScreen(() => import("./screens/TestResultScreen"));
 const FinanceHomeScreen = lazyScreen(() => import("./screens/FinanceHomeScreen"));
+const MathTheoryScreen = lazyScreen(() => import("./screens/MathTheoryScreen"));
+const MathStatsScreen = lazyScreen(() => import("./screens/MathStatsScreen"));
+const MathTestScreen = lazyScreen(() => import("./screens/MathTestScreen"));
+const MathTestResultScreen = lazyScreen(() => import("./screens/MathTestResultScreen"));
 
 export type Screen =
   | "home"
@@ -116,7 +144,11 @@ export type Screen =
   | "reading"
   | "test"
   | "test-result"
-  | "math";
+  | "math"
+  | "math-theory"
+  | "math-stats"
+  | "math-test"
+  | "math-test-result";
 export type SessionMode = "vocab" | "grammar" | "domain" | "idioms" | "linking" | "reading" | "test";
 /** The two modes that run through the adaptive stage engine — everything else is its own flow. */
 export type LearningMode = "vocab" | "grammar";
@@ -153,12 +185,30 @@ interface LinkingSessionState {
   results: LinkingResult[];
 }
 
-/** Differentiation-rules drill: a queue of Learn/Solve/Simplify tasks across several rules, each
- * checked independently — same shape as LinkingSessionState, not run through the stage engine. */
+/**
+ * Mathematics drill. Unlike the linking queue this DOES run through the shared stage engine, so it
+ * carries the same growing-queue bookkeeping the vocab/grammar session does: `attempts` caps how
+ * often one rule may recur, and `formatMemory` stops it being asked in the same shape twice running.
+ * Kept as its own session rather than folded into LearningSessionState because math never
+ * interleaves with vocabulary or grammar — it is reached from the Finance product only.
+ */
 interface MathSessionState {
+  topic: MathTopic | null;
   queue: MathQueueItem[];
   index: number;
   results: MathResultEntry[];
+  attempts: Record<string, number>;
+  formatMemory: FormatMemory;
+  finishedRuleIds: Set<string>;
+}
+
+/** A math exam in progress — same shape as TestSessionState, with its own scope type. */
+interface MathTestSessionState {
+  scope: MathTestScope;
+  questions: MathTestQuestion[];
+  answers: Record<string, MathTestAnswer>;
+  index: number;
+  startedAt: number;
 }
 
 /** Finance reading drill: one multi-gap text, with the subset of its gaps that are actually
@@ -228,10 +278,11 @@ export default function AppShell() {
   // client-only default, so every engine call below reads the same tuning the account was
   // actually loaded with instead of silently falling back to something else.
   const tuning = useMemo(() => tuningFor(store.learningProfile), [store.learningProfile]);
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const [screen, setScreen] = useState<Screen>("home");
   const [product, setProduct] = useProduct();
-  const [mathSolveEnabled] = useMathSolveEnabled();
+  const { history: mathTestHistory, recordTest: recordMathTest } = useMathTestHistory(user?.id ?? null);
+  const [mathTypedEnabled] = useMathSolveEnabled();
   const [detailWordId, setDetailWordId] = useState<string | null>(null);
   // Lifted out of HomeScreen so the selected tab survives leaving and returning to Home (e.g.
   // after finishing a session) instead of always resetting back to Vocabulary.
@@ -244,7 +295,22 @@ export default function AppShell() {
   const [quickSession, setQuickSession] = useState<QuickSessionState | null>(null);
   const [learningSession, setLearningSession] = useState<LearningSessionState | null>(null);
   const [linkingSession, setLinkingSession] = useState<LinkingSessionState | null>(null);
-  const [mathSession, setMathSession] = useState<MathSessionState | null>(null);
+  const [mathSession, setMathSessionState] = useState<MathSessionState | null>(null);
+  /**
+   * Mirrors mathSession synchronously. The exercise components call onAnswered() and onNext() in the
+   * same tick, so a handler reading `mathSession` from the render closure would still see the
+   * pre-answer session — and writing that back would silently discard the follow-up task the answer
+   * just scheduled. Both handlers read this ref instead, which is updated the moment state is set.
+   */
+  const mathSessionRef = useRef<MathSessionState | null>(null);
+  const setMathSession = useCallback((next: MathSessionState | null) => {
+    mathSessionRef.current = next;
+    setMathSessionState(next);
+  }, []);
+  const [mathTestSession, setMathTestSession] = useState<MathTestSessionState | null>(null);
+  const [mathTestResult, setMathTestResult] = useState<MathTestResult | null>(null);
+  /** The last math test's configuration, so the result screen's "Nochmal" can rebuild an equivalent paper. */
+  const [lastMathTest, setLastMathTest] = useState<{ scope: MathTestScope; length: MathTestLength } | null>(null);
   const [readingSession, setReadingSession] = useState<ReadingSessionState | null>(null);
   const [testSession, setTestSession] = useState<TestSessionState | null>(null);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
@@ -606,13 +672,18 @@ export default function AppShell() {
     }
   }, [linkingSession, finishLinking]);
 
-  // ---------- Differentiation rules: Learn/Solve/Simplify queue over the finance-mode math rules ----------
+  // ---------- Mathematics: stage-engine session over the math rules, optionally scoped to a topic ----------
 
-  const startMathSession = useCallback(() => {
-    const queue = buildMathQueue(store.wordState, mathSolveEnabled);
-    setMathSession({ queue, index: 0, results: [] });
-    setScreen("math");
-  }, [store.wordState, mathSolveEnabled]);
+  const startMathSession = useCallback(
+    (topic: MathTopic | null) => {
+      const batch = buildMathBatch(topic, store.wordState, store.totalPracticeSessions, true, tuning);
+      const { queue, formatMemory } = buildMathQueue(batch, store.wordState, mathTypedEnabled);
+      if (queue.length === 0) return;
+      setMathSession({ topic, queue, index: 0, results: [], attempts: {}, formatMemory, finishedRuleIds: new Set() });
+      setScreen("math");
+    },
+    [store.wordState, store.totalPracticeSessions, tuning, mathTypedEnabled, setMathSession]
+  );
 
   const finishMathSession = useCallback(
     (s: MathSessionState) => {
@@ -625,27 +696,112 @@ export default function AppShell() {
       setMathSession(null);
       setScreen("home");
     },
-    [store]
+    [store, setMathSession]
   );
 
+  /**
+   * One math answer: advance the rule's stage through the shared ladder, persist it, and schedule a
+   * follow-up later in the same session if the ladder asks for one and the rule hasn't already been
+   * asked its maximum number of times. Mirrors advanceVocab/advanceGrammar, minus the match pool.
+   */
   const onMathAnswered = useCallback(
-    (r: MathResultEntry) => {
-      store.updateWord(r.ruleId, r.result);
-      store.recordFormatStat(r.format, r.result);
-      // Reaching a rule's Learn card (shown once, the first time it's seen) marks it introduced —
-      // there's no spaced-repetition scheduling here, just a simple "seen it" flag for the progress bar.
-      if (r.format === "math-learn") store.setLearningStage(r.ruleId, 4, 0, null);
-      setMathSession((prev) => (prev ? { ...prev, results: [...prev.results, r] } : prev));
+    (entry: MathResultEntry) => {
+      // Computed here rather than inside the setState updater: the store writes below are side
+      // effects, and updaters must stay pure (StrictMode runs them twice). Same shape as
+      // advanceVocab/advanceGrammar — read the current session, derive the next one, then set it.
+      const session = mathSessionRef.current;
+      if (!session) return;
+      const item = session.queue[session.index];
+      if (!item) return;
+
+      const key = mathKey(entry.ruleId);
+      const priorState = store.wordState(entry.ruleId);
+      const formatMemory = rememberFormat(session.formatMemory, key, formatForMathItem(item));
+
+      const outcome = mathNextAfterAnswer(
+        item,
+        priorState.stage,
+        priorState.reviewStreak,
+        entry.result,
+        store.totalPracticeSessions,
+        formatMemory[key] || [],
+        tuning,
+        mathTypedEnabled
+      );
+
+      store.setLearningStage(entry.ruleId, outcome.stage, outcome.reviewStreak, outcome.dueAtSession);
+      store.updateWord(entry.ruleId, entry.result, entry.hintsUsed);
+      store.recordFormatStat(entry.format, entry.result);
+
+      const attempts = { ...session.attempts, [key]: (session.attempts[key] || 0) + 1 };
+      let queue = session.queue;
+      let scheduled = false;
+      if (outcome.followUp && attempts[key] < maxAttemptsPerMathRule(tuning)) {
+        const insertAt = mathInsertionIndex(session.index, queue.length, attempts[key], tuning);
+        if (insertAt !== null) {
+          queue = [...queue.slice(0, insertAt), outcome.followUp, ...queue.slice(insertAt)];
+          scheduled = true;
+        }
+      }
+      const finishedRuleIds = new Set(session.finishedRuleIds);
+      if (!scheduled) finishedRuleIds.add(entry.ruleId);
+
+      setMathSession({ ...session, queue, attempts, formatMemory, finishedRuleIds, results: [...session.results, entry] });
     },
-    [store]
+    [store, tuning, mathTypedEnabled, setMathSession]
   );
 
   const nextMathQuestion = useCallback(() => {
-    if (!mathSession) return;
-    const nextIndex = mathSession.index + 1;
-    if (nextIndex >= mathSession.queue.length) finishMathSession(mathSession);
-    else setMathSession({ ...mathSession, index: nextIndex });
-  }, [mathSession, finishMathSession]);
+    const session = mathSessionRef.current;
+    if (!session) return;
+    const nextIndex = session.index + 1;
+    if (nextIndex >= session.queue.length) finishMathSession(session);
+    else setMathSession({ ...session, index: nextIndex });
+  }, [finishMathSession, setMathSession]);
+
+  // ---------- Mathematics: graded test ----------
+
+  const startMathTest = useCallback(
+    (scope: MathTestScope, length: MathTestLength) => {
+      const questions = buildMathTest(scope, length, store.wordState);
+      if (questions.length === 0) return;
+      setLastMathTest({ scope, length });
+      setMathTestSession({ scope, questions, answers: {}, index: 0, startedAt: Date.now() });
+      setScreen("math-test");
+    },
+    [store.wordState]
+  );
+
+  const answerMathTestQuestion = useCallback((questionId: string, answer: MathTestAnswer) => {
+    setMathTestSession((prev) => (prev ? { ...prev, answers: { ...prev.answers, [questionId]: answer } } : prev));
+  }, []);
+
+  const submitMathTest = useCallback(() => {
+    if (!mathTestSession) return;
+    const { questions, answers, scope, startedAt } = mathTestSession;
+    const points = questions.reduce((sum, q) => sum + scoreMathAnswer(q, answers[q.id]), 0);
+    const summary = gradeMathTest(points, questions.length);
+    const durationSeconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+
+    recordMathTest({
+      date: Date.now(),
+      // The stable id, not the label: the stats screen maps it back for display, so a later wording
+      // change to a topic name doesn't rewrite history.
+      scope: scopeId(scope),
+      points: summary.points,
+      total: summary.total,
+      percent: summary.percent,
+      passed: summary.passed,
+      durationSeconds,
+    });
+    // A test never touches the learning stages — it measures, it does not teach — but it still pays
+    // XP so a study session spent on exams isn't worth nothing.
+    store.addXp(Math.round(summary.points * 6) + XP_SESSION_COMPLETE);
+
+    setMathTestResult({ summary, questions, answers, durationSeconds, scopeLabel: scopeLabel(scope) });
+    setMathTestSession(null);
+    setScreen("math-test-result");
+  }, [mathTestSession, recordMathTest, store]);
 
   // ---------- Linking: connector-recall quiz ("which word expresses this relationship") ----------
 
@@ -1140,13 +1296,28 @@ export default function AppShell() {
     else if (quickSession) endQuickSession(quickSession);
     else if (linkingSession) finishLinking(linkingSession);
     else if (mathSession) finishMathSession(mathSession);
-    else if (testSession) {
+    else if (mathTestSession) {
+      // Same reasoning as an abandoned English exam: a partial paper is not graded or filed.
+      setMathTestSession(null);
+      setScreen("home");
+    } else if (testSession) {
       // An abandoned exam is not graded — a partial paper would produce a grade that says nothing
       // about the learner, and filing it would drag the "best grade" record down for no reason.
       setTestSession(null);
       setScreen("home");
     }
-  }, [learningSession, quickSession, linkingSession, mathSession, testSession, endLearningSession, endQuickSession, finishLinking, finishMathSession]);
+  }, [
+    learningSession,
+    quickSession,
+    linkingSession,
+    mathSession,
+    mathTestSession,
+    testSession,
+    endLearningSession,
+    endQuickSession,
+    finishLinking,
+    finishMathSession,
+  ]);
 
   // Escape is the one key that always makes sense regardless of screen — it's the keyboard
   // equivalent of whatever "leave this" affordance is already on screen (the exit-confirm modal
@@ -1179,7 +1350,13 @@ export default function AppShell() {
       case "linking":
       case "test":
       case "math":
+      case "math-test":
         setModalOpen(true);
+        return;
+      case "math-theory":
+      case "math-stats":
+      case "math-test-result":
+        setScreen("home");
         return;
       case "reading":
         setReadingSession(null);
@@ -1204,7 +1381,13 @@ export default function AppShell() {
 
   /** True while something is in progress that leaving would discard. */
   const isRunActive =
-    screen === "session" || screen === "linking" || screen === "test" || screen === "reading" || screen === "linking-essay" || screen === "math";
+    screen === "session" ||
+    screen === "linking" ||
+    screen === "test" ||
+    screen === "reading" ||
+    screen === "linking-essay" ||
+    screen === "math" ||
+    screen === "math-test";
 
   const currentWordId =
     learningSession && currentItem?.domain === "vocab"
@@ -1348,7 +1531,8 @@ export default function AppShell() {
     screen === "linking-essay" ||
     screen === "reading" ||
     screen === "test" ||
-    screen === "math";
+    screen === "math" ||
+    screen === "math-test";
 
   if (product === null) {
     return <ProductChooser onChoose={setProduct} />;
@@ -1391,6 +1575,41 @@ export default function AppShell() {
               startLearningSession("vocab", true, scope);
             }}
             onStartMath={startMathSession}
+            onOpenTheory={() => setScreen("math-theory")}
+            onOpenStats={() => setScreen("math-stats")}
+            onStartTest={startMathTest}
+          />
+        )}
+
+        {screen === "math-theory" && <MathTheoryScreen onExit={goHome} />}
+
+        {screen === "math-stats" && <MathStatsScreen testHistory={mathTestHistory} onExit={goHome} />}
+
+        {screen === "math-test" && mathTestSession && (
+          <MathTestScreen
+            questions={mathTestSession.questions}
+            answers={mathTestSession.answers}
+            index={mathTestSession.index}
+            startedAt={mathTestSession.startedAt}
+            onAnswer={answerMathTestQuestion}
+            onNavigate={(i) => setMathTestSession((prev) => (prev ? { ...prev, index: i } : prev))}
+            onSubmit={submitMathTest}
+            onExit={() => setModalOpen(true)}
+          />
+        )}
+
+        {screen === "math-test-result" && mathTestResult && (
+          <MathTestResultScreen
+            result={mathTestResult}
+            onRetry={() => {
+              setMathTestResult(null);
+              if (lastMathTest) startMathTest(lastMathTest.scope, lastMathTest.length);
+              else setScreen("home");
+            }}
+            onHome={() => {
+              setMathTestResult(null);
+              setScreen("home");
+            }}
           />
         )}
 
@@ -1425,8 +1644,8 @@ export default function AppShell() {
 
         {screen === "math" && mathSession && mathSession.queue[mathSession.index] && (
           <SessionScreen
-            renderKey={`${mathSession.index}-${mathSession.queue[mathSession.index].ruleId}-${mathSession.queue[mathSession.index].kind}`}
-            progressPct={Math.round((mathSession.index / mathSession.queue.length) * 100)}
+            renderKey={`${mathSession.index}-${mathSession.queue[mathSession.index].ruleId}-${mathSession.queue[mathSession.index].kind}-${mathSession.queue[mathSession.index].problemIndex}`}
+            progressPct={Math.round((mathSession.finishedRuleIds.size / Math.max(1, new Set(mathSession.queue.map((q) => q.ruleId)).size)) * 100)}
             progressLabel={`${mathSession.index + 1} / ${mathSession.queue.length}`}
             favorite={false}
             showFavorite={false}

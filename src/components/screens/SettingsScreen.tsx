@@ -73,9 +73,10 @@ export default function SettingsScreen() {
         <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">Mathematics</h2>
         <div className="flex items-center justify-between gap-3 rounded-xl border-[1.5px] border-line-soft bg-card px-3.5 py-3">
           <div>
-            <div className="text-[14px] font-medium text-ink">Solve-Aufgaben anzeigen</div>
+            <div className="text-[14px] font-medium text-ink">Freitext-Aufgaben</div>
             <p className="text-[12.5px] text-ink-soft leading-snug mt-0.5">
-              Nach jeder Regel eine Ableitung selbst berechnen. Ausgeschaltet zeigt nur die Lernkarte und Simplify-Aufgaben.
+              Aufgaben, bei denen du das Ergebnis selbst eintippst (Solve, Simplify, Schritt-für-Schritt, Textaufgaben). Ausgeschaltet
+              bleiben nur Multiple Choice und &quot;Fehler finden&quot;.
             </p>
           </div>
           <Switch checked={mathSolveEnabled} onChange={setMathSolveEnabled} />
