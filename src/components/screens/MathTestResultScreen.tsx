@@ -35,7 +35,7 @@ export default function MathTestResultScreen({
         <div className="text-[52px] font-extrabold leading-none tabular-nums">{summary.percent}%</div>
         <div className="text-[15px] font-semibold mt-1">{band.label}</div>
         <div className="text-[13px] opacity-85 mt-2 tabular-nums">
-          {summary.points} von {summary.total} Punkten
+          {summary.points} of {summary.total} points
         </div>
         <div className="inline-flex items-center gap-1.5 text-[12px] opacity-85 mt-2 bg-white/15 rounded-full px-2.5 py-1">
           <Clock size={11} /> {formatDuration(result.durationSeconds)}
@@ -48,18 +48,18 @@ export default function MathTestResultScreen({
           variant="ghost"
           className="h-auto flex-1 rounded-full bg-gradient-to-r from-ink to-ink/80 hover:brightness-125 hover:text-white text-white font-semibold py-3 text-[14.5px] transition-all active:scale-[0.97] flex items-center justify-center gap-1.5"
         >
-          <RotateCcw size={15} /> Nochmal
+          <RotateCcw size={15} /> Again
         </Button>
         <Button
           onClick={onHome}
           variant="ghost"
           className="h-auto flex-1 rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:text-ink text-ink font-semibold py-3 text-[14.5px] transition-all active:scale-[0.97]"
         >
-          Fertig
+          Done
         </Button>
       </div>
 
-      <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">Lösungen</h2>
+      <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">Answer key</h2>
       <div className="flex flex-col gap-2">
         {questions.map((q, i) => {
           const answer = answers[q.id];
@@ -108,10 +108,10 @@ export default function MathTestResultScreen({
                   {q.question && q.promptTex && <div className="text-[13.5px] text-ink-soft leading-relaxed mb-3">{q.question}</div>}
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     <div className={"rounded-xl px-3 py-2 " + (correct ? "bg-green-light/60" : "bg-red-light/50")}>
-                      <div className="text-[10px] uppercase tracking-wide font-bold text-ink-faint mb-0.5">Deine Antwort</div>
+                      <div className="text-[10px] uppercase tracking-wide font-bold text-ink-faint mb-0.5">Your answer</div>
                       <div className="text-[13.5px] text-ink overflow-x-auto">
                         {given === null ? (
-                          <span className="text-ink-faint italic">nicht beantwortet</span>
+                          <span className="text-ink-faint italic">not answered</span>
                         ) : q.kind === "mc" ? (
                           <Formula tex={given} className="text-[13.5px]" />
                         ) : (
@@ -120,7 +120,7 @@ export default function MathTestResultScreen({
                       </div>
                     </div>
                     <div className="rounded-xl px-3 py-2 bg-green-light/60">
-                      <div className="text-[10px] uppercase tracking-wide font-bold text-ink-faint mb-0.5">Richtig</div>
+                      <div className="text-[10px] uppercase tracking-wide font-bold text-ink-faint mb-0.5">Correct</div>
                       <div className="text-[13.5px] text-ink overflow-x-auto">
                         {q.kind === "mc" ? (
                           <Formula tex={q.solution} className="text-[13.5px]" />
@@ -133,7 +133,7 @@ export default function MathTestResultScreen({
 
                   {q.solutionSteps.length > 0 && (
                     <div className="rounded-xl bg-bg p-3">
-                      <div className="text-[10px] uppercase tracking-wide font-bold text-ink-faint mb-1.5">Lösungsweg</div>
+                      <div className="text-[10px] uppercase tracking-wide font-bold text-ink-faint mb-1.5">Worked solution</div>
                       <div className="flex flex-col gap-1.5 overflow-x-auto">
                         {q.solutionSteps.map((s, j) => (
                           <div key={j} className="flex items-baseline gap-2">

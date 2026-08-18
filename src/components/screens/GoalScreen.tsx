@@ -33,21 +33,21 @@ export default function GoalScreen() {
   if (!status) {
     return (
       <section className="animate-fade-in">
-        <h1 className="text-[26px] font-bold tracking-tight mt-1 mb-5">Dein {GOAL_WEEKS}-Wochen-Ziel</h1>
-        <p className="text-ink-soft text-[14px]">Dein Ziel wird eingerichtet — lade die App neu, falls das hier hängen bleibt.</p>
+        <h1 className="text-[26px] font-bold tracking-tight mt-1 mb-5">Your {GOAL_WEEKS}-week goal</h1>
+        <p className="text-ink-soft text-[14px]">Setting up your goal — reload the app if this stays here.</p>
       </section>
     );
   }
 
-  const targetDateLabel = new Date(status.targetDate).toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
+  const targetDateLabel = new Date(status.targetDate).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const daysRemainingRounded = Math.max(0, Math.ceil(status.daysRemaining));
 
   return (
     <section className="animate-fade-in pb-4">
-      <h1 className="text-[26px] font-bold tracking-tight mt-1 mb-1">Dein {GOAL_WEEKS}-Wochen-Ziel</h1>
+      <h1 className="text-[26px] font-bold tracking-tight mt-1 mb-1">Your {GOAL_WEEKS}-week goal</h1>
       <p className="text-ink-soft text-[14px] mb-5 leading-relaxed">
-        Alle Grammatik-Grundlagen plus {status.vocabTarget} Kernwörter — das deckt laut Sprachforschung den Großteil des Alltagsenglisch ab
-        und ist die Basis, damit sich Englisch natürlich anfühlt.
+        Every grammar fundamental plus {status.vocabTarget} core words — research puts that at most of everyday English, and it is the
+        base that makes the language start to feel natural.
       </p>
 
       <div className="bg-card border border-line-soft rounded-2xl p-4.5 shadow-sm mb-4">
@@ -62,17 +62,17 @@ export default function GoalScreen() {
           />
         </div>
         <div className="grid grid-cols-2 gap-2.5">
-          <MiniStat label={status.isPastDue ? "Zielzeitraum" : "Tage übrig"} value={status.isPastDue ? "abgelaufen" : String(daysRemainingRounded)} />
+          <MiniStat label={status.isPastDue ? "Goal period" : "Days left"} value={status.isPastDue ? "ended" : String(daysRemainingRounded)} />
           <MiniStat
             label="Status"
-            value={status.progressPct >= 100 ? "geschafft" : status.onTrack ? "im Plan" : "im Rückstand"}
+            value={status.progressPct >= 100 ? "done" : status.onTrack ? "on track" : "behind"}
             tone={status.progressPct >= 100 ? "good" : status.onTrack ? "good" : "warn"}
           />
         </div>
-        <div className="text-[12px] text-ink-faint mt-3">Ziel-Datum: {targetDateLabel}</div>
+        <div className="text-[12px] text-ink-faint mt-3">Target date: {targetDateLabel}</div>
       </div>
 
-      <h2 className="text-[15px] font-semibold tracking-tight mb-2.5">Aufschlüsselung</h2>
+      <h2 className="text-[15px] font-semibold tracking-tight mb-2.5">Breakdown</h2>
       <div className="flex flex-col gap-2.5 mb-4">
         <TargetBar label="Vocabulary" current={status.vocabCurrent} target={status.vocabTarget} grad="from-blue to-blue-dark" />
         <TargetBar label="Grammar" current={status.grammarCurrent} target={status.grammarTarget} grad="from-purple to-purple-dark" />
@@ -81,11 +81,11 @@ export default function GoalScreen() {
       <div className="bg-card border border-line-soft rounded-2xl p-4.5 shadow-sm">
         <div className="flex items-center gap-2 mb-3">
           <TrendingUp size={16} className="text-ink-soft" />
-          <span className="text-[13px] font-semibold text-ink-soft">Dein Tempo</span>
+          <span className="text-[13px] font-semibold text-ink-soft">Your pace</span>
         </div>
         <div className="grid grid-cols-2 gap-2.5 mb-3">
           <MiniStat label="Aktuell / Tag" value={status.velocityPerDay.toFixed(1)} />
-          <MiniStat label="Nötig / Tag" value={Number.isFinite(status.requiredVelocityPerDay) ? status.requiredVelocityPerDay.toFixed(1) : "—"} />
+          <MiniStat label="Needed / day" value={Number.isFinite(status.requiredVelocityPerDay) ? status.requiredVelocityPerDay.toFixed(1) : "—"} />
         </div>
         <div className="text-[13px] text-ink-soft leading-relaxed">
           {status.progressPct >= 100 ? (
@@ -93,17 +93,17 @@ export default function GoalScreen() {
               <CheckCircle2 size={15} /> Geschafft — alle Grundlagen sitzen.
             </span>
           ) : status.projectedWeeks === null ? (
-            "Noch nicht genug Daten für eine Prognose — leg einfach los, hier siehst du bald dein Tempo."
+            "Not enough data for a projection yet — just get going and your pace will show up here."
           ) : status.onTrack ? (
-            `Bei diesem Tempo bist du in etwa ${Math.max(1, Math.round(status.projectedWeeks))} Wochen fertig — du liegst im Plan.`
+            `At this pace you will be done in about ${Math.max(1, Math.round(status.projectedWeeks))} weeks — you are on track.`
           ) : (
-            `Bei diesem Tempo dauert es eher ${Math.round(status.projectedWeeks)} Wochen statt ${GOAL_WEEKS}. Etwas mehr Tempo bringt dich zurück in den Plan.`
+            `At this pace it will take about ${Math.round(status.projectedWeeks)} weeks instead of ${GOAL_WEEKS}. A little more speed puts you back on track.`
           )}
         </div>
       </div>
 
       <div className="flex items-center gap-2 mt-4 text-[12px] text-ink-faint">
-        <Flag size={13} /> Gestartet am {new Date(status.startedAt).toLocaleDateString("de-DE")}
+        <Flag size={13} /> Started on {new Date(status.startedAt).toLocaleDateString("en-GB")}
       </div>
     </section>
   );

@@ -41,7 +41,7 @@ export default function TestResultScreen({ result, onHome, onRetry }: { result: 
   return (
     <section className="animate-fade-in pb-4">
       <div className={"rounded-[22px] px-5 py-8 text-center mb-4 " + style.tint}>
-        <div className="text-[12px] font-bold uppercase tracking-[0.14em] text-ink-soft mb-1">Nota final</div>
+        <div className="text-[12px] font-bold uppercase tracking-[0.14em] text-ink-soft mb-1">Final grade</div>
         <div className={"text-[64px] leading-none font-extrabold tracking-tight tabular-nums " + style.text}>
           {shownGrade.toFixed(1)}
           <span className="text-[26px] font-bold text-ink-faint"> / 20</span>
@@ -50,25 +50,25 @@ export default function TestResultScreen({ result, onHome, onRetry }: { result: 
           {grade.bandLabel}
         </div>
         <div className="text-[12.5px] text-ink-soft mt-3">
-          {grade.passed ? "Bestanden" : "Nicht bestanden"} · Bestehensgrenze 10 · Transkript-Note {grade.finalGrade}
+          {grade.passed ? "Passed" : "Not passed"} · Bestehensgrenze 10 · Transkript-Note {grade.finalGrade}
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2.5 mb-4">
-        <Tile icon={<Target size={13} />} value={`${formatPoints(grade.points)}/${grade.total}`} label="Punkte" />
-        <Tile icon={<Target size={13} />} value={`${grade.accuracy}%`} label="Richtig" />
-        <Tile icon={<Clock size={13} />} value={formatDuration(result.durationSeconds)} label="Dauer" />
+        <Tile icon={<Target size={13} />} value={`${formatPoints(grade.points)}/${grade.total}`} label="Points" />
+        <Tile icon={<Target size={13} />} value={`${grade.accuracy}%`} label="Correct" />
+        <Tile icon={<Clock size={13} />} value={formatDuration(result.durationSeconds)} label="Duration" />
       </div>
 
       {(perDomain.vocab.total > 0 || perDomain.grammar.total > 0) && (
         <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm mb-4">
-          <div className="text-[13px] font-semibold text-ink mb-3">Nach Bereich</div>
+          <div className="text-[13px] font-semibold text-ink mb-3">By area</div>
           <div className="flex flex-col gap-2.5">
             {perDomain.vocab.total > 0 && (
-              <DomainBar label="Vokabeln" points={perDomain.vocab.points} total={perDomain.vocab.total} grad="from-blue to-blue-dark" />
+              <DomainBar label="Vocabulary" points={perDomain.vocab.points} total={perDomain.vocab.total} grad="from-blue to-blue-dark" />
             )}
             {perDomain.grammar.total > 0 && (
-              <DomainBar label="Grammatik" points={perDomain.grammar.points} total={perDomain.grammar.total} grad="from-purple to-purple-dark" />
+              <DomainBar label="Grammar" points={perDomain.grammar.points} total={perDomain.grammar.total} grad="from-purple to-purple-dark" />
             )}
           </div>
         </div>
@@ -86,7 +86,7 @@ export default function TestResultScreen({ result, onHome, onRetry }: { result: 
 
       {result.newBadges.length > 0 && (
         <div className="bg-card border border-amber/30 rounded-2xl p-4 shadow-sm mb-4">
-          <div className="text-[13px] font-semibold text-ink mb-3">Neu freigeschaltet</div>
+          <div className="text-[13px] font-semibold text-ink mb-3">Newly unlocked</div>
           <div className="flex flex-col gap-2.5">
             {result.newBadges.map((b) => (
               <div key={b.id} className="flex items-center gap-3 animate-pop-in">
@@ -106,7 +106,7 @@ export default function TestResultScreen({ result, onHome, onRetry }: { result: 
           onClick={() => setKeyOpen((v) => !v)}
           className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-line-soft/50 transition-colors"
         >
-          <span className="text-[13px] font-semibold text-ink">Lösungen ansehen ({result.questions.length})</span>
+          <span className="text-[13px] font-semibold text-ink">View answer key ({result.questions.length})</span>
           <ChevronDown size={16} className={"text-ink-faint transition-transform " + (keyOpen ? "rotate-180" : "")} />
         </button>
         {keyOpen && (
@@ -132,11 +132,11 @@ export default function TestResultScreen({ result, onHome, onRetry }: { result: 
                     <div className="min-w-0 flex-1">
                       <div className="text-[13px] text-ink leading-snug">{q.prompt}</div>
                       <div className="text-[12px] mt-1 leading-relaxed">
-                        <span className="text-ink-faint">Deine Antwort: </span>
+                        <span className="text-ink-faint">Your answer: </span>
                         <span className={points === 1 ? "text-[#0d7a4f] font-semibold" : "text-[#b8271b] font-semibold"}>{given || "—"}</span>
                         {points < 1 && (
                           <>
-                            <span className="text-ink-faint"> · Richtig: </span>
+                            <span className="text-ink-faint"> · Correct: </span>
                             <span className="text-ink font-semibold">{q.solution}</span>
                           </>
                         )}

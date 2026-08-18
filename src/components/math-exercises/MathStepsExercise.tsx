@@ -52,7 +52,7 @@ export default function MathStepsExercise({ item, onAnswered, onNext }: MathExer
     <>
       <MathBadge rule={rule} />
       <Prompt>
-        Schritt für Schritt · {Math.min(stepIndex + 1, problem.steps.length)} von {problem.steps.length}
+        Step by step · {Math.min(stepIndex + 1, problem.steps.length)} of {problem.steps.length}
       </Prompt>
 
       <div className="bg-bg rounded-xl px-4 py-4 mb-4 text-center overflow-x-auto">

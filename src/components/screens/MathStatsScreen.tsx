@@ -11,13 +11,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 /** Every math-exercise format, with the label shown in the per-format accuracy table. */
 const FORMAT_LABELS: [string, string][] = [
-  ["math-learn", "Lernkarten"],
+  ["math-learn", "Learn cards"],
   ["math-mc", "Multiple Choice"],
   ["math-solve", "Solve"],
   ["math-simplify", "Simplify"],
-  ["math-steps", "Schritt für Schritt"],
-  ["math-error", "Fehler finden"],
-  ["math-word", "Textaufgaben"],
+  ["math-steps", "Step by step"],
+  ["math-error", "Find the error"],
+  ["math-word", "Word problems"],
 ];
 
 export default function MathStatsScreen({ testHistory, onExit }: { testHistory: MathTestRecord[]; onExit: () => void }) {
@@ -77,7 +77,7 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
             render={
               <Button
                 onClick={onExit}
-                aria-label="Zurück"
+                aria-label="Back"
                 variant="ghost"
                 size="icon"
                 className="rounded-full border border-line bg-card text-ink-soft shrink-0 transition-all hover:bg-line-soft hover:-translate-y-0.5 hover:shadow-sm"
@@ -86,18 +86,18 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
           >
             <X size={16} />
           </TooltipTrigger>
-          <TooltipContent>Zurück</TooltipContent>
+          <TooltipContent>Back</TooltipContent>
         </Tooltip>
-        <h1 className="text-[22px] font-bold tracking-tight">Mathe-Statistik</h1>
+        <h1 className="text-[22px] font-bold tracking-tight">Math statistics</h1>
       </div>
 
       <div className="grid grid-cols-3 gap-2.5 mb-5">
-        <StatTile value={`${overall.learned}/${overall.total}`} label="Regeln gelernt" tint="bg-green-light text-green" icon={<Trophy size={14} />} />
-        <StatTile value={`${overall.accuracy}%`} label="Genauigkeit" tint="bg-amber-light text-amber" icon={<Target size={14} />} />
-        <StatTile value={String(overall.due)} label="Fällig" tint="bg-blue-light text-blue" icon={<TrendingDown size={14} />} />
+        <StatTile value={`${overall.learned}/${overall.total}`} label="Rules learned" tint="bg-green-light text-green" icon={<Trophy size={14} />} />
+        <StatTile value={`${overall.accuracy}%`} label="Accuracy" tint="bg-amber-light text-amber" icon={<Target size={14} />} />
+        <StatTile value={String(overall.due)} label="Due" tint="bg-blue-light text-blue" icon={<TrendingDown size={14} />} />
       </div>
 
-      <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">Nach Thema</h2>
+      <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">By topic</h2>
       <div className="flex flex-col gap-2 mb-5">
         {topics.map((t) => {
           const meta = MATH_TOPIC_META[t.topic];
@@ -108,7 +108,7 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
                 <span className="text-[13.5px] font-semibold text-ink truncate">{meta.label}</span>
                 <span className="text-[12px] text-ink-faint tabular-nums shrink-0">
                   {t.learned}/{t.total}
-                  {t.due > 0 && <span className="text-blue font-semibold"> · {t.due} fällig</span>}
+                  {t.due > 0 && <span className="text-blue font-semibold"> · {t.due} due</span>}
                 </span>
               </div>
               <div className="h-1.5 rounded-full bg-line-soft overflow-hidden">
@@ -121,7 +121,7 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
 
       {formats.length > 0 && (
         <>
-          <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">Nach Aufgabentyp</h2>
+          <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">By exercise type</h2>
           <div className="bg-card border border-line-soft rounded-2xl p-4 mb-5">
             <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
               {formats.map((f) => (
@@ -137,7 +137,7 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
 
       {weakest.length > 0 && (
         <>
-          <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">Schwächste Regeln</h2>
+          <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">Weakest rules</h2>
           <div className="bg-card border border-line-soft rounded-2xl overflow-hidden mb-5">
             {weakest.map((e, i) => (
               <div key={e.rule.id} className={"flex items-center gap-3 px-4 py-2.5 " + (i > 0 ? "border-t border-line-soft" : "")}>
@@ -146,7 +146,7 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
                   <div className="text-[11px] text-ink-faint">{MATH_TOPIC_META[e.rule.topic].label}</div>
                 </div>
                 <span className="text-[12px] font-semibold text-red tabular-nums shrink-0">
-                  {e.wrong}/{e.seen} falsch
+                  {e.wrong}/{e.seen} wrong
                 </span>
               </div>
             ))}
@@ -157,7 +157,7 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
       <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">Tests</h2>
       {testHistory.length === 0 ? (
         <div className="bg-card border border-line-soft rounded-2xl px-4 py-6 text-center text-[13.5px] text-ink-faint">
-          Noch kein Test geschrieben.
+          No test taken yet.
         </div>
       ) : (
         <>
@@ -167,9 +167,9 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
                 <Trophy size={17} className={mathBandFor(bestTest.percent).text} />
               </span>
               <div>
-                <div className="text-[13px] font-semibold text-ink">Bestes Ergebnis</div>
+                <div className="text-[13px] font-semibold text-ink">Best result</div>
                 <div className="text-[12px] text-ink-faint tabular-nums">
-                  {bestTest.percent}% · {bestTest.points}/{bestTest.total} Punkte
+                  {bestTest.percent}% · {bestTest.points}/{bestTest.total} points
                 </div>
               </div>
             </div>
@@ -179,7 +179,7 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
               <div key={t.date} className={"flex items-center justify-between gap-3 px-4 py-2.5 " + (i > 0 ? "border-t border-line-soft" : "")}>
                 <div className="min-w-0">
                   <div className="text-[13px] font-medium text-ink truncate">{labelForScopeId(t.scope)}</div>
-                  <div className="text-[11px] text-ink-faint">{new Date(t.date).toLocaleDateString("de-DE")}</div>
+                  <div className="text-[11px] text-ink-faint">{new Date(t.date).toLocaleDateString("en-GB")}</div>
                 </div>
                 <span className={"text-[13px] font-bold tabular-nums shrink-0 " + mathBandFor(t.percent).text}>{t.percent}%</span>
               </div>

@@ -27,7 +27,7 @@ export default function MathErrorExercise({ item, onAnswered, onNext }: MathExer
   return (
     <>
       <MathBadge rule={rule} />
-      <Prompt>In welcher Zeile steckt der Fehler?</Prompt>
+      <Prompt>Which line contains the mistake?</Prompt>
 
       <div className="mb-2 overflow-x-auto">
         <Formula tex={problem.promptTex} className="text-[15px] text-ink-soft" />
@@ -63,7 +63,7 @@ export default function MathErrorExercise({ item, onAnswered, onNext }: MathExer
       {result && (
         <FeedbackPanel result={result} onContinue={onNext}>
           <div className="mb-2">
-            <div className="text-[11px] uppercase tracking-wide font-bold text-ink-faint mb-1">Richtig wäre</div>
+            <div className="text-[11px] uppercase tracking-wide font-bold text-ink-faint mb-1">It should be</div>
             <Formula tex={problem.correctedLineTex} className="text-[15px]" />
           </div>
           <div className="text-[13.5px] leading-relaxed">{problem.explanation}</div>

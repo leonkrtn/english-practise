@@ -13,6 +13,7 @@ import {
 import { normalize } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import Formula from "@/components/Formula";
+import FormulaAnatomy from "@/components/FormulaAnatomy";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -48,7 +49,7 @@ export default function MathTheoryScreen({ onExit }: { onExit: () => void }) {
             render={
               <Button
                 onClick={onExit}
-                aria-label="Zurück"
+                aria-label="Back"
                 variant="ghost"
                 size="icon"
                 className="rounded-full border border-line bg-card text-ink-soft shrink-0 transition-all hover:bg-line-soft hover:-translate-y-0.5 hover:shadow-sm"
@@ -57,11 +58,11 @@ export default function MathTheoryScreen({ onExit }: { onExit: () => void }) {
           >
             <X size={16} />
           </TooltipTrigger>
-          <TooltipContent>Zurück</TooltipContent>
+          <TooltipContent>Back</TooltipContent>
         </Tooltip>
         <div className="min-w-0">
-          <h1 className="text-[22px] font-bold tracking-tight leading-tight">Theorie</h1>
-          <div className="text-[12.5px] text-ink-faint">{MATH_RULES.length} Regeln zum Nachschlagen</div>
+          <h1 className="text-[22px] font-bold tracking-tight leading-tight">Theory</h1>
+          <div className="text-[12.5px] text-ink-faint">{MATH_RULES.length} rules to look up</div>
         </div>
       </div>
 
@@ -71,14 +72,14 @@ export default function MathTheoryScreen({ onExit }: { onExit: () => void }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           type="text"
-          placeholder="Regel, Thema oder Stichwort suchen…"
+          placeholder="Search rule, topic or keyword…"
           className="h-auto flex-1 border-none bg-transparent text-[15px] outline-none text-ink p-0 focus-visible:ring-0 focus-visible:border-transparent"
         />
       </div>
 
       <div className="flex gap-2 mb-4 flex-wrap">
         <FilterChip active={topicFilter === "all"} onClick={() => setTopicFilter("all")}>
-          Alle
+          All
         </FilterChip>
         {MATH_TOPICS.map((t) => (
           <FilterChip key={t} active={topicFilter === t} onClick={() => setTopicFilter(t)}>
@@ -88,7 +89,7 @@ export default function MathTheoryScreen({ onExit }: { onExit: () => void }) {
       </div>
 
       {results.length === 0 ? (
-        <div className="text-center py-16 px-5 text-ink-faint text-sm">Keine Regel passt zur Suche.</div>
+        <div className="text-center py-16 px-5 text-ink-faint text-sm">No rule matches your search.</div>
       ) : (
         <div className="flex flex-col gap-2.5">
           {results.map((r) => (
@@ -129,7 +130,7 @@ function TheoryCard({ rule, mastered, open, onToggle }: { rule: MathRule; master
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[14.5px] font-semibold text-ink">{rule.title}</span>
-            {mastered && <span className="text-[10px] font-bold uppercase text-green bg-green-light rounded-full px-1.5 py-0.5">gelernt</span>}
+            {mastered && <span className="text-[10px] font-bold uppercase text-green bg-green-light rounded-full px-1.5 py-0.5">learned</span>}
           </div>
           <div className="text-[11.5px] text-ink-faint">
             {meta.label} · {MATH_DIFFICULTY_LABEL[rule.difficulty]}
@@ -140,14 +141,14 @@ function TheoryCard({ rule, mastered, open, onToggle }: { rule: MathRule; master
 
       {open && (
         <div className="px-4 pb-4">
-          <div className="bg-bg rounded-xl p-4 mb-3 text-center overflow-x-auto">
-            <Formula tex={rule.formulaTex} display className="text-[18px]" />
+          <div className="bg-bg rounded-xl p-4 mb-3">
+            <FormulaAnatomy ruleId={rule.id} formulaTex={rule.formulaTex} size="text-[18px]" />
           </div>
           <p className="text-[14px] text-ink-soft leading-relaxed mb-3">{rule.explanation}</p>
 
           {rule.derivation && rule.derivation.length > 0 && (
             <div className="mb-3">
-              <div className="text-[11px] uppercase tracking-wide font-bold text-ink-faint mb-1.5">Herleitung</div>
+              <div className="text-[11px] uppercase tracking-wide font-bold text-ink-faint mb-1.5">Where it comes from</div>
               <div className="rounded-xl bg-bg p-3 flex flex-col gap-1.5 overflow-x-auto">
                 {rule.derivation.map((l, i) => (
                   <Formula key={i} tex={l} className="text-[13.5px]" />
@@ -156,7 +157,7 @@ function TheoryCard({ rule, mastered, open, onToggle }: { rule: MathRule; master
             </div>
           )}
 
-          <div className="text-[11px] uppercase tracking-wide font-bold text-ink-faint mb-1.5">Beispiele</div>
+          <div className="text-[11px] uppercase tracking-wide font-bold text-ink-faint mb-1.5">Examples</div>
           <div className="flex flex-col gap-2 mb-3">
             {rule.examples.map((ex, i) => (
               <div key={i} className="bg-bg rounded-xl px-3.5 py-2.5 overflow-x-auto">
@@ -174,7 +175,7 @@ function TheoryCard({ rule, mastered, open, onToggle }: { rule: MathRule; master
           {rule.pitfalls.length > 0 && (
             <div className="rounded-xl bg-red-light/40 ring-1 ring-inset ring-red/15 p-3.5">
               <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide font-bold text-red mb-1.5">
-                <TriangleAlert size={12} /> Typische Fehler
+                <TriangleAlert size={12} /> Common mistakes
               </div>
               <ul className="flex flex-col gap-1.5">
                 {rule.pitfalls.map((p, i) => (

@@ -120,9 +120,15 @@ function pickProblemIndex(rule: MathRule, kind: Exclude<MathTaskKind, "review">)
   return pool.length === 0 ? 0 : Math.floor(Math.random() * pool.length);
 }
 
-/** Builds one queue item for a rule at its current stage, choosing kind and problem index. */
-function itemFor(rule: MathRule, stage: LearningStage, recent: string[] = [], allowTyped = true): MathQueueItem {
-  const kind = pickMathKindForStage(rule, stage, recent, allowTyped);
+/** Builds one queue item for a rule at its current stage, choosing kind and problem index.
+ *
+ * `drill` is the exercises-only mode: a stage-0 rule would normally open with its learn card, but in
+ * drill mode it is lifted to stage 1 so a practice task is chosen instead. Everything else — stage
+ * progression, format memory, spacing — behaves identically, so drilling still teaches the engine
+ * what you know. */
+function itemFor(rule: MathRule, stage: LearningStage, recent: string[] = [], allowTyped = true, drill = false): MathQueueItem {
+  const effectiveStage = drill && stage === 0 ? 1 : stage;
+  const kind = pickMathKindForStage(rule, effectiveStage, recent, allowTyped);
   return { kind, ruleId: rule.id, problemIndex: pickProblemIndex(rule, kind) };
 }
 
@@ -154,10 +160,17 @@ export function buildMathBatch(
   getState: (id: string) => WordState,
   totalPracticeSessions: number,
   includeReview: boolean,
-  tuning: LearningTuning
+  tuning: LearningTuning,
+  drill = false
 ): MathBatch {
   const pool = rulesInScope(topic);
   const newPool = pool.filter((r) => getState(r.id).stage === 0);
+
+  // Drill mode is about volume of practice, not careful introduction, so the "don't meet too many
+  // unfamiliar items at once" cap does not apply — the batch is simply the weakest rules in scope.
+  if (drill) {
+    return { activeRules: selectByWeakness(pool, (r) => getState(r.id), tuning.mathBatchSize), reviewRules: [] };
+  }
 
   if (!includeReview) {
     return { activeRules: selectByWeakness(newPool, (r) => getState(r.id), tuning.mathBatchSize), reviewRules: [] };
@@ -187,7 +200,12 @@ export interface MathInitialQueue {
   formatMemory: FormatMemory;
 }
 
-export function buildMathQueue(batch: MathBatch, getState: (id: string) => WordState, allowTyped = true): MathInitialQueue {
+export function buildMathQueue(
+  batch: MathBatch,
+  getState: (id: string) => WordState,
+  allowTyped = true,
+  drill = false
+): MathInitialQueue {
   let formatMemory: FormatMemory = {};
   const items: MathQueueItem[] = [];
 
@@ -196,7 +214,7 @@ export function buildMathQueue(batch: MathBatch, getState: (id: string) => WordS
     return item;
   };
 
-  batch.activeRules.forEach((r) => items.push(remember(itemFor(r, getState(r.id).stage, [], allowTyped))));
+  batch.activeRules.forEach((r) => items.push(remember(itemFor(r, getState(r.id).stage, [], allowTyped, drill))));
   batch.reviewRules.forEach((r) => items.push(remember(reviewItemFor(r, [], allowTyped))));
 
   return { queue: spreadByKey(items, (item) => item.ruleId), formatMemory };
@@ -220,7 +238,8 @@ export function mathNextAfterAnswer(
   totalPracticeSessions: number,
   recentFormats: string[],
   tuning: LearningTuning,
-  allowTyped = true
+  allowTyped = true,
+  drill = false
 ): MathStageOutcome {
   const transition = nextStage({
     isLearnCard: item.kind === "learn",
@@ -237,7 +256,7 @@ export function mathNextAfterAnswer(
     stage: transition.stage,
     reviewStreak: transition.reviewStreak,
     dueAtSession: transition.dueAtSession,
-    followUp: transition.followUp && rule ? itemFor(rule, transition.stage, recentFormats, allowTyped) : null,
+    followUp: transition.followUp && rule ? itemFor(rule, transition.stage, recentFormats, allowTyped, drill) : null,
   };
 }
 

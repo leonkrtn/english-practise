@@ -14,7 +14,7 @@ export const MATH_GROUP_TOPICS: Record<MathTopicGroup, MathTopic[]> = {
 };
 
 export const MATH_GROUP_LABEL: Record<MathTopicGroup, string> = {
-  calculus: "Analysis",
+  calculus: "Calculus",
   quantitative: "Quantitative Methods",
 };
 
@@ -24,7 +24,7 @@ export type MathTestLength = 10 | 20 | 30;
 export const MATH_TEST_LENGTH_OPTIONS: MathTestLength[] = [10, 20, 30];
 
 export function scopeLabel(scope: MathTestScope): string {
-  if (scope.kind === "all") return "Alle Themen";
+  if (scope.kind === "all") return "All topics";
   if (scope.kind === "group") return MATH_GROUP_LABEL[scope.group];
   return MATH_TOPIC_META[scope.topic].label;
 }
@@ -38,7 +38,7 @@ export function scopeId(scope: MathTestScope): string {
 
 /** Turns a stored scopeId back into a display label, for the test history in the stats screen. */
 export function labelForScopeId(id: string): string {
-  if (id === "all") return "Alle Themen";
+  if (id === "all") return "All topics";
   if (id.startsWith("group:")) {
     const g = id.slice(6) as MathTopicGroup;
     return MATH_GROUP_LABEL[g] ?? id;
@@ -222,11 +222,11 @@ export function gradeMathTest(points: number, total: number): MathTestResultSumm
 
 /** Colour band for the result screen — purely presentational, keyed off the percentage. */
 export function mathBandFor(percent: number): { label: string; grad: string; text: string; tint: string } {
-  if (percent >= 90) return { label: "Exzellent", grad: "from-purple to-blue", text: "text-purple", tint: "bg-purple-light" };
-  if (percent >= 75) return { label: "Sehr gut", grad: "from-green to-blue", text: "text-green", tint: "bg-green-light" };
-  if (percent >= 60) return { label: "Bestanden", grad: "from-green to-green-dark", text: "text-green", tint: "bg-green-light" };
-  if (percent >= 40) return { label: "Knapp verfehlt", grad: "from-amber to-amber-dark", text: "text-amber", tint: "bg-amber-light" };
-  return { label: "Nicht bestanden", grad: "from-red to-red-dark", text: "text-red", tint: "bg-red-light" };
+  if (percent >= 90) return { label: "Excellent", grad: "from-purple to-blue", text: "text-purple", tint: "bg-purple-light" };
+  if (percent >= 75) return { label: "Very good", grad: "from-green to-blue", text: "text-green", tint: "bg-green-light" };
+  if (percent >= 60) return { label: "Pass", grad: "from-green to-green-dark", text: "text-green", tint: "bg-green-light" };
+  if (percent >= 40) return { label: "Just missed", grad: "from-amber to-amber-dark", text: "text-amber", tint: "bg-amber-light" };
+  return { label: "Fail", grad: "from-red to-red-dark", text: "text-red", tint: "bg-red-light" };
 }
 
 /** One finished math test, as stored in math_test_history. */

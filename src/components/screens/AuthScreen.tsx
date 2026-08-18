@@ -10,10 +10,10 @@ import GradientButton from "@/components/kokonutui/gradient-button";
 type Mode = "signin" | "signup";
 
 function friendlyError(message: string): string {
-  if (/invalid login credentials/i.test(message)) return "E-Mail oder Passwort ist falsch.";
-  if (/user already registered/i.test(message)) return "Für diese E-Mail existiert bereits ein Account.";
-  if (/password.*at least/i.test(message)) return "Das Passwort ist zu kurz (mindestens 6 Zeichen).";
-  if (/email/i.test(message) && /invalid/i.test(message)) return "Bitte gib eine gültige E-Mail-Adresse ein.";
+  if (/invalid login credentials/i.test(message)) return "Email or password is incorrect.";
+  if (/user already registered/i.test(message)) return "An account with this email already exists.";
+  if (/password.*at least/i.test(message)) return "That password is too short (at least 6 characters).";
+  if (/email/i.test(message) && /invalid/i.test(message)) return "Please enter a valid email address.";
   return message;
 }
 
@@ -42,7 +42,7 @@ export default function AuthScreen() {
         await signIn(email, password);
       }
     } catch (e) {
-      setError(friendlyError(e instanceof Error ? e.message : "Etwas ist schiefgelaufen."));
+      setError(friendlyError(e instanceof Error ? e.message : "Something went wrong."));
     } finally {
       setBusy(false);
     }
@@ -77,17 +77,17 @@ export default function AuthScreen() {
           </Tabs>
 
           <h1 className="text-[19px] font-semibold tracking-tight mb-1">
-            {mode === "signin" ? "Willkommen zurück" : "Account erstellen"}
+            {mode === "signin" ? "Welcome back" : "Create account"}
           </h1>
           <p className="text-[13.5px] text-ink-faint mb-5 leading-relaxed">
             {mode === "signin"
-              ? "Melde dich an, um an deinem Fortschritt weiterzumachen."
-              : "Dein Fortschritt wird ab jetzt sicher auf deinem Account gespeichert."}
+              ? "Sign in to pick up where you left off."
+              : "From now on your progress is saved safely to your account."}
           </p>
 
           {confirmNotice ? (
             <div className="bg-blue-light text-blue-dark text-[13.5px] rounded-xl px-4 py-3.5 leading-relaxed">
-              Fast geschafft — wir haben dir eine Bestätigungs-E-Mail geschickt. Bestätige deine
+              Almost there — we have sent you a confirmation email. Confirm your
               E-Mail-Adresse und melde dich danach an.
             </div>
           ) : (
@@ -128,7 +128,7 @@ export default function AuthScreen() {
                 type="submit"
                 disabled={busy}
                 variant="blue"
-                label={busy ? "Einen Moment…" : mode === "signin" ? "Anmelden" : "Account erstellen"}
+                label={busy ? "One moment…" : mode === "signin" ? "Sign in" : "Create account"}
                 className="mt-1 w-full active:scale-[0.97]"
               />
             </form>

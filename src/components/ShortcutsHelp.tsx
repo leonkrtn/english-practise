@@ -8,73 +8,73 @@ type Group = { title: string; note?: string; rows: Row[] };
 
 const GROUPS: Group[] = [
   {
-    title: "Überall",
-    note: "Funktioniert auf jedem Screen — außer während du in ein Textfeld tippst.",
+    title: "Everywhere",
+    note: "Works on every screen — except while you are typing into a text field.",
     rows: [
-      { keys: ["Esc"], label: "Zurück / Session beenden" },
-      { keys: ["M"], label: "Ton stumm/an" },
-      { keys: ["H"], label: "Diese Übersicht" },
+      { keys: ["Esc"], label: "Back / end session" },
+      { keys: ["M"], label: "Mute / unmute" },
+      { keys: ["H"], label: "This overview" },
     ],
   },
   {
     title: "Navigation",
-    note: "Pausiert, solange eine Session, ein Test oder eine Reading-/Schreibaufgabe läuft — sonst wäre der Fortschritt mit einem Tastendruck weg. Zum Verlassen Esc drücken.",
+    note: "Paused while a session, test or reading/writing task is running — otherwise one keypress would throw the progress away. Press Esc to leave first.",
     rows: [
-      { keys: ["G"], label: "Ziel" },
-      { keys: ["W"], label: "Wörter" },
-      { keys: ["S"], label: "Statistiken" },
-      { keys: [","], label: "Einstellungen" },
+      { keys: ["G"], label: "Goal" },
+      { keys: ["W"], label: "Words" },
+      { keys: ["S"], label: "Statistics" },
+      { keys: [","], label: "Settings" },
     ],
   },
   {
-    title: "Hauptmenü",
+    title: "Home",
     rows: [
-      { keys: ["1", "–", "6"], label: "Modus wählen (Vocabulary, Grammar, Finance, Linking, Reading, Test)" },
-      { keys: ["Enter"], label: "Session bzw. Test starten" },
-      { keys: ["C"], label: "Optionen öffnen (Session-Inhalt / Test-Einstellungen)" },
-      { keys: ["R"], label: "„Gelerntes wiederholen“ mit Filtern öffnen" },
-      { keys: ["Q"], label: "Speed-Runde starten (nur Vocabulary)" },
+      { keys: ["1", "–", "6"], label: "Choose mode (Vocabulary, Grammar, Idioms, Linking, Reading, Test)" },
+      { keys: ["Enter"], label: "Start session or test" },
+      { keys: ["C"], label: "Open options (session content / test settings)" },
+      { keys: ["R"], label: "Open \u201creview learned\u201d with filters" },
+      { keys: ["Q"], label: "Start speed round (Vocabulary only)" },
     ],
   },
   {
-    title: "Während einer Übung",
+    title: "During an exercise",
     rows: [
-      { keys: ["1", "–", "4"], label: "Antwortoption wählen (Multiple Choice)" },
-      { keys: ["1", "–", "9"], label: "Wortkachel setzen (Satzbau)" },
-      { keys: ["1"], label: "Hint anzeigen" },
-      { keys: ["⌫"], label: "Letzte Wortkachel zurücknehmen" },
-      { keys: ["Enter"], label: "Antwort prüfen / weiter" },
-      { keys: ["F"], label: "Wort als Favorit markieren" },
-      { keys: ["X"], label: "Wort dauerhaft ausschließen" },
+      { keys: ["1", "–", "4"], label: "Pick an answer option (multiple choice)" },
+      { keys: ["1", "–", "9"], label: "Place a word tile (sentence building)" },
+      { keys: ["1"], label: "Show a hint" },
+      { keys: ["⌫"], label: "Undo the last word tile" },
+      { keys: ["Enter"], label: "Check answer / continue" },
+      { keys: ["F"], label: "Mark word as favourite" },
+      { keys: ["X"], label: "Exclude the word permanently" },
     ],
   },
   {
-    title: "Im Test",
+    title: "During a test",
     rows: [
-      { keys: ["1", "–", "4"], label: "Antwortoption wählen" },
-      { keys: ["→"], label: "Nächste Frage (auf der letzten: abgeben)" },
-      { keys: ["←"], label: "Vorherige Frage" },
-      { keys: ["Enter"], label: "Antwort bestätigen und weiter" },
-      { keys: ["Esc"], label: "Test abbrechen (wird nicht benotet)" },
+      { keys: ["1", "–", "4"], label: "Pick an answer option" },
+      { keys: ["→"], label: "Next question (on the last: submit)" },
+      { keys: ["←"], label: "Previous question" },
+      { keys: ["Enter"], label: "Confirm answer and continue" },
+      { keys: ["Esc"], label: "Cancel test (not graded)" },
     ],
   },
   {
-    title: "Nach einer Session",
+    title: "After a session",
     rows: [
-      { keys: ["Enter"], label: "Zurück zum Hauptmenü" },
-      { keys: ["R"], label: "Fehler wiederholen" },
+      { keys: ["Enter"], label: "Back to home" },
+      { keys: ["R"], label: "Repeat mistakes" },
     ],
   },
   {
-    title: "Statistiken",
+    title: "Statistics",
     rows: [
-      { keys: ["1", "–", "5"], label: "Tab wählen (Übersicht, Vokabeln, Grammatik, Tests, Erfolge)" },
-      { keys: ["←", "→"], label: "Tab wechseln" },
+      { keys: ["1", "–", "5"], label: "Choose tab (Overview, Vocabulary, Grammar, Tests, Badges)" },
+      { keys: ["←", "→"], label: "Switch tab" },
     ],
   },
   {
-    title: "Wortliste",
-    rows: [{ keys: ["/"], label: "Suche fokussieren" }],
+    title: "Word list",
+    rows: [{ keys: ["/"], label: "Focus search" }],
   },
 ];
 
@@ -83,7 +83,7 @@ export default function ShortcutsHelp({ open, onClose }: { open: boolean; onClos
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="rounded-[18px] p-6 sm:max-w-[460px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-[17px] font-semibold">Tastenkürzel</DialogTitle>
+          <DialogTitle className="text-[17px] font-semibold">Keyboard shortcuts</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-5">
           {GROUPS.map((g) => (

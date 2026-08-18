@@ -37,10 +37,10 @@ export async function checkText(text: string): Promise<LanguageToolResult> {
       body: new URLSearchParams({ text, language: "en-US" }),
     });
   } catch {
-    throw new LanguageToolError("Die Prüfung konnte nicht erreicht werden. Prüfe deine Internetverbindung und versuche es erneut.");
+    throw new LanguageToolError("Could not reach the checker. Check your internet connection and try again.");
   }
   if (!res.ok) {
-    throw new LanguageToolError(`Die Prüfung ist fehlgeschlagen (${res.status}). Bitte versuche es in ein paar Sekunden erneut.`);
+    throw new LanguageToolError(`The check failed (${res.status}). Please try again in a few seconds.`);
   }
   const data = await res.json();
   const matches: LanguageToolMatch[] = (data.matches || []).map((m: RawMatch) => ({

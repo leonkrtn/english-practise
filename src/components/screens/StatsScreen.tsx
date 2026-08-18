@@ -18,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const TREND_DAYS = 14;
 
 const FMT_LABELS: Record<string, string> = {
-  learn: "Kennenlernen",
+  learn: "Introduction",
   translate: "Direct Translation",
   gap: "Missing Word",
   mc: "Multiple Choice",
@@ -27,20 +27,20 @@ const FMT_LABELS: Record<string, string> = {
   build: "Sentence Building",
   multigap: "Fill Multiple Gaps",
   confusable: "Similar Words",
-  "g-learn": "Kennenlernen",
+  "g-learn": "Introduction",
   "g-mc": "Multiple Choice",
-  "g-gap": "Lückentext",
-  "g-build": "Satz umbauen",
-  "g-error": "Fehler finden",
-  "g-conjugate": "Richtige Form",
-  "g-translate": "Satz übersetzen",
-  "g-transform": "Satz umschreiben",
-  "g-situation": "Situations-Auswahl",
+  "g-gap": "Gap fill",
+  "g-build": "Rebuild sentence",
+  "g-error": "Find the error",
+  "g-conjugate": "Correct form",
+  "g-translate": "Translate sentence",
+  "g-transform": "Rewrite sentence",
+  "g-situation": "Situation choice",
   writing: "Writing",
   linking: "Sentence Linking",
-  "linking-vocab": "Bindewörter lernen",
-  "linking-essay": "Linking-Essay",
-  speed: "Speed-Runde",
+  "linking-vocab": "Learn connectors",
+  "linking-essay": "Linking essay",
+  speed: "Speed round",
   reading: "Reading",
 };
 
@@ -51,11 +51,11 @@ const NON_GRAMMAR_FORMATS = new Set(["writing", "linking", "linking-vocab", "lin
 type Tab = "overview" | "vocab" | "grammar" | "tests" | "badges";
 
 const TABS: { val: Tab; label: string; icon: typeof LayoutGrid }[] = [
-  { val: "overview", label: "Übersicht", icon: LayoutGrid },
-  { val: "vocab", label: "Vokabeln", icon: BookOpen },
-  { val: "grammar", label: "Grammatik", icon: Blocks },
+  { val: "overview", label: "Overview", icon: LayoutGrid },
+  { val: "vocab", label: "Vocabulary", icon: BookOpen },
+  { val: "grammar", label: "Grammar", icon: Blocks },
   { val: "tests", label: "Tests", icon: GraduationCap },
-  { val: "badges", label: "Erfolge", icon: Trophy },
+  { val: "badges", label: "Badges", icon: Trophy },
 ];
 
 /**
@@ -313,10 +313,10 @@ export default function StatsScreen() {
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <StatCard icon={<Flame size={14} className="text-red" />} value={streak} label={streak === 1 ? "Tag Streak" : "Tage Streak"} />
-            <StatCard icon={<Target size={14} className="text-amber" />} value={`${overallAccuracy}%`} label="Genauigkeit gesamt" />
-            <StatCard icon={<BookOpen size={14} className="text-blue" />} value={vocab.mastered.length} label="Wörter gelernt" />
-            <StatCard icon={<Blocks size={14} className="text-purple" />} value={`${grammar.known.length}/${grammar.total}`} label="Regeln gelernt" />
+            <StatCard icon={<Flame size={14} className="text-red" />} value={streak} label={"day streak"} />
+            <StatCard icon={<Target size={14} className="text-amber" />} value={`${overallAccuracy}%`} label="Overall accuracy" />
+            <StatCard icon={<BookOpen size={14} className="text-blue" />} value={vocab.mastered.length} label="Words learned" />
+            <StatCard icon={<Blocks size={14} className="text-purple" />} value={`${grammar.known.length}/${grammar.total}`} label="Rules learned" />
           </div>
 
           <SectionTitle>Fortschritt</SectionTitle>
@@ -331,9 +331,9 @@ export default function StatsScreen() {
 
           <SectionTitle>Sessions</SectionTitle>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <StatCard value={totalSessions} label="Sessions gesamt" />
-            <StatCard value={store.totalPracticeSessions || 0} label="davon Vokabeln" />
-            <StatCard value={grammarStore.totalPracticeSessions || 0} label="davon Grammatik" />
+            <StatCard value={totalSessions} label="Total sessions" />
+            <StatCard value={store.totalPracticeSessions || 0} label="of which vocabulary" />
+            <StatCard value={grammarStore.totalPracticeSessions || 0} label="of which grammar" />
             <StatCard value={tests?.count ?? 0} label="Tests geschrieben" />
           </div>
         </>
@@ -342,30 +342,30 @@ export default function StatsScreen() {
       {tab === "vocab" && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
-            <StatCard value={`${vocab.practiced.length} / ${VOCAB.length}`} label="Geübt" />
-            <StatCard value={vocab.mastered.length} label="Gelernt" />
-            <StatCard value={`${vocab.accuracy}%`} label="Genauigkeit" />
+            <StatCard value={`${vocab.practiced.length} / ${VOCAB.length}`} label="Practised" />
+            <StatCard value={vocab.mastered.length} label="Learned" />
+            <StatCard value={`${vocab.accuracy}%`} label="Accuracy" />
             <StatCard value={vocab.difficult.length} label="Schwierig" />
-            <StatCard value={vocab.intensify.length} label="Braucht Übung" />
+            <StatCard value={vocab.intensify.length} label="Needs practice" />
             <StatCard value={vocab.favorites.length} label="Favoriten" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
-            <ChartCard title={`Gelernte Wörter · letzte ${TREND_DAYS} Tage`}>
+            <ChartCard title={`Words learned · last ${TREND_DAYS} days`}>
               <TrendLineChart points={vocabCumulative} gradFrom="#0071e3" gradTo="#0058b8" />
             </ChartCard>
-            <ChartCard title={`Genauigkeit pro Tag · letzte ${TREND_DAYS} Tage`}>
+            <ChartCard title={`Accuracy per day · last ${TREND_DAYS} days`}>
               <TrendBarChart points={vocabAccuracySeries} from="#0071e3" to="#8b5cf6" />
             </ChartCard>
           </div>
 
-          <SectionTitle>Genauigkeit nach Format</SectionTitle>
+          <SectionTitle>Accuracy by format</SectionTitle>
           <FormatBars stats={store.formatStats} labels={FMT_LABELS} />
 
           {topIntensify.length > 0 && (
             <>
-              <SectionTitle hint="Wörter, bei denen du überdurchschnittlich oft einen Hint gebraucht hast — auch wenn die Antwort am Ende richtig war.">
-                Braucht Übung
+              <SectionTitle hint="Words where you needed a hint more often than average — even when the answer ended up correct.">
+                Needs practice
               </SectionTitle>
               <div className="flex flex-col gap-2">
                 {topIntensify.map(({ word, state }) => (
@@ -388,17 +388,17 @@ export default function StatsScreen() {
       {tab === "grammar" && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <StatCard value={`${grammar.practiced.length} / ${grammar.total}`} label="Geübt" />
-            <StatCard value={grammar.known.length} label="Gelernt" />
-            <StatCard value={`${grammar.accuracy}%`} label="Genauigkeit" />
+            <StatCard value={`${grammar.practiced.length} / ${grammar.total}`} label="Practised" />
+            <StatCard value={grammar.known.length} label="Learned" />
+            <StatCard value={`${grammar.accuracy}%`} label="Accuracy" />
             <StatCard value={grammarStore.totalPracticeSessions || 0} label="Sessions" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
-            <ChartCard title={`Gelernte Regeln · letzte ${TREND_DAYS} Tage`}>
+            <ChartCard title={`Rules learned · last ${TREND_DAYS} days`}>
               <TrendLineChart points={grammarCumulative} gradFrom="#8b5cf6" gradTo="#6d3fd4" />
             </ChartCard>
-            <ChartCard title={`Genauigkeit pro Tag · letzte ${TREND_DAYS} Tage`}>
+            <ChartCard title={`Accuracy per day · last ${TREND_DAYS} days`}>
               <TrendBarChart points={grammarAccuracySeries} from="#8b5cf6" to="#0071e3" />
             </ChartCard>
           </div>
@@ -414,17 +414,17 @@ export default function StatsScreen() {
             </>
           )}
 
-          <SectionTitle hint="Reine Grammatikformate. Linking und Reading haben eigene Bereiche.">Genauigkeit nach Format</SectionTitle>
+          <SectionTitle hint="Reine Grammatikformate. Linking und Reading haben eigene Bereiche.">Accuracy by format</SectionTitle>
           <FormatBars
             stats={Object.fromEntries(Object.entries(grammarStore.formatStats).filter(([f]) => !NON_GRAMMAR_FORMATS.has(f)))}
             labels={FMT_LABELS}
           />
 
-          <SectionTitle>Weitere Übungen</SectionTitle>
+          <SectionTitle>Other practice</SectionTitle>
           <FormatBars
             stats={Object.fromEntries(Object.entries(grammarStore.formatStats).filter(([f]) => NON_GRAMMAR_FORMATS.has(f)))}
             labels={FMT_LABELS}
-            emptyLabel="Noch keine Linking- oder Reading-Übungen abgeschlossen."
+            emptyLabel="No linking or reading practice completed yet."
           />
         </>
       )}
@@ -434,7 +434,7 @@ export default function StatsScreen() {
           {!tests ? (
             <EmptyState
               icon={<GraduationCap size={22} className="text-ink-faint" />}
-              text="Noch kein Test geschrieben. Starte einen im Test-Modus auf der Startseite — bewertet wird auf der portugiesischen Skala von 0 bis 20."
+              text="No test taken yet. Start one from Test mode on the home screen — graded on the Portuguese 0-20 scale."
             />
           ) : (
             <>
@@ -442,7 +442,7 @@ export default function StatsScreen() {
                 <StatCard value={tests.count} label={tests.count === 1 ? "Test" : "Tests"} />
                 <StatCard value={tests.best.toFixed(1)} label="Beste Note" />
                 <StatCard value={tests.average.toFixed(1)} label="Durchschnitt" />
-                <StatCard value={`${tests.passed}/${tests.count}`} label="Bestanden" />
+                <StatCard value={`${tests.passed}/${tests.count}`} label="Passed" />
               </div>
 
               <SectionTitle hint="Bestehensgrenze 10 · 10–13 Suficiente · 14–15 Bom · 16–17 Muito Bom · 18–20 Excelente">
@@ -463,7 +463,7 @@ export default function StatsScreen() {
                         </div>
                         <div className="text-[11.5px] text-ink-faint tabular-nums">
                           {t.correct}/{t.total} richtig · {formatDuration(t.durationSeconds)} ·{" "}
-                          {new Date(t.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                          {new Date(t.date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" })}
                         </div>
                       </div>
                     </div>
@@ -479,7 +479,7 @@ export default function StatsScreen() {
         <>
           <div className="bg-card border border-line-soft rounded-2xl p-4 mb-5">
             <div className="flex items-baseline justify-between mb-2">
-              <span className="text-[13px] font-semibold text-ink">Erfolge freigeschaltet</span>
+              <span className="text-[13px] font-semibold text-ink">Badges unlocked</span>
               <span className="text-[13px] font-bold tabular-nums">
                 {store.badgeIds.size} / {BADGES.length}
               </span>
@@ -518,7 +518,7 @@ function pct(part: number, total: number): number {
 }
 
 function scopeLabel(scope: string): string {
-  return scope === "vocab" ? "Vokabeln" : scope === "grammar" ? "Grammatik" : "Vokabeln + Grammatik";
+  return scope === "vocab" ? "Vocabulary" : scope === "grammar" ? "Grammar" : "Vocabulary + Grammar";
 }
 
 function formatDuration(seconds: number): string {
@@ -560,7 +560,7 @@ function StatCard({ value, label, icon }: { value: string | number; label: strin
 function FormatBars({
   stats,
   labels,
-  emptyLabel = "Noch keine Sessions abgeschlossen.",
+  emptyLabel = "No sessions completed yet.",
 }: {
   stats: Record<string, { correct: number; almost: number; incorrect: number }>;
   labels: Record<string, string>;

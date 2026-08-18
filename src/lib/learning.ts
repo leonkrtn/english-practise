@@ -164,7 +164,7 @@ export function buildLearningBatch(
   const newPool = pool.filter((w) => getState(w.id).stage === 0);
 
   if (!includeReview) {
-    // "Nur Neues lernen" means exactly that — brand-new words only, and here the full batch may be
+    // "New only" means exactly that — brand-new words only, and here the full batch may be
     // new because that is what the learner explicitly asked for.
     return { activeWords: selectByWeakness(newPool, (w) => getState(w.id), tuning.vocabBatchSize), reviewWords: [] };
   }

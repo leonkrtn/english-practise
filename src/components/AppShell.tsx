@@ -156,12 +156,12 @@ export type LinkingSubMode = "combine" | "learn" | "essay";
 /** Which slice of the vocabulary a "vocab" learning session draws from: a Finance-mode scope, the
  * Idioms mode's own category, or (when omitted) the general Vocabulary pool. */
 export type VocabScope = DomainScope | "idiom";
-/** Options for the "Gelerntes wiederholen" dropdown on Home: restrict the review pool to items
+/** Options for the "Review learned" dropdown on Home: restrict the review pool to items
  * below a score-based mastery percentage (null = no restriction) and/or cap how many are drawn
  * (null = everyone that matches). */
 export type ReviewOptions = { maxAccuracy: number | null; limit: number | null };
 /** Snapshot of whichever preset-driven start the learner most recently launched from Home, so it
- * can be replayed verbatim by the "Weiter" action on the summary/test-result screens. */
+ * can be replayed verbatim by the "Continue" action on the summary/test-result screens. */
 type LastStartConfig =
   | { kind: "learning"; mode: LearningMode; includeReview: boolean; domainScope?: VocabScope }
   | { kind: "review"; mode: LearningMode; options?: ReviewOptions; domainScope?: VocabScope }
@@ -194,6 +194,8 @@ interface LinkingSessionState {
  */
 interface MathSessionState {
   topic: MathTopic | null;
+  /** Exercises-only mode: no learn cards, straight into practice. */
+  drill: boolean;
   queue: MathQueueItem[];
   index: number;
   results: MathResultEntry[];
@@ -309,14 +311,14 @@ export default function AppShell() {
   }, []);
   const [mathTestSession, setMathTestSession] = useState<MathTestSessionState | null>(null);
   const [mathTestResult, setMathTestResult] = useState<MathTestResult | null>(null);
-  /** The last math test's configuration, so the result screen's "Nochmal" can rebuild an equivalent paper. */
+  /** The last math test's configuration, so the result screen's "Again" can rebuild an equivalent paper. */
   const [lastMathTest, setLastMathTest] = useState<{ scope: MathTestScope; length: MathTestLength } | null>(null);
   const [readingSession, setReadingSession] = useState<ReadingSessionState | null>(null);
   const [testSession, setTestSession] = useState<TestSessionState | null>(null);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [linkingEssayTopic, setLinkingEssayTopic] = useState<WritingTopic | null>(null);
   const [summary, setSummary] = useState<SummaryStats | null>(null);
-  // The preset a preset-driven session was launched with, so the "Weiter" button on the summary/
+  // The preset a preset-driven session was launched with, so the "Continue" button on the summary/
   // test-result screens can start the next run identically without sending the learner back
   // through Home to re-pick everything. Quick drills (repeat mistakes / practice one word) aren't
   // preset-driven, so they clear this rather than leave a stale preset behind.
@@ -675,11 +677,11 @@ export default function AppShell() {
   // ---------- Mathematics: stage-engine session over the math rules, optionally scoped to a topic ----------
 
   const startMathSession = useCallback(
-    (topic: MathTopic | null) => {
-      const batch = buildMathBatch(topic, store.wordState, store.totalPracticeSessions, true, tuning);
-      const { queue, formatMemory } = buildMathQueue(batch, store.wordState, mathTypedEnabled);
+    (topic: MathTopic | null, drill = false) => {
+      const batch = buildMathBatch(topic, store.wordState, store.totalPracticeSessions, true, tuning, drill);
+      const { queue, formatMemory } = buildMathQueue(batch, store.wordState, mathTypedEnabled, drill);
       if (queue.length === 0) return;
-      setMathSession({ topic, queue, index: 0, results: [], attempts: {}, formatMemory, finishedRuleIds: new Set() });
+      setMathSession({ topic, drill, queue, index: 0, results: [], attempts: {}, formatMemory, finishedRuleIds: new Set() });
       setScreen("math");
     },
     [store.wordState, store.totalPracticeSessions, tuning, mathTypedEnabled, setMathSession]
@@ -726,7 +728,8 @@ export default function AppShell() {
         store.totalPracticeSessions,
         formatMemory[key] || [],
         tuning,
-        mathTypedEnabled
+        mathTypedEnabled,
+        session.drill
       );
 
       store.setLearningStage(entry.ruleId, outcome.stage, outcome.reviewStreak, outcome.dueAtSession);
@@ -1806,10 +1809,10 @@ export default function AppShell() {
 
       <Modal
         open={modalOpen}
-        title={screen === "test" ? "Test abbrechen?" : "End session?"}
+        title={screen === "test" ? "Cancel test?" : "End session?"}
         body={
           screen === "test"
-            ? "Der Test wird verworfen und nicht benotet."
+            ? "The test will be discarded and not graded."
             : "Your progress so far will be saved, but the session will end early."
         }
         onCancel={() => setModalOpen(false)}
@@ -1817,14 +1820,14 @@ export default function AppShell() {
       />
       <Modal
         open={blockPrompt !== null}
-        title="Wort ausschließen?"
+        title="Exclude word?"
         body={
           blockPrompt
-            ? `„${VOCAB_BY_ID[blockPrompt]?.en ?? blockPrompt}" wird dauerhaft aus dem Training entfernt. Du kannst das in den Einstellungen rückgängig machen.`
+            ? `\u201c${VOCAB_BY_ID[blockPrompt]?.en ?? blockPrompt}\u201d will be removed from practice permanently. You can undo this in Settings.`
             : ""
         }
-        cancelLabel="Abbrechen"
-        confirmLabel="Ausschließen"
+        cancelLabel="Cancel"
+        confirmLabel="Exclude"
         destructive
         onCancel={() => setBlockPrompt(null)}
         onConfirm={confirmBlockWord}

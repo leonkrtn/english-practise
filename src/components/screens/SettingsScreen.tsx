@@ -37,10 +37,10 @@ export default function SettingsScreen() {
       <h1 className="text-[26px] font-bold tracking-tight mt-1 mb-1">Settings</h1>
 
       <div className="mb-6">
-        <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-1">Lern-Tempo</h2>
+        <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-1">Learning pace</h2>
         <p className="text-ink-soft text-[13.5px] mb-3 leading-snug">
-          Bestimmt, wie viel pro Session drankommt und wie viel Abstand zwischen zwei Abfragen desselben Wortes liegt. Gilt ab der
-          nächsten Session.
+          Controls how much a session takes on and how far apart two sightings of the same item sit. Applies from your next
+          session.
         </p>
         <div className="flex flex-col gap-2">
           {PROFILE_ORDER.map((id) => {
@@ -59,7 +59,7 @@ export default function SettingsScreen() {
                 <div className="flex items-center justify-between gap-3">
                   <span className={"text-[14px] font-semibold " + (selected ? "text-blue-dark" : "text-ink")}>{tuning.label}</span>
                   <span className="text-[12px] text-ink-faint shrink-0">
-                    {tuning.vocabBatchSize} Wörter · Abstand {tuning.minRepeatGap}+
+                    {tuning.vocabBatchSize} words · gap {tuning.minRepeatGap}+
                   </span>
                 </div>
                 <p className="text-[12.5px] text-ink-soft leading-snug mt-1">{tuning.summary}</p>
@@ -73,10 +73,10 @@ export default function SettingsScreen() {
         <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">Mathematics</h2>
         <div className="flex items-center justify-between gap-3 rounded-xl border-[1.5px] border-line-soft bg-card px-3.5 py-3">
           <div>
-            <div className="text-[14px] font-medium text-ink">Freitext-Aufgaben</div>
+            <div className="text-[14px] font-medium text-ink">Typed-answer exercises</div>
             <p className="text-[12.5px] text-ink-soft leading-snug mt-0.5">
-              Aufgaben, bei denen du das Ergebnis selbst eintippst (Solve, Simplify, Schritt-für-Schritt, Textaufgaben). Ausgeschaltet
-              bleiben nur Multiple Choice und &quot;Fehler finden&quot;.
+              Exercises where you type the result yourself (Solve, Simplify, Step by step, Word problems). Switched off, only multiple
+              choice and &quot;find the error&quot; remain.
             </p>
           </div>
           <Switch checked={mathSolveEnabled} onChange={setMathSolveEnabled} />
@@ -84,15 +84,15 @@ export default function SettingsScreen() {
       </div>
 
       <p className="text-ink-soft text-[14px] mb-5 leading-snug">
-        Blockierte Regeln tauchen nirgendwo mehr auf — weder beim Grammatik-Lernen, bei &quot;Gelerntes wiederholen&quot; noch als
-        Pflichtgrammatik beim Schreiben.
+        Blocked rules disappear everywhere — from grammar practice, from &quot;review learned&quot;, and from the required grammar in
+        writing tasks.
       </p>
 
       <div className="mb-5">
-        <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">Ausgeschlossene Wörter</h2>
+        <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">Excluded words</h2>
         {blockedWords.length === 0 ? (
           <p className="text-ink-faint text-[13.5px]">
-            Noch keine — mit dem Block-Symbol während einer Übung kannst du ein Wort dauerhaft ausschließen.
+            None yet — use the block icon during an exercise to exclude a word permanently.
           </p>
         ) : (
           <div className="flex flex-wrap gap-1.5">
@@ -100,7 +100,7 @@ export default function SettingsScreen() {
               <Button
                 key={w.id}
                 onClick={() => store.setWordBlocked(w.id, false)}
-                title="Wieder zulassen"
+                title="Allow again"
                 variant="ghost"
                 className="h-auto inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-line-soft bg-card px-3 py-1.5 text-[13px] font-medium text-ink-soft hover:border-red/40 hover:text-red hover:bg-red-light transition-colors"
               >

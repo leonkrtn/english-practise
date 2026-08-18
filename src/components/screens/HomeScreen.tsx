@@ -16,7 +16,6 @@ import {
   PenLine,
   Quote,
   Repeat,
-  Sparkles,
   Target,
   Timer,
   TrendingDown,
@@ -29,19 +28,28 @@ import { VOCAB, VOCAB_BY_ID, countsTowardVocab, generalVocabTotal, inDomainScope
 import { activeGrammarRules } from "@/lib/grammarLearning";
 import { needsIntensification } from "@/lib/intensify";
 import { computeGoalStatus } from "@/lib/goal";
-import { computeStreak, DAY_MS } from "@/lib/progressStats";
-import { levelProgress } from "@/lib/gamification";
+import { computeStreak } from "@/lib/progressStats";
 import { BAND_STYLES, bandForGrade, TEST_LENGTH_OPTIONS, TEST_SCOPE_OPTIONS, type TestLength, type TestScope } from "@/lib/testMode";
 import type { SessionMode, LearningMode, LinkingSubMode, ReviewOptions, VocabScope } from "@/components/AppShell";
 import type { SessionRecord } from "@/lib/types";
 import type { GrammarSessionRecord } from "@/lib/grammarTypes";
+import {
+  ActivityStrip,
+  ChipRow,
+  LevelCard,
+  MiniBar,
+  ProgressRing,
+  StatChip,
+  StatRow,
+  formatRelativeDate,
+} from "@/components/home/shared";
 
 const LINKING_FORMATS = ["linking", "linking-vocab", "linking-essay"];
 
 const LINKING_SUB_MODES: { val: LinkingSubMode; label: string; icon: typeof Link2 }[] = [
-  { val: "combine", label: "Sätze verbinden", icon: Link2 },
-  { val: "learn", label: "Wörter lernen", icon: BookMarked },
-  { val: "essay", label: "Freies Schreiben", icon: PenLine },
+  { val: "combine", label: "Combine sentences", icon: Link2 },
+  { val: "learn", label: "Learn connectors", icon: BookMarked },
+  { val: "essay", label: "Free writing", icon: PenLine },
 ];
 
 const MODES: {
@@ -128,45 +136,23 @@ const scopeFor = (m: SessionMode, domainScope: DomainScope): VocabScope | undefi
   m === "domain" ? domainScope : m === "idioms" ? "idiom" : undefined;
 
 const SESSION_CONTENT_OPTIONS: { val: boolean; label: string; hint: string }[] = [
-  { val: true, label: "Neu + Wiederholung", hint: "Neue Inhalte, gemischt mit fälligen Wiederholungen" },
-  { val: false, label: "Nur Neues lernen", hint: "Ausschließlich noch nicht gelernte Inhalte" },
+  { val: true, label: "New + review", hint: "New material mixed with reviews that have come due" },
+  { val: false, label: "New only", hint: "Only material you have not learned yet" },
 ];
 
 const REVIEW_ACCURACY_OPTIONS: { val: number | null; label: string }[] = [
-  { val: null, label: "Alle" },
-  { val: 80, label: "Unter 80%" },
-  { val: 60, label: "Unter 60%" },
+  { val: null, label: "All" },
+  { val: 80, label: "Under 80%" },
+  { val: 60, label: "Under 60%" },
 ];
 
 const REVIEW_LIMIT_OPTIONS: { val: number | null; label: string }[] = [
-  { val: null, label: "Alle" },
+  { val: null, label: "All" },
   { val: 20, label: "20" },
   { val: 10, label: "10" },
 ];
 
-function buildActivityCells(dates: number[]): { day: number; count: number }[] {
-  const days = 14;
-  const today = Math.floor(Date.now() / DAY_MS);
-  const counts: Record<number, number> = {};
-  dates.forEach((d) => {
-    const day = Math.floor(d / DAY_MS);
-    counts[day] = (counts[day] || 0) + 1;
-  });
-  const result: { day: number; count: number }[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const day = today - i;
-    result.push({ day, count: counts[day] || 0 });
-  }
-  return result;
-}
 
-function formatRelativeDate(ts: number): string {
-  const days = Math.floor((Date.now() - ts) / DAY_MS);
-  if (days <= 0) return "Heute";
-  if (days === 1) return "Gestern";
-  if (days < 7) return `vor ${days} Tagen`;
-  return new Date(ts).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
-}
 
 export default function HomeScreen({
   mode,
@@ -514,12 +500,12 @@ export default function HomeScreen({
             <Flag size={16} />
           </span>
           <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-semibold">5-Wochen-Ziel: {goalStatus.progressPct}%</div>
+            <div className="text-[13px] font-semibold">5-week goal: {goalStatus.progressPct}%</div>
             <div className="text-[11.5px] text-white/70">
               {goalStatus.isPastDue
-                ? "Zielzeitraum abgelaufen"
-                : `${Math.ceil(goalStatus.daysRemaining)} ${Math.ceil(goalStatus.daysRemaining) === 1 ? "Tag" : "Tage"} übrig · ${
-                    goalStatus.onTrack ? "im Plan" : "im Rückstand"
+                ? "Goal period has ended"
+                : `${Math.ceil(goalStatus.daysRemaining)} ${Math.ceil(goalStatus.daysRemaining) === 1 ? "day" : "days"} left · ${
+                    goalStatus.onTrack ? "on track" : "behind"
                   }`}
             </div>
           </div>
@@ -590,8 +576,8 @@ export default function HomeScreen({
               </span>
               <div className="flex-1 flex flex-col gap-2.5 min-w-0">
                 <StatRow icon={<Repeat size={14} />} value={linkingSessionsCount} label="Sessions" tint="bg-blue-light text-blue" />
-                <StatRow icon={<Target size={14} />} value={`${linkingAccuracy}%`} label="Genauigkeit" tint="bg-amber-light text-amber" />
-                <StatRow icon={<Flame size={14} />} value={streak} label={streak === 1 ? "Tag Streak" : "Tage Streak"} tint="bg-red-light text-red" />
+                <StatRow icon={<Target size={14} />} value={`${linkingAccuracy}%`} label="Accuracy" tint="bg-amber-light text-amber" />
+                <StatRow icon={<Flame size={14} />} value={streak} label="day streak" tint="bg-red-light text-red" />
               </div>
             </div>
           ) : mode === "reading" ? (
@@ -600,9 +586,9 @@ export default function HomeScreen({
                 <Newspaper size={22} />
               </span>
               <div className="flex-1 flex flex-col gap-2.5 min-w-0">
-                <StatRow icon={<Repeat size={14} />} value={readingSessionsCount} label="Texte gelesen" tint="bg-blue-light text-blue" />
-                <StatRow icon={<Target size={14} />} value={`${readingAccuracy}%`} label="Genauigkeit" tint="bg-amber-light text-amber" />
-                <StatRow icon={<Flame size={14} />} value={streak} label={streak === 1 ? "Tag Streak" : "Tage Streak"} tint="bg-red-light text-red" />
+                <StatRow icon={<Repeat size={14} />} value={readingSessionsCount} label="Texts read" tint="bg-blue-light text-blue" />
+                <StatRow icon={<Target size={14} />} value={`${readingAccuracy}%`} label="Accuracy" tint="bg-amber-light text-amber" />
+                <StatRow icon={<Flame size={14} />} value={streak} label="day streak" tint="bg-red-light text-red" />
               </div>
             </div>
           ) : mode === "test" ? (
@@ -615,8 +601,8 @@ export default function HomeScreen({
               </ProgressRing>
               <div className="flex-1 flex flex-col gap-2.5 min-w-0">
                 <StatRow icon={<Repeat size={14} />} value={stats.sessions} label="Sessions" tint="bg-blue-light text-blue" />
-                <StatRow icon={<Target size={14} />} value={`${stats.accuracy}%`} label="Genauigkeit" tint="bg-amber-light text-amber" />
-                <StatRow icon={<Flame size={14} />} value={streak} label={streak === 1 ? "Tag Streak" : "Tage Streak"} tint="bg-red-light text-red" />
+                <StatRow icon={<Target size={14} />} value={`${stats.accuracy}%`} label="Accuracy" tint="bg-amber-light text-amber" />
+                <StatRow icon={<Flame size={14} />} value={streak} label="day streak" tint="bg-red-light text-red" />
               </div>
             </div>
           )}
@@ -626,16 +612,16 @@ export default function HomeScreen({
               <MiniBar label="Verbs" learned={wordTypeBreakdown.verbsLearned} total={wordTypeBreakdown.verbsTotal} grad="from-blue to-blue-dark" />
               <MiniBar label="Adjectives" learned={wordTypeBreakdown.adjLearned} total={wordTypeBreakdown.adjTotal} grad="from-purple to-purple-dark" />
               <div className="grid grid-cols-3 gap-2.5">
-                <StatChip icon={<Heart size={14} />} value={wordTypeBreakdown.favorites} label="Favoriten" tint="bg-red-light text-red" />
-                <StatChip icon={<TrendingDown size={14} />} value={wordTypeBreakdown.difficult} label="Schwierig" tint="bg-amber-light text-amber" />
-                <StatChip icon={<Lightbulb size={14} />} value={wordTypeBreakdown.intensify} label="Intensivieren" tint="bg-amber-light text-amber" />
+                <StatChip icon={<Heart size={14} />} value={wordTypeBreakdown.favorites} label="Favourites" tint="bg-red-light text-red" />
+                <StatChip icon={<TrendingDown size={14} />} value={wordTypeBreakdown.difficult} label="Difficult" tint="bg-amber-light text-amber" />
+                <StatChip icon={<Lightbulb size={14} />} value={wordTypeBreakdown.intensify} label="Needs practice" tint="bg-amber-light text-amber" />
               </div>
             </div>
           )}
 
           {mode === "grammar" && grammarCategoryBreakdown.length > 0 && (
             <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm mt-3">
-              <div className="text-[13px] font-semibold text-ink mb-3">Nach Kategorie</div>
+              <div className="text-[13px] font-semibold text-ink mb-3">By category</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
                 {grammarCategoryBreakdown.map(([category, c]) => (
                   <div key={category} className="flex items-center justify-between gap-2 text-[12px]">
@@ -656,7 +642,7 @@ export default function HomeScreen({
 
           {recentSessions.length > 0 && (
             <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm">
-              <div className="text-[13px] font-semibold text-ink mb-1">Letzte Sessions</div>
+              <div className="text-[13px] font-semibold text-ink mb-1">Recent sessions</div>
               <div className="flex flex-col">
                 {recentSessions.map((s, i) => (
                   <div key={i} className="flex items-center justify-between py-2.5 border-b border-line-soft last:border-0">
@@ -688,9 +674,9 @@ export default function HomeScreen({
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />
                 <div className="absolute bottom-full mb-2 left-0 right-0 z-20 bg-card border border-line-soft rounded-2xl p-3.5 shadow-[0_-10px_30px_-10px_rgba(15,23,42,0.25)] animate-fade-in">
-                  <div className="text-[12px] font-semibold text-ink-soft mb-1.5">Wie gut gekonnt?</div>
+                  <div className="text-[12px] font-semibold text-ink-soft mb-1.5">Mastery below</div>
                   <ChipRow options={REVIEW_ACCURACY_OPTIONS} value={reviewMaxAccuracy} onChange={setReviewMaxAccuracy} />
-                  <div className="text-[12px] font-semibold text-ink-soft mb-1.5 mt-3">Wie viele?</div>
+                  <div className="text-[12px] font-semibold text-ink-soft mb-1.5 mt-3">How many?</div>
                   <ChipRow options={REVIEW_LIMIT_OPTIONS} value={reviewLimit} onChange={setReviewLimit} />
                   <Button
                     onClick={startReview}
@@ -707,7 +693,7 @@ export default function HomeScreen({
               variant="outline"
               className="h-auto w-full rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:-translate-y-0.5 text-ink font-semibold py-3 text-[14px] transition-all active:scale-[0.97] flex items-center justify-center gap-1.5"
             >
-              Gelerntes wiederholen ({stats.learned})
+              Review learned ({stats.learned})
               <ChevronUp size={14} className={"transition-transform " + (openMenu === "review" ? "rotate-180" : "")} />
             </Button>
           </div>
@@ -719,12 +705,12 @@ export default function HomeScreen({
             variant="outline"
             className="h-auto w-full lg:flex-1 rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:-translate-y-0.5 text-ink font-semibold py-3 text-[14px] transition-all active:scale-[0.97] flex items-center justify-center gap-1.5"
           >
-            <Timer size={15} /> Speed-Runde (60s)
+            <Timer size={15} /> Speed round (60s)
           </Button>
         )}
 
         {/* Split primary button: the wide half starts straight away, the chevron half opens the
-            options panel. Same dropdown pattern as "Gelerntes wiederholen" — moved off the page
+            options panel. Same dropdown pattern as "Review learned" — moved off the page
             body so the settings are one click away without permanently occupying a card. */}
         <div className="relative w-full lg:flex-1">
           {openMenu === "start" && (
@@ -733,16 +719,16 @@ export default function HomeScreen({
               <div className="absolute bottom-full mb-2 left-0 right-0 z-20 bg-card border border-line-soft rounded-2xl p-3.5 shadow-[0_-10px_30px_-10px_rgba(15,23,42,0.25)] animate-fade-in">
                 {mode === "test" ? (
                   <>
-                    <div className="text-[12px] font-semibold text-ink-soft mb-1.5">Was wird geprüft?</div>
+                    <div className="text-[12px] font-semibold text-ink-soft mb-1.5">What is tested?</div>
                     <ChipRow options={TEST_SCOPE_OPTIONS} value={testScope} onChange={setTestScope} />
-                    <div className="text-[12px] font-semibold text-ink-soft mb-1.5 mt-3">Wie viele Fragen?</div>
+                    <div className="text-[12px] font-semibold text-ink-soft mb-1.5 mt-3">How many questions?</div>
                     <ChipRow
                       options={TEST_LENGTH_OPTIONS.map((l) => ({ val: l, label: String(l) }))}
                       value={testLength}
                       onChange={setTestLength}
                     />
                     <p className="text-[11.5px] text-ink-faint leading-relaxed mt-3">
-                      Kein Feedback während des Tests. Die Note zählt nicht in den Lernfortschritt.
+                      No feedback during the test. The grade does not affect your learning progress.
                     </p>
                   </>
                 ) : (
@@ -774,13 +760,13 @@ export default function HomeScreen({
               variant="ghost"
               className="h-auto flex-1 rounded-none text-white font-semibold py-4 text-[16px] transition-all duration-200 active:scale-[0.97] hover:brightness-110 hover:bg-transparent hover:text-white"
             >
-              {mode === "test" ? `Test starten (${testLength})` : "Start Session"}
+              {mode === "test" ? `Start test (${testLength})` : "Start session"}
             </Button>
             {hasStartOptions && (
               <Button
                 onClick={() => setOpenMenu((m) => (m === "start" ? null : "start"))}
                 variant="ghost"
-                aria-label={mode === "test" ? "Test-Optionen" : "Session-Inhalt wählen"}
+                aria-label={mode === "test" ? "Test options" : "Choose session content"}
                 title={mode === "test" ? "Test-Optionen (C)" : "Session-Inhalt (C)"}
                 className="h-auto rounded-none px-4 text-white border-l border-white/25 transition-all hover:brightness-110 hover:bg-transparent hover:text-white active:scale-[0.97] flex items-center"
               >
@@ -796,32 +782,6 @@ export default function HomeScreen({
 
 /** Shared chip picker used by every dropdown here, so the review filters, the test scope and the
  * test length all look and behave identically. */
-function ChipRow<T extends string | number | boolean | null>({
-  options,
-  value,
-  onChange,
-}: {
-  options: { val: T; label: string }[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <div className="flex gap-1.5">
-      {options.map((o) => (
-        <button
-          key={String(o.val)}
-          onClick={() => onChange(o.val)}
-          className={
-            "flex-1 text-[12.5px] font-semibold px-2 py-1.5 rounded-full border transition-colors " +
-            (value === o.val ? "bg-ink text-white border-ink" : "border-line bg-bg text-ink-soft hover:bg-line-soft")
-          }
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 function TestOverviewCard({
   stats,
@@ -862,14 +822,14 @@ function TestOverviewCard({
           <StatRow
             icon={<Target size={14} />}
             value={stats.average !== null ? stats.average.toFixed(1) : "—"}
-            label={stats.last !== null ? `Ø · zuletzt ${stats.last.toFixed(1)}` : "Durchschnitt"}
+            label={stats.last !== null ? `avg · last ${stats.last.toFixed(1)}` : "Average"}
             tint="bg-green-light text-green"
           />
         </div>
       </div>
       <div className="mt-3 pt-3 border-t border-line-soft flex items-center justify-between gap-3 text-[12px]">
         <span className="text-ink-faint">
-          Nächster Test: <b className="text-ink-soft font-semibold">{scopeLabel}</b> · {length} Fragen
+          Next test: <b className="text-ink-soft font-semibold">{scopeLabel}</b> · {length} questions
         </span>
         <span className="flex items-center gap-1 text-ink-faint shrink-0">
           <Flame size={12} className="text-red" /> {streak}
@@ -881,36 +841,6 @@ function TestOverviewCard({
 
 /** Level, XP to the next one, and badges collected — the running reward summary, sitting in the
  * same column as the activity strip so Home always opens on visible evidence of progress. */
-function LevelCard({ xp, badgesEarned }: { xp: number; badgesEarned: number }) {
-  const p = levelProgress(xp);
-  return (
-    <div className="bg-gradient-to-br from-ink to-ink/80 text-white rounded-2xl p-4 shadow-sm">
-      <div className="flex items-center gap-3">
-        <span className="w-11 h-11 rounded-full bg-white/15 flex items-center justify-center shrink-0 text-[17px] font-extrabold tabular-nums">
-          {p.level}
-        </span>
-        <div className="flex-1 min-w-0">
-          <div className="text-[14px] font-bold truncate">{p.title}</div>
-          <div className="text-[11.5px] text-white/70 tabular-nums">{xp} XP gesamt</div>
-        </div>
-        <div className="flex items-center gap-1 text-[12px] font-semibold text-white/85 shrink-0">
-          <Trophy size={13} /> {badgesEarned}
-        </div>
-      </div>
-      <div className="mt-3">
-        <div className="h-1.5 rounded-full bg-white/20 overflow-hidden">
-          <div className="h-full rounded-full bg-white transition-[width] duration-700" style={{ width: p.pct + "%" }} />
-        </div>
-        <div className="flex items-center justify-between mt-1.5 text-[11px] text-white/60 tabular-nums">
-          <span className="flex items-center gap-1">
-            <Sparkles size={10} /> {p.intoLevel} / {p.levelSpan} XP
-          </span>
-          <span>noch {p.remaining} bis Level {p.level + 1}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function sessionDotClass(format: string, domain: "vocab" | "grammar"): string {
   if (LINKING_FORMATS.includes(format)) return "bg-green";
@@ -924,16 +854,16 @@ function sessionLabel(format: string, domain: "vocab" | "grammar"): string {
     case "linking":
       return "Linking";
     case "linking-vocab":
-      return "Bindewörter";
+      return "Connectors";
     case "linking-essay":
-      return "Linking-Essay";
+      return "Linking essay";
     case "reading":
       return "Reading";
     case "speed":
-      return "Speed-Runde";
+      return "Speed round";
     case "quick":
     case "mixed":
-      return "Schnellübung";
+      return "Quick drill";
     // Historic records only — the Writing mode itself was folded into Linking's free-writing task.
     case "writing":
       return "Writing";
@@ -942,111 +872,7 @@ function sessionLabel(format: string, domain: "vocab" | "grammar"): string {
   }
 }
 
-function ProgressRing({
-  pct,
-  from,
-  to,
-  size = 92,
-  stroke = 9,
-  children,
-}: {
-  pct: number;
-  from: string;
-  to: string;
-  size?: number;
-  stroke?: number;
-  children: React.ReactNode;
-}) {
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const clamped = Math.min(100, Math.max(0, pct));
-  const offset = c - (clamped / 100) * c;
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--line-soft)" strokeWidth={stroke} />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke="url(#home-ring-grad)"
-          strokeWidth={stroke}
-          strokeDasharray={c}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          style={{ transition: "stroke-dashoffset 0.6s ease" }}
-        />
-        <defs>
-          <linearGradient id="home-ring-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor={from} />
-            <stop offset="100%" stopColor={to} />
-          </linearGradient>
-        </defs>
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">{children}</div>
-    </div>
-  );
-}
 
-function StatRow({ icon, value, label, tint }: { icon: React.ReactNode; value: string | number; label: string; tint: string }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <span className={"w-7 h-7 rounded-full flex items-center justify-center shrink-0 " + tint}>{icon}</span>
-      <div className="flex items-baseline gap-1.5 min-w-0">
-        <span className="text-[15px] font-bold tracking-tight tabular-nums">{value}</span>
-        <span className="text-[11.5px] text-ink-faint truncate">{label}</span>
-      </div>
-    </div>
-  );
-}
 
-function StatChip({ icon, value, label, tint }: { icon: React.ReactNode; value: string | number; label: string; tint: string }) {
-  return (
-    <div className="bg-card border border-line-soft rounded-xl px-3.5 py-2.5 flex items-center gap-2.5">
-      <span className={"w-7 h-7 rounded-full flex items-center justify-center shrink-0 " + tint}>{icon}</span>
-      <div className="flex items-baseline gap-1.5 min-w-0">
-        <span className="text-[15px] font-bold tracking-tight tabular-nums">{value}</span>
-        <span className="text-[11.5px] text-ink-faint truncate">{label}</span>
-      </div>
-    </div>
-  );
-}
 
-function MiniBar({ label, learned, total, grad }: { label: string; learned: number; total: number; grad: string }) {
-  const pct = total ? Math.round((learned / total) * 100) : 0;
-  return (
-    <div className="bg-card border border-line-soft rounded-xl px-3.5 py-2.5">
-      <div className="flex justify-between items-baseline mb-1.5 text-[11.5px]">
-        <span className="text-ink-soft font-semibold">{label}</span>
-        <span className="text-ink-faint tabular-nums">
-          {learned}/{total}
-        </span>
-      </div>
-      <div className="h-1.5 bg-line-soft rounded-full overflow-hidden">
-        <div className={"h-full rounded-full bg-gradient-to-r transition-[width] duration-500 " + grad} style={{ width: pct + "%" }} />
-      </div>
-    </div>
-  );
-}
 
-function ActivityStrip({ dates }: { dates: number[] }) {
-  const cells = useMemo(() => buildActivityCells(dates), [dates]);
-  return (
-    <div className="bg-card border border-line-soft rounded-2xl p-4 shadow-sm">
-      <div className="text-[13px] font-semibold text-ink mb-3">Letzte 14 Tage</div>
-      <div className="grid grid-cols-7 gap-1.5">
-        {cells.map((c) => (
-          <div
-            key={c.day}
-            title={`${new Date(c.day * DAY_MS).toLocaleDateString("de-DE")}: ${c.count} Session(s)`}
-            className={
-              "aspect-square rounded-md " +
-              (c.count === 0 ? "bg-line-soft" : c.count === 1 ? "bg-blue/45" : c.count === 2 ? "bg-blue/75" : "bg-gradient-to-br from-blue to-purple")
-            }
-          />
-        ))}
-      </div>
-    </div>
-  );
-}

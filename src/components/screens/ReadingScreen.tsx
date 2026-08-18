@@ -75,7 +75,7 @@ export default function ReadingScreen({
             render={
               <Button
                 onClick={onExit}
-                aria-label="Lesen beenden"
+                aria-label="End reading"
                 variant="ghost"
                 size="icon"
                 className="rounded-full border border-line bg-card text-ink-soft shrink-0 transition-all hover:bg-line-soft hover:-translate-y-0.5 hover:shadow-sm"
@@ -84,7 +84,7 @@ export default function ReadingScreen({
           >
             <X size={16} />
           </TooltipTrigger>
-          <TooltipContent>Lesen beenden</TooltipContent>
+          <TooltipContent>End reading</TooltipContent>
         </Tooltip>
         <div className="text-[13px] font-semibold text-ink-soft flex items-center gap-1.5">
           <Newspaper size={14} /> Reading
@@ -131,7 +131,7 @@ export default function ReadingScreen({
         <div className="flex flex-col gap-3 pt-3 border-t border-line-soft">
           {activeGaps.map((g, i) => (
             <div key={g.id}>
-              <div className="text-[11.5px] font-bold text-ink-faint mb-1.5">Lücke {i + 1}</div>
+              <div className="text-[11.5px] font-bold text-ink-faint mb-1.5">Gap {i + 1}</div>
               <div className="flex flex-wrap gap-1.5">
                 {optionsByGap[g.id].map((opt) => {
                   const isPicked = chosen[g.id] === opt;
@@ -166,13 +166,13 @@ export default function ReadingScreen({
             variant="ghost"
             className="mt-5 h-auto w-full rounded-full bg-gradient-to-r from-blue to-blue-dark hover:brightness-110 hover:bg-transparent hover:text-white disabled:opacity-100 disabled:from-[#d1d1d6] disabled:to-[#d1d1d6] disabled:shadow-none disabled:cursor-not-allowed text-white font-semibold py-3.5 text-[15px] transition-all active:scale-[0.97] shadow-[0_10px_22px_-8px_rgba(0,113,227,0.5)]"
           >
-            Prüfen
+            Check
           </Button>
         )}
 
         {graded && (
           <FeedbackPanel result={overall} onContinue={() => onFinish({ correctCount, totalCount: activeGaps.length })}>
-            {correctCount}/{activeGaps.length} Lücken richtig.
+            {correctCount}/{activeGaps.length} gaps correct.
           </FeedbackPanel>
         )}
       </div>

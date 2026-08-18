@@ -9,9 +9,9 @@ export type TestScope = "vocab" | "grammar" | "both";
 export type TestLength = 15 | 25 | 40;
 
 export const TEST_SCOPE_OPTIONS: { val: TestScope; label: string }[] = [
-  { val: "both", label: "Beides" },
-  { val: "vocab", label: "Vokabeln" },
-  { val: "grammar", label: "Grammatik" },
+  { val: "both", label: "Both" },
+  { val: "vocab", label: "Vocabulary" },
+  { val: "grammar", label: "Grammar" },
 ];
 
 export const TEST_LENGTH_OPTIONS: TestLength[] = [15, 25, 40];
@@ -23,7 +23,7 @@ export interface TestQuestion {
   id: string;
   domain: "vocab" | "grammar";
   kind: "mc" | "typed";
-  /** Shown as a small label above the question, e.g. "Vokabel · Übersetzung". */
+  /** Shown as a small label above the question, e.g. "Vocabulary · Translation". */
   category: string;
   prompt: string;
   /** Optional second line under the prompt (a sentence with a gap, a situation, …). */
@@ -76,9 +76,9 @@ function vocabQuestion(word: Word, index: number): TestQuestion {
         id,
         domain: "vocab",
         kind: "mc",
-        category: "Vokabel · Bedeutung",
+        category: "Vocabulary · Meaning",
         prompt: word.en,
-        sub: "Welche deutsche Übersetzung passt?",
+        sub: "Which German translation fits?",
         options,
         correctIndex: options.indexOf(word.de[0]),
         solution: word.de.join(" / "),
@@ -90,9 +90,9 @@ function vocabQuestion(word: Word, index: number): TestQuestion {
         id,
         domain: "vocab",
         kind: "mc",
-        category: "Vokabel · Bedeutung",
+        category: "Vocabulary · Meaning",
         prompt: word.de.join(" / "),
-        sub: "Welches englische Wort passt?",
+        sub: "Which English word fits?",
         options,
         correctIndex: options.indexOf(word.en),
         solution: word.en,
@@ -104,7 +104,7 @@ function vocabQuestion(word: Word, index: number): TestQuestion {
         id,
         domain: "vocab",
         kind: "typed",
-        category: "Vokabel · Lücke",
+        category: "Vocabulary · Gap",
         prompt: word.enSentence.slice(0, g.index) + "______" + word.enSentence.slice(g.index + g.matched.length),
         sub: word.deSentence,
         accepted: [g.matched, word.en],
@@ -116,9 +116,9 @@ function vocabQuestion(word: Word, index: number): TestQuestion {
         id,
         domain: "vocab",
         kind: "typed",
-        category: "Vokabel · Übersetzung",
+        category: "Vocabulary · Translation",
         prompt: word.de.join(" / "),
-        sub: "Übersetze ins Englische",
+        sub: "Translate into English",
         accepted: [word.en],
         solution: word.en,
       };
@@ -147,7 +147,7 @@ function grammarQuestion(rule: GrammarRule, index: number): TestQuestion | null 
         id,
         domain: "grammar",
         kind: "mc",
-        category: `Grammatik · ${rule.category}`,
+        category: `Grammar · ${rule.category}`,
         prompt: v.prompt,
         options: v.options,
         correctIndex: v.correctIndex,
@@ -160,9 +160,9 @@ function grammarQuestion(rule: GrammarRule, index: number): TestQuestion | null 
         id,
         domain: "grammar",
         kind: "mc",
-        category: `Grammatik · ${rule.category}`,
+        category: `Grammar · ${rule.category}`,
         prompt: v.template.replace("___", "______"),
-        sub: "Welche Form gehört in die Lücke?",
+        sub: "Which form belongs in the gap?",
         options: v.options,
         correctIndex: v.correctIndex,
         solution: v.options[v.correctIndex],
@@ -175,9 +175,9 @@ function grammarQuestion(rule: GrammarRule, index: number): TestQuestion | null 
         id,
         domain: "grammar",
         kind: "mc",
-        category: `Grammatik · ${rule.category}`,
+        category: `Grammar · ${rule.category}`,
         prompt: v.situation,
-        sub: "Welcher Satz passt zur Situation?",
+        sub: "Which sentence fits the situation?",
         options,
         correctIndex: v.correctIndex,
         solution: options[v.correctIndex],
@@ -189,9 +189,9 @@ function grammarQuestion(rule: GrammarRule, index: number): TestQuestion | null 
         id,
         domain: "grammar",
         kind: "typed",
-        category: `Grammatik · ${rule.category}`,
+        category: `Grammar · ${rule.category}`,
         prompt: v.template.replace("___", "______"),
-        sub: "Ergänze die Lücke",
+        sub: "Fill in the gap",
         accepted: [v.answer],
         solution: v.answer,
       };

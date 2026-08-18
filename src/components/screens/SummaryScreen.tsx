@@ -190,9 +190,9 @@ export default function SummaryScreen({
       </div>
 
       <div className="grid grid-cols-3 gap-2.5 mb-4">
-        <SStat value={stats.correct} label="Richtig" color="text-green" />
-        <SStat value={stats.almost} label="Fast" color="text-amber" />
-        <SStat value={stats.incorrect} label="Falsch" color="text-red" />
+        <SStat value={stats.correct} label="Correct" color="text-green" />
+        <SStat value={stats.almost} label="Almost" color="text-amber" />
+        <SStat value={stats.incorrect} label="Wrong" color="text-red" />
       </div>
 
       {(!!stats.wordsMastered || !!stats.wordsInProgress || !!stats.rulesMastered || !!stats.rulesInProgress) && (
@@ -200,25 +200,25 @@ export default function SummaryScreen({
           {!!stats.wordsMastered && (
             <div className="flex-1 min-w-[45%] bg-green-light border border-green/20 rounded-xl px-4 py-3.5 text-center">
               <div className="text-[19px] font-bold text-green tabular-nums">{stats.wordsMastered}</div>
-              <div className="text-[12px] text-[#0d7a4f] mt-0.5">{stats.wordsMastered === 1 ? "Wort gelernt" : "Wörter gelernt"}</div>
+              <div className="text-[12px] text-[#0d7a4f] mt-0.5">{stats.wordsMastered === 1 ? "word learned" : "words learned"}</div>
             </div>
           )}
           {!!stats.wordsInProgress && (
             <div className="flex-1 min-w-[45%] bg-blue-light border border-blue/20 rounded-xl px-4 py-3.5 text-center">
               <div className="text-[19px] font-bold text-blue-dark tabular-nums">{stats.wordsInProgress}</div>
-              <div className="text-[12px] text-blue-dark mt-0.5">Wörter in Arbeit</div>
+              <div className="text-[12px] text-blue-dark mt-0.5">words in progress</div>
             </div>
           )}
           {!!stats.rulesMastered && (
             <div className="flex-1 min-w-[45%] bg-green-light border border-green/20 rounded-xl px-4 py-3.5 text-center">
               <div className="text-[19px] font-bold text-green tabular-nums">{stats.rulesMastered}</div>
-              <div className="text-[12px] text-[#0d7a4f] mt-0.5">{stats.rulesMastered === 1 ? "Regel gelernt" : "Regeln gelernt"}</div>
+              <div className="text-[12px] text-[#0d7a4f] mt-0.5">{stats.rulesMastered === 1 ? "rule learned" : "rules learned"}</div>
             </div>
           )}
           {!!stats.rulesInProgress && (
             <div className="flex-1 min-w-[45%] bg-purple-light border border-purple/20 rounded-xl px-4 py-3.5 text-center">
               <div className="text-[19px] font-bold text-purple tabular-nums">{stats.rulesInProgress}</div>
-              <div className="text-[12px] text-purple mt-0.5">Regeln in Arbeit</div>
+              <div className="text-[12px] text-purple mt-0.5">rules in progress</div>
             </div>
           )}
         </div>
@@ -226,7 +226,7 @@ export default function SummaryScreen({
 
       {!!stats.newBadges?.length && (
         <div className="bg-card border border-amber/30 rounded-2xl p-4 shadow-[0_2px_10px_-4px_rgba(232,161,46,0.35)] mb-4">
-          <div className="text-[13px] font-semibold text-ink mb-3">Neu freigeschaltet</div>
+          <div className="text-[13px] font-semibold text-ink mb-3">Newly unlocked</div>
           <div className="flex flex-col gap-2.5">
             {stats.newBadges.map((b) => (
               <div key={b.id} className="summary-badge flex items-center gap-3" style={{ opacity: 0 }}>
@@ -278,12 +278,12 @@ export default function SummaryScreen({
             </div>
             {topError && (
               <p className="text-ink-soft text-[15px] mt-3.5 mb-1">
-                Häufigster Fehler: <b>{topError[0]}</b>
+                Most common error: <b>{topError[0]}</b>
               </p>
             )}
             {weakestFormat && (
               <p className="text-ink-soft text-[15px] m-0">
-                Schwächstes Format: <b>{weakestFormat}</b> ({Math.round(weakestAcc * 100)}% richtig)
+                Weakest format: <b>{weakestFormat}</b> ({Math.round(weakestAcc * 100)}% correct)
               </p>
             )}
           </>

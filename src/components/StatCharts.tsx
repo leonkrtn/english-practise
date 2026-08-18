@@ -28,10 +28,10 @@ export function TrendLineChart({ points, gradFrom, gradTo }: { points: Cumulativ
         <ChartTooltip
           dotColor={gradTo}
           indicatorColor={gradFrom}
-          rows={(point) => [{ color: gradTo, label: "Gelernt", value: point.value as number }]}
+          rows={(point) => [{ color: gradTo, label: "Learned", value: point.value as number }]}
         />
       </LineChart>
-      {flat && <div className="text-center text-[10.5px] text-ink-faint mt-1">{counts[0] ?? 0} insgesamt, unverändert</div>}
+      {flat && <div className="text-center text-[10.5px] text-ink-faint mt-1">{counts[0] ?? 0} total, unchanged</div>}
     </div>
   );
 }
@@ -59,7 +59,7 @@ export function TrendBarChart({ points, from, to }: { points: AccuracyPoint[]; f
           rows={(point) =>
             point.hasData
               ? [{ color: to, label: `${point.accuracy}% Genauigkeit`, value: `${point.total} Fragen` }]
-              : [{ color: from, label: "Keine Session", value: "" }]
+              : [{ color: from, label: "No session", value: "" }]
           }
         />
       </BarChart>

@@ -145,7 +145,7 @@ export default function SessionScreen({
               render={
                 <Button
                   onClick={onBlock}
-                  aria-label="Wort ausschließen (X)"
+                  aria-label="Exclude word (X)"
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 rounded-full border-line bg-card text-ink-soft shrink-0 transition-all hover:-translate-y-0.5 hover:shadow-sm hover:border-red/40 hover:text-red hover:bg-red-light"
@@ -154,7 +154,7 @@ export default function SessionScreen({
             >
               <Ban size={16} />
             </TooltipTrigger>
-            <TooltipContent>Wort ausschließen (X)</TooltipContent>
+            <TooltipContent>Exclude word (X)</TooltipContent>
           </Tooltip>
         )}
         {showFavorite && (
@@ -163,7 +163,7 @@ export default function SessionScreen({
               render={
                 <Button
                   onClick={onToggleFav}
-                  aria-label="Favorit (F)"
+                  aria-label="Favourite (F)"
                   variant="ghost"
                   size="icon"
                   className={
@@ -177,7 +177,7 @@ export default function SessionScreen({
             >
               <Star size={16} fill={favorite ? "currentColor" : "none"} />
             </TooltipTrigger>
-            <TooltipContent>Favorit (F)</TooltipContent>
+            <TooltipContent>Favourite (F)</TooltipContent>
           </Tooltip>
         )}
       </div>
