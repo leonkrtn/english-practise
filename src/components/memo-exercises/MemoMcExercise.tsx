@@ -1,14 +1,13 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { MEMO_RULES_BY_ID } from "@/lib/memo";
 import type { AnswerResultKind } from "@/lib/types";
 import { FeedbackPanel, Prompt, useNumberShortcuts } from "@/components/exercises/shared";
+import Formula from "@/components/Formula";
 import { MemoBadge, RuleSheet } from "./shared";
 import type { MemoExerciseProps } from "./types";
 
-export default function MemoMcExercise({ item, onAnswered, onNext }: MemoExerciseProps) {
-  const rule = MEMO_RULES_BY_ID[item.ruleId];
+export default function MemoMcExercise({ item, rule, onAnswered, onNext }: MemoExerciseProps) {
   const problem = rule.mc[item.problemIndex] ?? rule.mc[0];
 
   const [chosen, setChosen] = useState<number | null>(null);
@@ -48,10 +47,18 @@ export default function MemoMcExercise({ item, onAnswered, onNext }: MemoExercis
               key={i}
               onClick={() => select(i)}
               disabled={!!result}
-              className={"flex items-start gap-3 rounded-xl border-[1.5px] px-4 py-3 text-left transition-colors " + stateClass}
+              className={
+                "flex items-start gap-3 rounded-xl border-[1.5px] px-4 py-3 text-left transition-colors " +
+                (problem.optionsAreTex ? "overflow-x-auto " : "") +
+                stateClass
+              }
             >
               <span className="text-[11px] font-mono bg-line-soft border border-line rounded px-1.5 text-ink-soft shrink-0 mt-0.5">{i + 1}</span>
-              <span className="text-[14.5px] leading-snug">{opt}</span>
+              {problem.optionsAreTex ? (
+                <Formula tex={opt} className="text-[15px]" />
+              ) : (
+                <span className="text-[14.5px] leading-snug">{opt}</span>
+              )}
             </button>
           );
         })}

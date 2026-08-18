@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Lightbulb } from "lucide-react";
-import { MEMO_RULES_BY_ID } from "@/lib/memo";
 import { classifyAnswer } from "@/lib/answerCheck";
 import type { AnswerResultKind } from "@/lib/types";
 import { AnswerInput, ExerciseFooter, FeedbackPanel, PrimaryButton, Prompt } from "@/components/exercises/shared";
@@ -11,8 +10,7 @@ import { MemoBadge, RuleSheet } from "./shared";
 import type { MemoExerciseProps } from "./types";
 
 /** Cued recall: the rule statement with one word or number removed. */
-export default function MemoClozeExercise({ item, onAnswered, onNext }: MemoExerciseProps) {
-  const rule = MEMO_RULES_BY_ID[item.ruleId];
+export default function MemoClozeExercise({ item, rule, onAnswered, onNext }: MemoExerciseProps) {
   const problem = rule.cloze[item.problemIndex] ?? rule.cloze[0];
 
   const [value, setValue] = useState("");

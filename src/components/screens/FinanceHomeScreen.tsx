@@ -11,6 +11,7 @@ import {
   GraduationCap,
   Landmark,
   ListChecks,
+  PencilLine,
   Repeat,
   Sigma,
   Target,
@@ -18,6 +19,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { useCustomMemo } from "@/lib/customMemoStore";
 import { VOCAB } from "@/lib/vocab";
 import { MATH_RULES, MATH_TOPICS, MATH_TOPIC_META, type MathTopic } from "@/lib/math";
 import { topicProgress } from "@/lib/mathLearning";
@@ -28,7 +30,7 @@ import {
   type MathTestScope,
   type MathTopicGroup,
 } from "@/lib/mathTest";
-import { MEMO_RULES, MEMO_SETS, MEMO_SET_META, type MemoSetId } from "@/lib/memo";
+import { memoRules, memoSets, memoSetMeta, type MemoSetId } from "@/lib/memo";
 import { memoSetProgress } from "@/lib/memoLearning";
 import { computeStreak } from "@/lib/progressStats";
 import {
@@ -101,6 +103,7 @@ export default function FinanceHomeScreen({
   onStartMemo,
   onOpenTheory,
   onOpenRules,
+  onOpenEditor,
   onOpenStats,
   onStartTest,
 }: {
@@ -111,10 +114,12 @@ export default function FinanceHomeScreen({
   onStartMemo: (setId: MemoSetId | null, drill: boolean) => void;
   onOpenTheory: () => void;
   onOpenRules: () => void;
+  onOpenEditor: () => void;
   onOpenStats: () => void;
   onStartTest: (scope: MathTestScope, length: MathTestLength) => void;
 }) {
   const store = useStore();
+  const custom = useCustomMemo();
   const [vocabScope, setVocabScope] = useState<"finance" | "math">("finance");
   const [testScope, setTestScope] = useState<MathTestScope>({ kind: "all" });
   const [testLength, setTestLength] = useState<MathTestLength>(10);
@@ -167,25 +172,24 @@ export default function FinanceHomeScreen({
     return { learned, inProgress, due, total: MATH_RULES.length, accuracy: answered ? Math.round((correct / answered) * 100) : 0 };
   }, [topics, store.words]);
 
-  const memoSets = useMemo(
-    () => MEMO_SETS.map((id) => memoSetProgress(id, store.wordState, store.totalPracticeSessions)),
-    [store.wordState, store.totalPracticeSessions]
-  );
+  // Recomputed each render rather than memoised: the rule pool is a module registry the learner's
+  // own sets are pushed into, and a memo would need a hand-maintained dependency on it to stay fresh.
+  const memoSetStats = memoSets().map((id) => memoSetProgress(id, store.wordState, store.totalPracticeSessions));
 
   const memoStats = useMemo(() => {
-    const learned = memoSets.reduce((n, s) => n + s.learned, 0);
-    const inProgress = memoSets.reduce((n, s) => n + s.inProgress, 0);
-    const due = memoSets.reduce((n, s) => n + s.due, 0);
+    const learned = memoSetStats.reduce((n, s) => n + s.learned, 0);
+    const inProgress = memoSetStats.reduce((n, s) => n + s.inProgress, 0);
+    const due = memoSetStats.reduce((n, s) => n + s.due, 0);
     let correct = 0;
     let answered = 0;
-    MEMO_RULES.forEach((r) => {
+    memoRules().forEach((r) => {
       const s = store.words[r.id];
       if (!s) return;
       correct += s.timesCorrect;
       answered += s.timesCorrect + s.timesAlmost + s.timesIncorrect;
     });
-    return { learned, inProgress, due, total: MEMO_RULES.length, accuracy: answered ? Math.round((correct / answered) * 100) : 0 };
-  }, [memoSets, store.words]);
+    return { learned, inProgress, due, total: memoRules().length, accuracy: answered ? Math.round((correct / answered) * 100) : 0 };
+  }, [memoSetStats, store.words]);
 
   const allDates = useMemo(() => store.sessionHistory.map((s) => s.date), [store.sessionHistory]);
   const streak = useMemo(() => computeStreak(allDates), [allDates]);
@@ -275,8 +279,8 @@ export default function FinanceHomeScreen({
                 <StatChip icon={<Clock size={14} />} value={memoStats.due} label="Due" tint="bg-blue-light text-blue" />
               </div>
               <div className="text-[11px] font-bold uppercase tracking-wide text-ink-faint mt-1.5 px-0.5">Rule sets · tap to practise</div>
-              {memoSets.map((set) => {
-                const meta = MEMO_SET_META[set.setId];
+              {memoSetStats.map((set) => {
+                const meta = memoSetMeta(set.setId);
                 return (
                   <MiniBar
                     key={set.setId}
@@ -336,8 +340,15 @@ export default function FinanceHomeScreen({
                 icon={<BookOpen size={16} />}
                 tint="bg-amber-light text-amber"
                 label="Reference"
-                sub={`${MEMO_RULES.length} rules`}
+                sub={`${memoRules().length} rules`}
                 onClick={onOpenRules}
+              />
+              <SideAction
+                icon={<PencilLine size={16} />}
+                tint="bg-purple-light text-purple"
+                label="My sets"
+                sub={custom.sets.length === 1 ? "1 own set" : `${custom.sets.length} own sets`}
+                onClick={onOpenEditor}
               />
               <SideAction icon={<BarChart3 size={16} />} tint="bg-green-light text-green" label="Statistics" sub="Progress & tests" onClick={onOpenStats} />
             </div>

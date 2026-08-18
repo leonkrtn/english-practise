@@ -1,12 +1,16 @@
-// Schema for the Rules mode: prose rules to be memorised verbatim — depreciation, recognition
-// criteria, thresholds — as opposed to the Mathematics mode's formulas you derive and apply.
+// Schema for the Rules mode: content to be memorised verbatim — depreciation rules, formula sheets,
+// thresholds — as opposed to the Mathematics mode's formulas you derive and apply.
 //
-// The two are deliberately separate content types. A math rule is a formula plus worked algebra; a
-// memo rule is a statement plus a set of hard facts (rates, periods, conditions) that you either
-// know or you don't. That difference drives everything: no KaTeX-first layout, no algebraic answer
-// checking, and an exercise mix built around recall rather than computation.
+// Two display flavours share one schema. A "prose" rule (depreciation) leads with a sentence you
+// must be able to say; a "formula" rule leads with the formula itself, rendered as KaTeX, with the
+// sentence demoted to a gloss. The exercise mix adapts: formula rules get a formula-cloze format and
+// render their multiple-choice options as maths.
 
-export type MemoSetId = "depreciation";
+/** Built-in sets are named constants; a learner's own sets carry their database id as the key. */
+export type MemoSetId = string;
+
+/** How a rule leads: with its sentence, or with its formula. */
+export type MemoDisplay = "prose" | "formula";
 
 /** One memorisable fact: a label and the value that must come back with it. */
 export interface MemoFact {
@@ -24,11 +28,28 @@ export interface MemoCloze {
   hint?: string;
 }
 
+/**
+ * A formula with one piece removed, picked from four candidates.
+ *
+ * Deliberately multiple choice rather than typed: reproducing LaTeX by hand tests keyboard skill,
+ * not memory. `templateTex` must contain exactly one `\square`, which is where the chosen option is
+ * substituted for the preview.
+ */
+export interface MemoFormulaCloze {
+  templateTex: string;
+  /** LaTeX fragments; exactly one is correct. */
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+}
+
 export interface MemoMc {
   question: string;
   options: string[];
   correctIndex: number;
   explanation: string;
+  /** Render the options as KaTeX rather than plain text. Set automatically for formula rules. */
+  optionsAreTex?: boolean;
 }
 
 /** A statement that is either right or wrong — the fastest way to drill misconceptions. */
@@ -49,28 +70,29 @@ export interface MemoRule {
   setId: MemoSetId;
   category: string;
   title: string;
-  /** The one sentence you must be able to produce from memory. Kept short on purpose. */
+  /** The one sentence you must be able to produce from memory — or, for formula rules, the gloss. */
   statement: string;
-  /** Context and reasoning — why the rule is what it is. Not itself memorised. */
+  /** Context and reasoning. Not itself memorised. */
   explanation: string;
   /** The hard, checkable core: rates, periods, thresholds, conditions. */
   facts: MemoFact[];
-  /** Optional formula, rendered with KaTeX when the rule has a computational side. */
   formulaTex?: string;
-  /** A concrete worked case, in prose. */
+  display: MemoDisplay;
   example?: string;
-  /** A memory hook, where one genuinely helps. */
   mnemonic?: string;
   cloze: MemoCloze[];
+  formulaCloze: MemoFormulaCloze[];
   mc: MemoMc[];
   trueFalse: MemoTrueFalse[];
   order: MemoOrder[];
+  /** True for a learner-authored card — drives the edit affordance and the exercise mix. */
+  custom?: boolean;
 }
 
 /** Authoring convenience — fills in the exercise arrays a rule doesn't use. */
-export type MemoRuleInput = Omit<MemoRule, "cloze" | "mc" | "trueFalse" | "order"> &
-  Partial<Pick<MemoRule, "cloze" | "mc" | "trueFalse" | "order">>;
+export type MemoRuleInput = Omit<MemoRule, "cloze" | "formulaCloze" | "mc" | "trueFalse" | "order" | "display"> &
+  Partial<Pick<MemoRule, "cloze" | "formulaCloze" | "mc" | "trueFalse" | "order" | "display">>;
 
 export function memoRule(input: MemoRuleInput): MemoRule {
-  return { cloze: [], mc: [], trueFalse: [], order: [], ...input };
+  return { display: "prose", cloze: [], formulaCloze: [], mc: [], trueFalse: [], order: [], ...input };
 }

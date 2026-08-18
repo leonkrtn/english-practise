@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Check, X } from "lucide-react";
-import { MEMO_RULES_BY_ID } from "@/lib/memo";
 import { classifyAnswer } from "@/lib/answerCheck";
 import type { AnswerResultKind } from "@/lib/types";
 import { ExerciseFooter, FeedbackPanel, PrimaryButton, Prompt } from "@/components/exercises/shared";
@@ -16,8 +15,7 @@ import type { MemoExerciseProps } from "./types";
  * the "almost" tier, which holds the rule at its current stage rather than promoting or demoting it.
  * That is the honest reading of a partial recall.
  */
-export default function MemoFactsExercise({ item, onAnswered, onNext }: MemoExerciseProps) {
-  const rule = MEMO_RULES_BY_ID[item.ruleId];
+export default function MemoFactsExercise({ rule, onAnswered, onNext }: MemoExerciseProps) {
   const [values, setValues] = useState<string[]>(() => rule.facts.map(() => ""));
   const [result, setResult] = useState<AnswerResultKind | null>(null);
   const [marks, setMarks] = useState<boolean[]>([]);

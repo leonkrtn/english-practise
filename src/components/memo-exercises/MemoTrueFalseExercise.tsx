@@ -2,15 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Check, X } from "lucide-react";
-import { MEMO_RULES_BY_ID } from "@/lib/memo";
 import type { AnswerResultKind } from "@/lib/types";
 import { FeedbackPanel, Prompt } from "@/components/exercises/shared";
 import { MemoBadge, RuleSheet } from "./shared";
 import type { MemoExerciseProps } from "./types";
 
 /** True/false — the fastest way to drill the specific misconceptions a rule attracts. */
-export default function MemoTrueFalseExercise({ item, onAnswered, onNext }: MemoExerciseProps) {
-  const rule = MEMO_RULES_BY_ID[item.ruleId];
+export default function MemoTrueFalseExercise({ item, rule, onAnswered, onNext }: MemoExerciseProps) {
   const problem = rule.trueFalse[item.problemIndex] ?? rule.trueFalse[0];
 
   const [chosen, setChosen] = useState<boolean | null>(null);

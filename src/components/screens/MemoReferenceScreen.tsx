@@ -1,15 +1,29 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronDown, Lightbulb, Quote, Search, X } from "lucide-react";
-import { MEMO_RULES, MEMO_SETS, MEMO_SET_META, type MemoRule, type MemoSetId } from "@/lib/memo";
+import { useState } from "react";
+import { ChevronDown, Lightbulb, Search, X } from "lucide-react";
+import { memoRules, memoSets, memoSetMeta, type MemoRule, type MemoSetId } from "@/lib/memo";
 import { normalize } from "@/lib/utils";
 import { useStore } from "@/lib/store";
-import Formula from "@/components/Formula";
-import { FactList } from "@/components/memo-exercises/shared";
+import { FactList, RuleHeadline } from "@/components/memo-exercises/shared";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+function filterRules(setFilter: MemoSetId | "all", query: string): MemoRule[] {
+  let list = memoRules();
+  if (setFilter !== "all") list = list.filter((r) => r.setId === setFilter);
+  const q = normalize(query);
+  if (!q) return list;
+  return list.filter(
+    (r) =>
+      normalize(r.title).includes(q) ||
+      normalize(r.statement).includes(q) ||
+      normalize(r.explanation).includes(q) ||
+      normalize(r.category).includes(q) ||
+      r.facts.some((f) => normalize(f.label).includes(q) || normalize(f.value).includes(q))
+  );
+}
 
 /** Searchable reference for every memorisable rule — open any time, no session required. */
 export default function MemoReferenceScreen({ onExit }: { onExit: () => void }) {
@@ -18,22 +32,10 @@ export default function MemoReferenceScreen({ onExit }: { onExit: () => void }) 
   const [setFilter, setSetFilter] = useState<MemoSetId | "all">("all");
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const results = useMemo(() => {
-    let list = MEMO_RULES;
-    if (setFilter !== "all") list = list.filter((r) => r.setId === setFilter);
-    const q = normalize(query);
-    if (q) {
-      list = list.filter(
-        (r) =>
-          normalize(r.title).includes(q) ||
-          normalize(r.statement).includes(q) ||
-          normalize(r.explanation).includes(q) ||
-          normalize(r.category).includes(q) ||
-          r.facts.some((f) => normalize(f.label).includes(q) || normalize(f.value).includes(q))
-      );
-    }
-    return list;
-  }, [query, setFilter]);
+  // Filtering a hundred-odd rules per keystroke is cheaper than memoising it: the pool lives in a
+  // module registry the learner's own sets are pushed into, so a memo would need a hand-maintained
+  // dependency on that registry's version to avoid going stale.
+  const results = filterRules(setFilter, query);
 
   return (
     <section className="animate-fade-in pb-4">
@@ -56,7 +58,7 @@ export default function MemoReferenceScreen({ onExit }: { onExit: () => void }) 
         </Tooltip>
         <div className="min-w-0">
           <h1 className="text-[22px] font-bold tracking-tight leading-tight">Rule reference</h1>
-          <div className="text-[12.5px] text-ink-faint">{MEMO_RULES.length} rules to look up</div>
+          <div className="text-[12.5px] text-ink-faint">{memoRules().length} rules to look up</div>
         </div>
       </div>
 
@@ -71,14 +73,14 @@ export default function MemoReferenceScreen({ onExit }: { onExit: () => void }) 
         />
       </div>
 
-      {MEMO_SETS.length > 1 && (
+      {memoSets().length > 1 && (
         <div className="flex gap-2 mb-4 flex-wrap">
           <FilterChip active={setFilter === "all"} onClick={() => setSetFilter("all")}>
             All
           </FilterChip>
-          {MEMO_SETS.map((s) => (
+          {memoSets().map((s) => (
             <FilterChip key={s} active={setFilter === s} onClick={() => setSetFilter(s)}>
-              {MEMO_SET_META[s].label}
+              {memoSetMeta(s).label}
             </FilterChip>
           ))}
         </div>
@@ -118,7 +120,7 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
 }
 
 function RuleCard({ rule, mastered, open, onToggle }: { rule: MemoRule; mastered: boolean; open: boolean; onToggle: () => void }) {
-  const meta = MEMO_SET_META[rule.setId];
+  const meta = memoSetMeta(rule.setId);
   return (
     <div className="bg-card border border-line-soft rounded-2xl overflow-hidden">
       <button onClick={onToggle} aria-expanded={open} className="w-full text-left px-4 py-3.5 flex items-center gap-3 hover:bg-bg transition-colors">
@@ -137,16 +139,7 @@ function RuleCard({ rule, mastered, open, onToggle }: { rule: MemoRule; mastered
 
       {open && (
         <div className="px-4 pb-4">
-          <div className="bg-gradient-to-br from-amber-light to-amber-light/40 rounded-xl p-4 mb-3 flex gap-3">
-            <Quote size={15} className="text-amber shrink-0 mt-0.5" />
-            <div className="text-[14.5px] text-ink font-semibold leading-relaxed">{rule.statement}</div>
-          </div>
-
-          {rule.formulaTex && (
-            <div className="bg-bg rounded-xl p-3 mb-3 text-center overflow-x-auto">
-              <Formula tex={rule.formulaTex} display className="text-[16px]" />
-            </div>
-          )}
+          <RuleHeadline rule={rule} compact />
 
           <p className="text-[14px] text-ink-soft leading-relaxed mb-3">{rule.explanation}</p>
 

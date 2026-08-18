@@ -1,14 +1,11 @@
 "use client";
 
-import { ArrowRight, Lightbulb, Quote } from "lucide-react";
-import { MEMO_RULES_BY_ID } from "@/lib/memo";
-import Formula from "@/components/Formula";
+import { ArrowRight, Lightbulb } from "lucide-react";
 import { PrimaryButton } from "@/components/exercises/shared";
-import { FactList, MemoBadge } from "./shared";
+import { FactList, MemoBadge, RuleHeadline } from "./shared";
 import type { MemoExerciseProps } from "./types";
 
-export default function MemoLearnExercise({ item, onAnswered, onNext }: MemoExerciseProps) {
-  const rule = MEMO_RULES_BY_ID[item.ruleId];
+export default function MemoLearnExercise({ rule, onAnswered, onNext }: MemoExerciseProps) {
 
   function acknowledge() {
     onAnswered({ ruleId: rule.id, format: "memo-learn", result: "correct", hintsUsed: 0 });
@@ -20,20 +17,10 @@ export default function MemoLearnExercise({ item, onAnswered, onNext }: MemoExer
       <MemoBadge rule={rule} />
       <div className="text-[20px] font-bold tracking-tight mb-3 leading-tight">{rule.title}</div>
 
-      {/* The statement is the thing to memorise, so it gets the visual weight the formula gets in
-          the Mathematics mode. */}
-      <div className="bg-gradient-to-br from-amber-light to-amber-light/40 rounded-xl p-4 mb-4 flex gap-3">
-        <Quote size={16} className="text-amber shrink-0 mt-1" />
-        <div className="text-[16px] text-ink font-semibold leading-relaxed">{rule.statement}</div>
-      </div>
+      {/* Whatever has to come back from memory gets the weight — the sentence, or the formula. */}
+      <RuleHeadline rule={rule} />
 
-      {rule.formulaTex && (
-        <div className="bg-bg rounded-xl p-4 mb-4 text-center overflow-x-auto">
-          <Formula tex={rule.formulaTex} display className="text-[17px]" />
-        </div>
-      )}
-
-      <div className="text-[15px] text-ink-soft leading-relaxed mb-4">{rule.explanation}</div>
+      <div className="text-[15px] text-ink-soft leading-relaxed mb-4 mt-4">{rule.explanation}</div>
 
       {rule.facts.length > 0 && (
         <>

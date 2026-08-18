@@ -1,13 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Eye, Quote } from "lucide-react";
-import { MEMO_RULES_BY_ID } from "@/lib/memo";
+import { Eye } from "lucide-react";
 import type { AnswerResultKind } from "@/lib/types";
-import Formula from "@/components/Formula";
 import { Prompt } from "@/components/exercises/shared";
 import { playFeedbackSound } from "@/lib/sound";
-import { FactList, MemoBadge, RuleSheet } from "./shared";
+import { FactList, MemoBadge, RuleHeadline, RuleSheet } from "./shared";
 import type { MemoExerciseProps } from "./types";
 
 /**
@@ -40,8 +38,8 @@ const GRADES: { result: AnswerResultKind; label: string; hint: string; cls: stri
   },
 ];
 
-export default function MemoFlashcardExercise({ item, onAnswered, onNext }: MemoExerciseProps) {
-  const rule = MEMO_RULES_BY_ID[item.ruleId];
+export default function MemoFlashcardExercise({ rule, onAnswered, onNext }: MemoExerciseProps) {
+  const isFormula = rule.display === "formula";
   const [revealed, setRevealed] = useState(false);
   const [graded, setGraded] = useState(false);
 
@@ -79,11 +77,15 @@ export default function MemoFlashcardExercise({ item, onAnswered, onNext }: Memo
   return (
     <>
       <MemoBadge rule={rule} />
-      <Prompt>Say the rule from memory, then reveal</Prompt>
+      <Prompt>{isFormula ? "Write the formula from memory, then reveal" : "Say the rule from memory, then reveal"}</Prompt>
 
       <div className="text-[22px] font-bold tracking-tight mb-1 leading-tight">{rule.title}</div>
       <div className="text-[13px] text-ink-faint mb-5">
-        {rule.facts.length > 0 ? `${rule.facts.length} key facts to recall` : "Recall the statement"}
+        {rule.facts.length > 0
+          ? `${rule.facts.length} key facts to recall`
+          : isFormula
+          ? "Recall the formula"
+          : "Recall the statement"}
       </div>
 
       {!revealed ? (
@@ -100,16 +102,7 @@ export default function MemoFlashcardExercise({ item, onAnswered, onNext }: Memo
         </button>
       ) : (
         <div className="animate-fade-in">
-          <div className="bg-gradient-to-br from-amber-light to-amber-light/40 rounded-xl p-4 mb-3 flex gap-3">
-            <Quote size={16} className="text-amber shrink-0 mt-1" />
-            <div className="text-[15.5px] text-ink font-semibold leading-relaxed">{rule.statement}</div>
-          </div>
-
-          {rule.formulaTex && (
-            <div className="bg-bg rounded-xl p-3 mb-3 text-center overflow-x-auto">
-              <Formula tex={rule.formulaTex} display className="text-[16px]" />
-            </div>
-          )}
+          <RuleHeadline rule={rule} compact />
 
           {rule.facts.length > 0 && (
             <div className="mb-4">

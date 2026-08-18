@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, ChevronDown } from "lucide-react";
-import { MEMO_SET_META, memoRulesForSet, type MemoRule } from "@/lib/memo";
+import { BookOpen, ChevronDown, Quote } from "lucide-react";
+import { memoSetMeta, memoRulesForSet, type MemoRule } from "@/lib/memo";
 import { Button } from "@/components/ui/button";
+import Formula from "@/components/Formula";
 
 /** Set + rule label above every memo exercise — same pill shape the other modes use. */
 export function MemoBadge({ rule }: { rule: MemoRule }) {
-  const meta = MEMO_SET_META[rule.setId];
+  const meta = memoSetMeta(rule.setId);
   return (
     <div className="flex items-center gap-2 mb-4 flex-wrap">
       <span
@@ -20,6 +21,34 @@ export function MemoBadge({ rule }: { rule: MemoRule }) {
       </span>
       <span className="text-[12px] font-semibold text-ink-soft">{rule.category}</span>
     </div>
+  );
+}
+
+/**
+ * The thing to be memorised, given the visual weight: the sentence for a prose rule, the formula
+ * itself for a formula rule. A formula rule's `statement` is only a gloss, and repeating it here
+ * would compete with the formula for attention, so it is left to the explanation below.
+ */
+export function RuleHeadline({ rule, compact = false }: { rule: MemoRule; compact?: boolean }) {
+  if (rule.display === "formula" && rule.formulaTex) {
+    return (
+      <div className="rounded-xl border border-line-soft bg-card px-4 py-5 mb-3 text-center overflow-x-auto">
+        <Formula tex={rule.formulaTex} display className={compact ? "text-[17px]" : "text-[19px]"} />
+      </div>
+    );
+  }
+  return (
+    <>
+      <div className="bg-gradient-to-br from-amber-light to-amber-light/40 rounded-xl p-4 mb-3 flex gap-3">
+        <Quote size={16} className="text-amber shrink-0 mt-1" />
+        <div className={(compact ? "text-[15.5px]" : "text-[16px]") + " text-ink font-semibold leading-relaxed"}>{rule.statement}</div>
+      </div>
+      {rule.formulaTex && (
+        <div className="bg-bg rounded-xl p-4 mb-3 text-center overflow-x-auto">
+          <Formula tex={rule.formulaTex} display className={compact ? "text-[16px]" : "text-[17px]"} />
+        </div>
+      )}
+    </>
   );
 }
 
@@ -59,7 +88,13 @@ export function RuleSheet({ rule }: { rule: MemoRule }) {
           {siblings.map((r) => (
             <div key={r.id} className={"rounded-lg px-3 py-2 " + (r.id === rule.id ? "bg-blue-light/60" : "bg-card")}>
               <div className="text-[11px] font-semibold text-ink-faint mb-0.5">{r.title}</div>
-              <div className="text-[12.5px] text-ink-soft leading-snug">{r.statement}</div>
+              {r.display === "formula" && r.formulaTex ? (
+                <div className="overflow-x-auto">
+                  <Formula tex={r.formulaTex} className="text-[14px]" />
+                </div>
+              ) : (
+                <div className="text-[12.5px] text-ink-soft leading-snug">{r.statement}</div>
+              )}
             </div>
           ))}
         </div>

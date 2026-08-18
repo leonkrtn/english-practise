@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { Check, Undo2, X } from "lucide-react";
-import { MEMO_RULES_BY_ID } from "@/lib/memo";
 import { shuffle } from "@/lib/utils";
 import type { AnswerResultKind } from "@/lib/types";
 import { ExerciseFooter, FeedbackPanel, PrimaryButton, Prompt } from "@/components/exercises/shared";
@@ -11,8 +10,7 @@ import { MemoBadge, RuleSheet } from "./shared";
 import type { MemoExerciseProps } from "./types";
 
 /** Put the steps of a procedure back into order — tap to place, in sequence. */
-export default function MemoOrderExercise({ item, onAnswered, onNext }: MemoExerciseProps) {
-  const rule = MEMO_RULES_BY_ID[item.ruleId];
+export default function MemoOrderExercise({ item, rule, onAnswered, onNext }: MemoExerciseProps) {
   const problem = rule.order[item.problemIndex] ?? rule.order[0];
 
   // Shuffled once per mount. Keyed on the rule + index so a re-shown item gets a fresh order.
