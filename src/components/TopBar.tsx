@@ -49,13 +49,13 @@ export default function TopBar({
         <SyncStatus pendingSync={pendingSync} />
       </div>
       <div className="flex items-center gap-1">
-        <IconButton onClick={onSwitchProduct} title={product === "finance" ? "Zu Englisch wechseln" : "Zu Finance wechseln"}>
+        <IconButton onClick={onSwitchProduct} title={product === "finance" ? "Switch to English" : "Switch to Finance"}>
           <ArrowLeftRight size={18} />
         </IconButton>
-        <IconButton onClick={toggleMuted} title={muted ? "Sound aktivieren" : "Sound stummschalten"}>
+        <IconButton onClick={toggleMuted} title={muted ? "Unmute" : "Mute"}>
           {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
         </IconButton>
-        <IconButton active={screen === "goal"} onClick={goGoal} title="Ziel">
+        <IconButton active={screen === "goal"} onClick={goGoal} title="Goal">
           <Flag size={18} />
         </IconButton>
         <IconButton active={screen === "list" || screen === "detail"} onClick={goList} title="Words">
@@ -67,10 +67,10 @@ export default function TopBar({
         <IconButton active={screen === "settings"} onClick={goSettings} title="Settings">
           <Settings size={18} />
         </IconButton>
-        <IconButton onClick={onShortcuts} title="Tastenkürzel (H)">
+        <IconButton onClick={onShortcuts} title="Keyboard shortcuts (H)">
           <Keyboard size={18} />
         </IconButton>
-        <IconButton onClick={onLogout} title="Abmelden">
+        <IconButton onClick={onLogout} title="Sign out">
           <LogOut size={18} />
         </IconButton>
       </div>

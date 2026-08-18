@@ -50,7 +50,7 @@ export default function LinkingExercise({
       setOutcome({ result, connector, matches: lt.matches });
       onAnswered({ pairId: pair.id, result });
     } catch (e) {
-      setError(e instanceof LanguageToolError ? e.message : "Die Prüfung ist fehlgeschlagen. Bitte versuche es erneut.");
+      setError(e instanceof LanguageToolError ? e.message : "The check failed. Please try again.");
     } finally {
       setChecking(false);
     }
@@ -61,7 +61,7 @@ export default function LinkingExercise({
       <Badge className="h-auto inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-4 text-white shadow-sm bg-gradient-to-r from-blue to-purple">
         <Link2 size={11} /> {category.labelDe}
       </Badge>
-      <Prompt>Verbinde diese beiden Sätze zu einem natürlichen Satz</Prompt>
+      <Prompt>Combine these two sentences into one natural sentence</Prompt>
 
       <div className="bg-bg rounded-xl p-4 text-[15px] leading-relaxed text-ink flex flex-col gap-2 mb-3">
         <div>{pair.a}</div>
@@ -83,7 +83,7 @@ export default function LinkingExercise({
         onChange={setText}
         status={outcome ? outcome.result : null}
         disabled={!!outcome || checking}
-        placeholder="Dein kombinierter Satz…"
+        placeholder="Your combined sentence…"
         onEnter={check}
         textarea
       />
@@ -98,15 +98,15 @@ export default function LinkingExercise({
       {!outcome && (
         <ExerciseFooter>
           <HintButton onClick={() => setShowHint(true)}>
-            <Lightbulb size={13} /> Bindewörter zeigen
+            <Lightbulb size={13} /> Show connectors
           </HintButton>
           <PrimaryButton onClick={check} disabled={checking || !text.trim()}>
             {checking ? (
               <>
-                <Loader2 size={16} className="animate-spin" /> Wird geprüft…
+                <Loader2 size={16} className="animate-spin" /> Checking…
               </>
             ) : (
-              "Prüfen"
+              "Check"
             )}
           </PrimaryButton>
         </ExerciseFooter>
@@ -121,7 +121,7 @@ export default function LinkingExercise({
               </div>
             ) : outcome.matches.length === 0 ? (
               <div className="text-[13px] font-semibold text-[#96690f] mb-1">
-                Grammatikalisch einwandfrei! Kein {category.labelDe}-Bindewort aus unserer Liste erkannt — für mehr Übung versuch es mal mit:{" "}
+                Grammatically sound! No {category.labelDe} connector from our list detected — for more practice, try one of these:{" "}
                 {category.connectors.slice(0, 4).join(", ")}…
               </div>
             ) : (
@@ -141,7 +141,7 @@ export default function LinkingExercise({
               ))}
             </div>
           )}
-          <div className="text-[11px] uppercase tracking-wide font-bold text-ink-faint mb-1">So könnte es auch klingen</div>
+          <div className="text-[11px] uppercase tracking-wide font-bold text-ink-faint mb-1">Another way to phrase it</div>
           <div className="italic">{pair.model}</div>
         </FeedbackPanel>
       )}

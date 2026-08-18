@@ -54,9 +54,9 @@ export default function ConnectorLearnScreen({ onExit, onFinish }: { onExit: () 
       onToggleFav={NOOP}
     >
       <Badge className="h-auto self-start px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide mb-4 text-white shadow-sm bg-gradient-to-r from-green to-green-dark">
-        <BookMarked size={11} /> Bindewörter
+        <BookMarked size={11} /> Connectors
       </Badge>
-      <div className="text-[14.5px] text-ink-faint mb-1">Welches Wort drückt diese Beziehung aus?</div>
+      <div className="text-[14.5px] text-ink-faint mb-1">Which word expresses this relationship?</div>
       <div className="text-[22px] font-bold tracking-tight mb-5 leading-tight">{item.category.labelDe}</div>
       <div className="flex flex-col gap-2 mt-1">
         {item.options.map((o, i) => {
@@ -90,7 +90,7 @@ export default function ConnectorLearnScreen({ onExit, onFinish }: { onExit: () 
       </div>
       {result && (
         <FeedbackPanel result={result} onContinue={next}>
-          <b className="font-semibold text-ink">{item.answer}</b> gehört zu &quot;{item.category.labelDe}&quot; — auch möglich:{" "}
+          <b className="font-semibold text-ink">{item.answer}</b> belongs to &quot;{item.category.labelDe}&quot; — also possible:{" "}
           {item.category.connectors.filter((c) => c !== item.answer).slice(0, 5).join(", ")}…
         </FeedbackPanel>
       )}

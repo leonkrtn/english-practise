@@ -50,7 +50,7 @@ export default function LinkingEssayScreen({
       const result = await checkText(text);
       setMatches(result.matches);
     } catch (e) {
-      setError(e instanceof LanguageToolError ? e.message : "Die Prüfung ist fehlgeschlagen. Bitte versuche es erneut.");
+      setError(e instanceof LanguageToolError ? e.message : "The check failed. Please try again.");
     } finally {
       setChecking(false);
     }
@@ -73,7 +73,7 @@ export default function LinkingEssayScreen({
             render={
               <Button
                 onClick={onExit}
-                aria-label="Schreiben beenden"
+                aria-label="End writing"
                 variant="ghost"
                 size="icon"
                 className="rounded-full border border-line bg-card text-ink-soft shrink-0 transition-all hover:bg-line-soft hover:-translate-y-0.5 hover:shadow-sm"
@@ -82,9 +82,9 @@ export default function LinkingEssayScreen({
           >
             <X size={16} />
           </TooltipTrigger>
-          <TooltipContent>Schreiben beenden</TooltipContent>
+          <TooltipContent>End writing</TooltipContent>
         </Tooltip>
-        <div className="text-[13px] font-semibold text-ink-soft">Freies Schreiben</div>
+        <div className="text-[13px] font-semibold text-ink-soft">Free writing</div>
       </div>
 
       <div className="flex-1 min-h-0 w-full max-w-2xl mx-auto overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] bg-card border border-line-soft rounded-[22px] p-5 lg:p-7 shadow-[0_2px_8px_rgba(15,23,42,0.05),0_24px_48px_-18px_rgba(15,23,42,0.18)] flex flex-col animate-fade-in">
@@ -93,8 +93,8 @@ export default function LinkingEssayScreen({
         </Badge>
         <div className="text-[17px] font-bold tracking-tight mb-1 leading-snug">{topic.prompt}</div>
         <div className="text-[13px] text-ink-faint mb-4">
-          Schreib frei drauflos — keine Satzvorgabe. Nutze dabei Bindewörter aus mindestens {MIN_CATEGORIES} verschiedenen Kategorien, um
-          deine Sätze natürlich zu verknüpfen.
+          Write freely — no sentence given. Use connectors from at least {MIN_CATEGORIES} different categories to link your sentences
+          naturally.
         </div>
 
         <div className="mb-2 text-[11.5px] uppercase tracking-wide font-bold text-ink-faint">
@@ -122,15 +122,15 @@ export default function LinkingEssayScreen({
             setMatches(null);
           }}
           disabled={checking}
-          placeholder="Schreib hier deinen Text auf Englisch…"
+          placeholder="Write your text in English here…"
           rows={8}
           className="w-full text-[15px] leading-relaxed px-3.5 py-3 rounded-xl border-[1.5px] border-line bg-bg focus:bg-white focus:border-blue focus:shadow-[0_0_0_4px_rgba(0,113,227,0.12)] outline-none transition-all font-sans resize-y"
         />
         <div className="flex items-center justify-between mt-1.5 mb-4 text-[12px] text-ink-faint">
           <span>
-            {wordCount} {wordCount === 1 ? "Wort" : "Wörter"} {wordCount < MIN_WORDS && `(mindestens ${MIN_WORDS} empfohlen)`}
+            {wordCount} {wordCount === 1 ? "word" : "words"} {wordCount < MIN_WORDS && `(at least ${MIN_WORDS} recommended)`}
           </span>
-          {!enoughCategories && <span className="text-amber font-semibold">Noch nicht genug Bindewort-Kategorien verwendet</span>}
+          {!enoughCategories && <span className="text-amber font-semibold">Not enough connector categories used yet</span>}
         </div>
 
         {error && (
@@ -149,11 +149,11 @@ export default function LinkingEssayScreen({
           >
             {checking ? (
               <>
-                <Loader2 size={16} className="animate-spin" /> Wird geprüft…
+                <Loader2 size={16} className="animate-spin" /> Checking…
               </>
             ) : (
               <>
-                <Sparkles size={16} /> Prüfen
+                <Sparkles size={16} /> Check
               </>
             )}
           </Button>
@@ -169,7 +169,7 @@ export default function LinkingEssayScreen({
                 >
                   {matches.length === 0 ? <Check size={14} /> : <AlertCircle size={14} />}
                 </span>
-                {matches.length === 0 ? "Keine Fehler gefunden" : `${matches.length} ${matches.length === 1 ? "Hinweis" : "Hinweise"} gefunden`}
+                {matches.length === 0 ? "No mistakes found" : `${matches.length} ${matches.length === 1 ? "note" : "notes"} gefunden`}
               </div>
               <div className="bg-bg rounded-xl p-3.5 text-[14.5px] leading-relaxed text-ink whitespace-pre-wrap">
                 {renderHighlighted(text, matches)}

@@ -103,7 +103,7 @@ VOCAB.forEach((w) => {
   if (!VOCAB_BY_EN[key]) VOCAB_BY_EN[key] = w;
 });
 
-/** Finance/math terms skip "Schreiben" — the exercise kind that asks the learner to write their own
+/** Finance/math terms skip free-writing — the exercise kind that asks the learner to write their own
  * free sentence with the word. A term like EBITDA or a mathematical fixed expression isn't
  * naturally used in improvised prose the way a general verb or adjective is, so that drill would
  * ask the learner to invent English around a term rather than drill the term itself. */

@@ -73,8 +73,8 @@ export const BASE_REVIEW_INTERVALS = [2, 3, 5, 8, 13, 21, 34] as const;
 export const LEARNING_PROFILES: Record<LearningProfileId, LearningTuning> = {
   gentle: {
     id: "gentle",
-    label: "Ruhig",
-    summary: "Kleine Portionen, viel Abstand zwischen Wiederholungen. Gut, wenn sich Sessions gehetzt anfühlen.",
+    label: "Gentle",
+    summary: "Small portions with plenty of space between repeats. Good when sessions feel rushed.",
     vocabBatchSize: 6,
     grammarBatchSize: 3,
     mathBatchSize: 5,
@@ -94,7 +94,7 @@ export const LEARNING_PROFILES: Record<LearningProfileId, LearningTuning> = {
   standard: {
     id: "standard",
     label: "Standard",
-    summary: "Ausgewogenes Tempo — genug Abwechslung, damit du die Wörter lernst und nicht die Aufgaben.",
+    summary: "A balanced pace — enough variety that you learn the material, not the questions.",
     vocabBatchSize: 10,
     grammarBatchSize: 5,
     mathBatchSize: 8,
@@ -113,8 +113,8 @@ export const LEARNING_PROFILES: Record<LearningProfileId, LearningTuning> = {
   },
   intensive: {
     id: "intensive",
-    label: "Intensiv",
-    summary: "Mehr Stoff pro Session und strengere Mastery. Für Tage, an denen du wirklich Druck machen willst.",
+    label: "Intensive",
+    summary: "More material per session and stricter mastery. For days when you really want to push.",
     vocabBatchSize: 14,
     grammarBatchSize: 7,
     mathBatchSize: 12,

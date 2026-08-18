@@ -11,7 +11,7 @@ export default function ProductChooser({ onChoose }: { onChoose: (product: Produ
           <div className="text-[22px] font-extrabold tracking-tight bg-gradient-to-r from-blue via-blue-dark to-purple bg-clip-text text-transparent mb-1">
             PRACTISE
           </div>
-          <div className="text-[14px] text-ink-faint">Womit möchtest du üben?</div>
+          <div className="text-[14px] text-ink-faint">What do you want to practise?</div>
         </div>
         <div className="flex flex-col gap-3">
           <button
@@ -22,8 +22,8 @@ export default function ProductChooser({ onChoose }: { onChoose: (product: Produ
               <BookOpen size={22} />
             </span>
             <div className="min-w-0">
-              <div className="text-[16px] font-bold text-ink">Englisch</div>
-              <div className="text-[12.5px] text-ink-faint">Vokabeln, Grammatik, Idioms, Reading, Tests</div>
+              <div className="text-[16px] font-bold text-ink">English</div>
+              <div className="text-[12.5px] text-ink-faint">Vocabulary, grammar, idioms, reading, tests</div>
             </div>
           </button>
           <button
@@ -35,7 +35,7 @@ export default function ProductChooser({ onChoose }: { onChoose: (product: Produ
             </span>
             <div className="min-w-0">
               <div className="text-[16px] font-bold text-ink">Finance</div>
-              <div className="text-[12.5px] text-ink-faint">Corporate Finance, Mathe-Vokabeln, Differentiation</div>
+              <div className="text-[12.5px] text-ink-faint">Corporate finance, math terms, mathematics</div>
             </div>
           </button>
         </div>

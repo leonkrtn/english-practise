@@ -104,7 +104,7 @@ export default function MathTestScreen({
             render={
               <Button
                 onClick={onExit}
-                aria-label="Test abbrechen (Esc)"
+                aria-label="Cancel test (Esc)"
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 rounded-full border-line bg-card text-ink-soft shrink-0 transition-all hover:bg-line-soft hover:text-ink-soft hover:-translate-y-0.5 hover:shadow-sm"
@@ -113,7 +113,7 @@ export default function MathTestScreen({
           >
             <X size={16} />
           </TooltipTrigger>
-          <TooltipContent>Test abbrechen (Esc)</TooltipContent>
+          <TooltipContent>Cancel test (Esc)</TooltipContent>
         </Tooltip>
         <div className="flex-1 h-2 bg-line-soft rounded-full overflow-hidden">
           <div
@@ -134,7 +134,7 @@ export default function MathTestScreen({
           <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide bg-line-soft text-ink-soft">
             {question.category}
           </span>
-          <span className="text-[12px] text-ink-faint font-semibold tabular-nums shrink-0">Frage {index + 1}</span>
+          <span className="text-[12px] text-ink-faint font-semibold tabular-nums shrink-0">Question {index + 1}</span>
         </div>
 
         {question.question && <div className="text-[16px] text-ink leading-relaxed mb-3">{question.question}</div>}
@@ -189,7 +189,7 @@ export default function MathTestScreen({
                   goNext();
                 }
               }}
-              placeholder="Deine Antwort…"
+              placeholder="Your answer…"
               className="w-full text-[16px] px-3.5 py-3 rounded-xl border-[1.5px] border-line bg-bg outline-none transition-all font-sans focus:bg-white focus:border-ink focus:shadow-[0_0_0_4px_rgba(29,29,31,0.08)]"
             />
             <div className="text-[12px] text-ink-faint mt-1.5">
@@ -208,8 +208,8 @@ export default function MathTestScreen({
               <button
                 key={q.id}
                 onClick={() => onNavigate(i)}
-                title={`Frage ${i + 1}${done ? " · beantwortet" : ""}`}
-                aria-label={`Zu Frage ${i + 1}`}
+                title={`Question ${i + 1}${done ? " · answered" : ""}`}
+                aria-label={`Go to question ${i + 1}`}
                 className={
                   "w-6 h-6 rounded-md text-[10.5px] font-bold tabular-nums transition-all " +
                   (i === index
@@ -233,7 +233,7 @@ export default function MathTestScreen({
           variant="ghost"
           className="h-auto rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:text-ink disabled:opacity-35 disabled:pointer-events-none text-ink font-semibold px-4 py-2.5 text-[14px] transition-all active:scale-[0.97] flex items-center gap-1"
         >
-          <ChevronLeft size={15} /> Zurück
+          <ChevronLeft size={15} /> Back
         </Button>
         <div className="flex-1" />
         {!isLast && (
@@ -242,7 +242,7 @@ export default function MathTestScreen({
             variant="ghost"
             className="h-auto rounded-full border-[1.5px] border-line bg-card hover:bg-line-soft hover:text-ink text-ink font-semibold px-4 py-2.5 text-[14px] transition-all active:scale-[0.97] flex items-center gap-1"
           >
-            Weiter <ChevronRight size={15} />
+            Next <ChevronRight size={15} />
           </Button>
         )}
         <Button
@@ -250,7 +250,7 @@ export default function MathTestScreen({
           variant="ghost"
           className="h-auto rounded-full bg-gradient-to-r from-ink to-ink/80 hover:brightness-125 hover:text-white text-white font-semibold px-5 py-2.5 text-[14px] transition-all active:scale-[0.97] shadow-[0_10px_24px_-10px_rgba(15,23,42,0.6)] flex items-center gap-1.5"
         >
-          <CircleCheck size={15} /> Test abgeben
+          <CircleCheck size={15} /> Submit test
         </Button>
       </div>
     </section>

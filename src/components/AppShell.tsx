@@ -76,6 +76,19 @@ import {
   type MathTestScope,
 } from "@/lib/mathTest";
 import { useMathTestHistory } from "@/lib/mathTestStore";
+import {
+  buildMemoBatch,
+  buildMemoQueue,
+  formatForMemoItem,
+  maxAttemptsPerMemoRule,
+  memoInsertionIndex,
+  memoKey,
+  memoNextAfterAnswer,
+  type MemoQueueItem,
+  type MemoResultEntry,
+} from "@/lib/memoLearning";
+import type { MemoSetId } from "@/lib/memo";
+import type { FinanceTab } from "./screens/FinanceHomeScreen";
 import { useMathSolveEnabled } from "@/lib/mathSettings";
 import type { MathTopic } from "@/lib/math";
 import { useProduct } from "@/lib/product";
@@ -84,6 +97,7 @@ import type { GrammarResultEntry } from "@/lib/grammarTypes";
 import ExerciseRouter from "@/components/exercises/ExerciseRouter";
 import GrammarExerciseRouter from "@/components/grammar-exercises/GrammarExerciseRouter";
 import MathExerciseRouter from "@/components/math-exercises/MathExerciseRouter";
+import MemoExerciseRouter from "@/components/memo-exercises/MemoExerciseRouter";
 import ProductChooser from "@/components/screens/ProductChooser";
 import TopBar from "./TopBar";
 import Modal from "./Modal";
@@ -125,6 +139,7 @@ const TestScreen = lazyScreen(() => import("./screens/TestScreen"));
 const TestResultScreen = lazyScreen(() => import("./screens/TestResultScreen"));
 const FinanceHomeScreen = lazyScreen(() => import("./screens/FinanceHomeScreen"));
 const MathTheoryScreen = lazyScreen(() => import("./screens/MathTheoryScreen"));
+const MemoReferenceScreen = lazyScreen(() => import("./screens/MemoReferenceScreen"));
 const MathStatsScreen = lazyScreen(() => import("./screens/MathStatsScreen"));
 const MathTestScreen = lazyScreen(() => import("./screens/MathTestScreen"));
 const MathTestResultScreen = lazyScreen(() => import("./screens/MathTestResultScreen"));
@@ -148,7 +163,9 @@ export type Screen =
   | "math-theory"
   | "math-stats"
   | "math-test"
-  | "math-test-result";
+  | "math-test-result"
+  | "memo"
+  | "memo-reference";
 export type SessionMode = "vocab" | "grammar" | "domain" | "idioms" | "linking" | "reading" | "test";
 /** The two modes that run through the adaptive stage engine — everything else is its own flow. */
 export type LearningMode = "vocab" | "grammar";
@@ -156,12 +173,12 @@ export type LinkingSubMode = "combine" | "learn" | "essay";
 /** Which slice of the vocabulary a "vocab" learning session draws from: a Finance-mode scope, the
  * Idioms mode's own category, or (when omitted) the general Vocabulary pool. */
 export type VocabScope = DomainScope | "idiom";
-/** Options for the "Gelerntes wiederholen" dropdown on Home: restrict the review pool to items
+/** Options for the "Review learned" dropdown on Home: restrict the review pool to items
  * below a score-based mastery percentage (null = no restriction) and/or cap how many are drawn
  * (null = everyone that matches). */
 export type ReviewOptions = { maxAccuracy: number | null; limit: number | null };
 /** Snapshot of whichever preset-driven start the learner most recently launched from Home, so it
- * can be replayed verbatim by the "Weiter" action on the summary/test-result screens. */
+ * can be replayed verbatim by the "Continue" action on the summary/test-result screens. */
 type LastStartConfig =
   | { kind: "learning"; mode: LearningMode; includeReview: boolean; domainScope?: VocabScope }
   | { kind: "review"; mode: LearningMode; options?: ReviewOptions; domainScope?: VocabScope }
@@ -194,9 +211,23 @@ interface LinkingSessionState {
  */
 interface MathSessionState {
   topic: MathTopic | null;
+  /** Exercises-only mode: no learn cards, straight into practice. */
+  drill: boolean;
   queue: MathQueueItem[];
   index: number;
   results: MathResultEntry[];
+  attempts: Record<string, number>;
+  formatMemory: FormatMemory;
+  finishedRuleIds: Set<string>;
+}
+
+/** Rules-mode drill: same growing-queue bookkeeping as the math session, over memorisable rules. */
+interface MemoSessionState {
+  setId: MemoSetId | null;
+  drill: boolean;
+  queue: MemoQueueItem[];
+  index: number;
+  results: MemoResultEntry[];
   attempts: Record<string, number>;
   formatMemory: FormatMemory;
   finishedRuleIds: Set<string>;
@@ -288,6 +319,9 @@ export default function AppShell() {
   // after finishing a session) instead of always resetting back to Vocabulary.
   const [homeMode, setHomeMode] = useState<SessionMode>("vocab");
   const [homeLinkingSubMode, setHomeLinkingSubMode] = useState<LinkingSubMode>("combine");
+  // Same reasoning as homeMode: lifted out of FinanceHomeScreen so the selected tab survives a trip
+  // to the reference or statistics screen instead of snapping back to the default.
+  const [financeTab, setFinanceTab] = useState<FinanceTab>("math");
   // Finance mode moved to its own product/shell — HomeScreen's domain-scope machinery stays wired
   // (scopeFor/reviewMatchCount still reference it) but is never reachable through the UI anymore,
   // so this never needs to change.
@@ -307,16 +341,23 @@ export default function AppShell() {
     mathSessionRef.current = next;
     setMathSessionState(next);
   }, []);
+  const [memoSession, setMemoSessionState] = useState<MemoSessionState | null>(null);
+  /** Same synchronous mirror as mathSessionRef — onAnswered and onNext fire in one tick. */
+  const memoSessionRef = useRef<MemoSessionState | null>(null);
+  const setMemoSession = useCallback((next: MemoSessionState | null) => {
+    memoSessionRef.current = next;
+    setMemoSessionState(next);
+  }, []);
   const [mathTestSession, setMathTestSession] = useState<MathTestSessionState | null>(null);
   const [mathTestResult, setMathTestResult] = useState<MathTestResult | null>(null);
-  /** The last math test's configuration, so the result screen's "Nochmal" can rebuild an equivalent paper. */
+  /** The last math test's configuration, so the result screen's "Again" can rebuild an equivalent paper. */
   const [lastMathTest, setLastMathTest] = useState<{ scope: MathTestScope; length: MathTestLength } | null>(null);
   const [readingSession, setReadingSession] = useState<ReadingSessionState | null>(null);
   const [testSession, setTestSession] = useState<TestSessionState | null>(null);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [linkingEssayTopic, setLinkingEssayTopic] = useState<WritingTopic | null>(null);
   const [summary, setSummary] = useState<SummaryStats | null>(null);
-  // The preset a preset-driven session was launched with, so the "Weiter" button on the summary/
+  // The preset a preset-driven session was launched with, so the "Continue" button on the summary/
   // test-result screens can start the next run identically without sending the learner back
   // through Home to re-pick everything. Quick drills (repeat mistakes / practice one word) aren't
   // preset-driven, so they clear this rather than leave a stale preset behind.
@@ -675,11 +716,11 @@ export default function AppShell() {
   // ---------- Mathematics: stage-engine session over the math rules, optionally scoped to a topic ----------
 
   const startMathSession = useCallback(
-    (topic: MathTopic | null) => {
-      const batch = buildMathBatch(topic, store.wordState, store.totalPracticeSessions, true, tuning);
-      const { queue, formatMemory } = buildMathQueue(batch, store.wordState, mathTypedEnabled);
+    (topic: MathTopic | null, drill = false) => {
+      const batch = buildMathBatch(topic, store.wordState, store.totalPracticeSessions, true, tuning, drill);
+      const { queue, formatMemory } = buildMathQueue(batch, store.wordState, mathTypedEnabled, drill);
       if (queue.length === 0) return;
-      setMathSession({ topic, queue, index: 0, results: [], attempts: {}, formatMemory, finishedRuleIds: new Set() });
+      setMathSession({ topic, drill, queue, index: 0, results: [], attempts: {}, formatMemory, finishedRuleIds: new Set() });
       setScreen("math");
     },
     [store.wordState, store.totalPracticeSessions, tuning, mathTypedEnabled, setMathSession]
@@ -726,7 +767,8 @@ export default function AppShell() {
         store.totalPracticeSessions,
         formatMemory[key] || [],
         tuning,
-        mathTypedEnabled
+        mathTypedEnabled,
+        session.drill
       );
 
       store.setLearningStage(entry.ruleId, outcome.stage, outcome.reviewStreak, outcome.dueAtSession);
@@ -758,6 +800,86 @@ export default function AppShell() {
     if (nextIndex >= session.queue.length) finishMathSession(session);
     else setMathSession({ ...session, index: nextIndex });
   }, [finishMathSession, setMathSession]);
+
+  // ---------- Rules: memorisation drill over the memo rule sets ----------
+
+  const startMemoSession = useCallback(
+    (setId: MemoSetId | null, drill = false) => {
+      const batch = buildMemoBatch(setId, store.wordState, store.totalPracticeSessions, true, tuning, drill);
+      const { queue, formatMemory } = buildMemoQueue(batch, store.wordState, drill);
+      if (queue.length === 0) return;
+      setMemoSession({ setId, drill, queue, index: 0, results: [], attempts: {}, formatMemory, finishedRuleIds: new Set() });
+      setScreen("memo");
+    },
+    [store.wordState, store.totalPracticeSessions, tuning, setMemoSession]
+  );
+
+  const finishMemoSession = useCallback(
+    (s: MemoSessionState) => {
+      const correct = s.results.filter((r) => r.result === "correct").length;
+      const almost = s.results.filter((r) => r.result === "almost").length;
+      const incorrect = s.results.filter((r) => r.result === "incorrect").length;
+      const total = s.results.length || 1;
+      const accuracy = Math.round((correct / total) * 100);
+      store.recordSession({ date: Date.now(), total, correct, almost, incorrect, accuracy, format: "memo" });
+      store.addXp(correct * 10 + almost * 4 + XP_SESSION_COMPLETE);
+      setMemoSession(null);
+      setScreen("home");
+    },
+    [store, setMemoSession]
+  );
+
+  const onMemoAnswered = useCallback(
+    (entry: MemoResultEntry) => {
+      const session = memoSessionRef.current;
+      if (!session) return;
+      const item = session.queue[session.index];
+      if (!item) return;
+
+      const key = memoKey(entry.ruleId);
+      const priorState = store.wordState(entry.ruleId);
+      const formatMemory = rememberFormat(session.formatMemory, key, formatForMemoItem(item));
+
+      const outcome = memoNextAfterAnswer(
+        item,
+        priorState.stage,
+        priorState.reviewStreak,
+        entry.result,
+        store.totalPracticeSessions,
+        formatMemory[key] || [],
+        tuning,
+        session.drill
+      );
+
+      store.setLearningStage(entry.ruleId, outcome.stage, outcome.reviewStreak, outcome.dueAtSession);
+      store.updateWord(entry.ruleId, entry.result, entry.hintsUsed);
+      store.recordFormatStat(entry.format, entry.result);
+
+      const attempts = { ...session.attempts, [key]: (session.attempts[key] || 0) + 1 };
+      let queue = session.queue;
+      let scheduled = false;
+      if (outcome.followUp && attempts[key] < maxAttemptsPerMemoRule(tuning)) {
+        const insertAt = memoInsertionIndex(session.index, queue.length, attempts[key], tuning);
+        if (insertAt !== null) {
+          queue = [...queue.slice(0, insertAt), outcome.followUp, ...queue.slice(insertAt)];
+          scheduled = true;
+        }
+      }
+      const finishedRuleIds = new Set(session.finishedRuleIds);
+      if (!scheduled) finishedRuleIds.add(entry.ruleId);
+
+      setMemoSession({ ...session, queue, attempts, formatMemory, finishedRuleIds, results: [...session.results, entry] });
+    },
+    [store, tuning, setMemoSession]
+  );
+
+  const nextMemoQuestion = useCallback(() => {
+    const session = memoSessionRef.current;
+    if (!session) return;
+    const nextIndex = session.index + 1;
+    if (nextIndex >= session.queue.length) finishMemoSession(session);
+    else setMemoSession({ ...session, index: nextIndex });
+  }, [finishMemoSession, setMemoSession]);
 
   // ---------- Mathematics: graded test ----------
 
@@ -1296,6 +1418,7 @@ export default function AppShell() {
     else if (quickSession) endQuickSession(quickSession);
     else if (linkingSession) finishLinking(linkingSession);
     else if (mathSession) finishMathSession(mathSession);
+    else if (memoSession) finishMemoSession(memoSession);
     else if (mathTestSession) {
       // Same reasoning as an abandoned English exam: a partial paper is not graded or filed.
       setMathTestSession(null);
@@ -1311,12 +1434,14 @@ export default function AppShell() {
     quickSession,
     linkingSession,
     mathSession,
+    memoSession,
     mathTestSession,
     testSession,
     endLearningSession,
     endQuickSession,
     finishLinking,
     finishMathSession,
+    finishMemoSession,
   ]);
 
   // Escape is the one key that always makes sense regardless of screen — it's the keyboard
@@ -1351,9 +1476,11 @@ export default function AppShell() {
       case "test":
       case "math":
       case "math-test":
+      case "memo":
         setModalOpen(true);
         return;
       case "math-theory":
+      case "memo-reference":
       case "math-stats":
       case "math-test-result":
         setScreen("home");
@@ -1387,7 +1514,8 @@ export default function AppShell() {
     screen === "reading" ||
     screen === "linking-essay" ||
     screen === "math" ||
-    screen === "math-test";
+    screen === "math-test" ||
+    screen === "memo";
 
   const currentWordId =
     learningSession && currentItem?.domain === "vocab"
@@ -1532,7 +1660,8 @@ export default function AppShell() {
     screen === "reading" ||
     screen === "test" ||
     screen === "math" ||
-    screen === "math-test";
+    screen === "math-test" ||
+    screen === "memo";
 
   if (product === null) {
     return <ProductChooser onChoose={setProduct} />;
@@ -1570,18 +1699,40 @@ export default function AppShell() {
       >
         {screen === "home" && product === "finance" && (
           <FinanceHomeScreen
+            tab={financeTab}
+            onTabChange={setFinanceTab}
             onStartVocab={(scope) => {
               setLastStart({ kind: "learning", mode: "vocab", includeReview: true, domainScope: scope });
               startLearningSession("vocab", true, scope);
             }}
             onStartMath={startMathSession}
+            onStartMemo={startMemoSession}
             onOpenTheory={() => setScreen("math-theory")}
+            onOpenRules={() => setScreen("memo-reference")}
             onOpenStats={() => setScreen("math-stats")}
             onStartTest={startMathTest}
           />
         )}
 
         {screen === "math-theory" && <MathTheoryScreen onExit={goHome} />}
+
+        {screen === "memo-reference" && <MemoReferenceScreen onExit={goHome} />}
+
+        {screen === "memo" && memoSession && memoSession.queue[memoSession.index] && (
+          <SessionScreen
+            renderKey={`${memoSession.index}-${memoSession.queue[memoSession.index].ruleId}-${memoSession.queue[memoSession.index].kind}-${memoSession.queue[memoSession.index].problemIndex}`}
+            progressPct={Math.round(
+              (memoSession.finishedRuleIds.size / Math.max(1, new Set(memoSession.queue.map((q) => q.ruleId)).size)) * 100
+            )}
+            progressLabel={`${memoSession.index + 1} / ${memoSession.queue.length}`}
+            favorite={false}
+            showFavorite={false}
+            onExit={() => setModalOpen(true)}
+            onToggleFav={NOOP}
+          >
+            <MemoExerciseRouter item={memoSession.queue[memoSession.index]} onAnswered={onMemoAnswered} onNext={nextMemoQuestion} />
+          </SessionScreen>
+        )}
 
         {screen === "math-stats" && <MathStatsScreen testHistory={mathTestHistory} onExit={goHome} />}
 
@@ -1806,10 +1957,10 @@ export default function AppShell() {
 
       <Modal
         open={modalOpen}
-        title={screen === "test" ? "Test abbrechen?" : "End session?"}
+        title={screen === "test" ? "Cancel test?" : "End session?"}
         body={
           screen === "test"
-            ? "Der Test wird verworfen und nicht benotet."
+            ? "The test will be discarded and not graded."
             : "Your progress so far will be saved, but the session will end early."
         }
         onCancel={() => setModalOpen(false)}
@@ -1817,14 +1968,14 @@ export default function AppShell() {
       />
       <Modal
         open={blockPrompt !== null}
-        title="Wort ausschließen?"
+        title="Exclude word?"
         body={
           blockPrompt
-            ? `„${VOCAB_BY_ID[blockPrompt]?.en ?? blockPrompt}" wird dauerhaft aus dem Training entfernt. Du kannst das in den Einstellungen rückgängig machen.`
+            ? `\u201c${VOCAB_BY_ID[blockPrompt]?.en ?? blockPrompt}\u201d will be removed from practice permanently. You can undo this in Settings.`
             : ""
         }
-        cancelLabel="Abbrechen"
-        confirmLabel="Ausschließen"
+        cancelLabel="Cancel"
+        confirmLabel="Exclude"
         destructive
         onCancel={() => setBlockPrompt(null)}
         onConfirm={confirmBlockWord}

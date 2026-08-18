@@ -18,7 +18,7 @@ export default function LevelPill({ xp, onClick }: { xp: number; onClick: () => 
     <button
       onClick={onClick}
       title={`${p.title} · ${xp} XP · noch ${p.remaining} XP bis Level ${p.level + 1}`}
-      aria-label={`Level ${p.level}, ${p.title}. Statistiken öffnen.`}
+      aria-label={`Level ${p.level}, ${p.title}. Open statistics.`}
       className="group hidden sm:flex items-center gap-2 shrink-0 rounded-full border border-line-soft bg-card pl-1 pr-2.5 py-1 transition-all hover:border-line hover:-translate-y-0.5 hover:shadow-sm"
     >
       <span className="w-6 h-6 rounded-full bg-gradient-to-br from-blue to-purple text-white text-[11px] font-bold flex items-center justify-center shrink-0 tabular-nums shadow-[0_3px_8px_-3px_rgba(0,113,227,0.6)]">

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowRight, ChevronDown, TriangleAlert } from "lucide-react";
 import { MATH_DIFFICULTY_LABEL, MATH_RULES_BY_ID } from "@/lib/math";
 import Formula from "@/components/Formula";
+import FormulaAnatomy from "@/components/FormulaAnatomy";
 import { PrimaryButton } from "@/components/exercises/shared";
 import { Button } from "@/components/ui/button";
 import { MathBadge } from "./shared";
@@ -28,8 +29,10 @@ export default function MathLearnExercise({ item, onAnswered, onNext }: MathExer
         </span>
       </div>
 
-      <div className="bg-gradient-to-br from-blue-lighter to-purple-light/40 rounded-xl p-5 mb-4 text-center overflow-x-auto">
-        <Formula tex={rule.formulaTex} display className="text-[20px]" />
+      <div className="text-[20px] font-bold tracking-tight mb-3 leading-tight">{rule.title}</div>
+
+      <div className="bg-gradient-to-br from-blue-lighter to-purple-light/40 rounded-xl p-5 mb-4">
+        <FormulaAnatomy ruleId={rule.id} formulaTex={rule.formulaTex} />
       </div>
 
       <div className="text-[15px] text-ink-soft leading-relaxed mb-4">{rule.explanation}</div>
@@ -42,7 +45,7 @@ export default function MathLearnExercise({ item, onAnswered, onNext }: MathExer
             aria-expanded={showDerivation}
             className="h-auto inline-flex items-center gap-1.5 text-[13px] text-ink-faint bg-transparent border border-line rounded-full px-3 py-2 hover:bg-blue-lighter hover:border-blue/30 hover:text-blue-dark transition-colors"
           >
-            Herleitung
+            Where it comes from
             <ChevronDown size={13} className={"transition-transform " + (showDerivation ? "rotate-180" : "")} />
           </Button>
           {showDerivation && (
@@ -55,7 +58,7 @@ export default function MathLearnExercise({ item, onAnswered, onNext }: MathExer
         </div>
       )}
 
-      <div className="text-[11px] uppercase tracking-wide font-bold text-ink-faint mb-2">Beispiele</div>
+      <div className="text-[11px] uppercase tracking-wide font-bold text-ink-faint mb-2">Examples</div>
       <div className="flex flex-col gap-2.5 mb-4">
         {rule.examples.map((ex, i) => (
           <div key={i} className="bg-bg rounded-xl px-4 py-3 overflow-x-auto">
@@ -73,7 +76,7 @@ export default function MathLearnExercise({ item, onAnswered, onNext }: MathExer
       {rule.pitfalls.length > 0 && (
         <div className="rounded-xl bg-red-light/40 ring-1 ring-inset ring-red/15 p-4 mb-5">
           <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide font-bold text-red mb-2">
-            <TriangleAlert size={12} /> Typische Fehler
+            <TriangleAlert size={12} /> Common mistakes
           </div>
           <ul className="flex flex-col gap-1.5">
             {rule.pitfalls.map((p, i) => (
@@ -87,7 +90,7 @@ export default function MathLearnExercise({ item, onAnswered, onNext }: MathExer
       )}
 
       <PrimaryButton onClick={acknowledge} autoFocus>
-        Verstanden, weiter
+        Got it, continue
         <ArrowRight size={16} />
       </PrimaryButton>
     </>

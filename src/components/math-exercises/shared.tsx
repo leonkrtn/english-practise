@@ -6,14 +6,15 @@ import { MATH_RULES_BY_ID, MATH_TOPIC_META, rulesForTopic, type MathRule } from 
 import Formula from "@/components/Formula";
 import { Button } from "@/components/ui/button";
 
-/** Topic + rule label above every math exercise, in the topic's own colour. */
+/** Topic + rule label above every math exercise. Deliberately the exact pill the vocabulary
+ * exercises use (see exercises/shared.tsx Badge) so the two modes read as one app. */
 export function MathBadge({ rule }: { rule: MathRule }) {
   const meta = MATH_TOPIC_META[rule.topic];
   return (
-    <div className="flex items-center gap-2 mb-3 flex-wrap">
+    <div className="flex items-center gap-2 mb-4 flex-wrap">
       <span
         className={
-          "inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm bg-gradient-to-r " +
+          "inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm bg-gradient-to-r " +
           meta.grad
         }
       >
@@ -55,7 +56,7 @@ export function HintStack({ hints, revealed, onReveal }: { hints: string[]; reve
           className="h-auto inline-flex items-center gap-1.5 text-[13px] text-ink-faint bg-transparent border border-line rounded-full px-3 py-2 hover:bg-amber-light hover:border-amber/40 hover:text-amber-dark transition-colors"
         >
           <Lightbulb size={13} />
-          {revealed === 0 ? "Tipp" : "Nächster Tipp"}
+          {revealed === 0 ? "Hint" : "Next hint"}
           <span className="text-[11px] text-ink-faint">
             ({revealed}/{hints.length})
           </span>
@@ -93,7 +94,7 @@ export function FormulaSheet({ rule }: { rule: MathRule }) {
         className="h-auto inline-flex items-center gap-1.5 text-[13px] text-ink-faint bg-transparent border border-line rounded-full px-3 py-2 hover:bg-blue-lighter hover:border-blue/30 hover:text-blue-dark transition-colors"
       >
         <BookOpen size={13} />
-        Formelsammlung
+        Formula sheet
         <ChevronDown size={13} className={"transition-transform " + (open ? "rotate-180" : "")} />
       </Button>
       {open && (
