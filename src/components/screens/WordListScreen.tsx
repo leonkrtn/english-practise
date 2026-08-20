@@ -22,11 +22,20 @@ const FILTERS = [
   { val: "mistakes", label: "Mistakes" },
   { val: "unpracticed", label: "Unpracticed" },
   { val: "intensify", label: "Intensivieren" },
+  { val: "recent", label: "Recently Learned" },
+];
+
+const RECENT_RANGES = [
+  { val: "7d", label: "Last 7 days" },
+  { val: "30d", label: "Last 30 days" },
+  { val: "n20", label: "Most recent 20 words" },
 ];
 
 export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: string) => void }) {
   const store = useStore();
   const [filter, setFilter] = useState("all");
+  const [recentRange, setRecentRange] = useState("7d");
+  const [now] = useState(() => Date.now());
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -56,11 +65,23 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
     if (filter === "known") l = l.filter((w) => store.wordState(w.id).stage === 4);
     if (filter === "unpracticed") l = l.filter((w) => store.wordState(w.id).timesSeen === 0);
     if (filter === "intensify") l = l.filter((w) => needsIntensification(store.wordState(w.id)));
+    if (filter === "recent") {
+      l = l.filter((w) => store.wordState(w.id).masteredAt !== null);
+      l = l.slice().sort((a, b) => (store.wordState(b.id).masteredAt ?? 0) - (store.wordState(a.id).masteredAt ?? 0));
+      if (recentRange === "7d" || recentRange === "30d") {
+        const days = recentRange === "7d" ? 7 : 30;
+        const cutoff = now - days * 24 * 60 * 60 * 1000;
+        l = l.filter((w) => (store.wordState(w.id).masteredAt ?? 0) >= cutoff);
+      } else if (recentRange === "n20") {
+        l = l.slice(0, 20);
+      }
+    }
     const q = normalize(query);
     if (q) l = l.filter((w) => normalize(w.en).includes(q) || w.de.some((d) => normalize(d).includes(q)));
+    if (filter === "recent") return l;
     return l.slice().sort((a, b) => a.en.localeCompare(b.en));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, query, store.words]);
+  }, [filter, recentRange, query, store.words, now]);
 
   return (
     <section className="animate-fade-in">
@@ -90,8 +111,25 @@ export default function WordListScreen({ onSelectWord }: { onSelectWord: (id: st
           </button>
         ))}
       </div>
+      {filter === "recent" && (
+        <div className="flex items-center gap-2 mb-4">
+          <select
+            value={recentRange}
+            onChange={(e) => setRecentRange(e.target.value)}
+            className="text-[13px] font-semibold px-3.5 py-1.5 rounded-full border border-line bg-card text-ink-soft outline-none cursor-pointer"
+          >
+            {RECENT_RANGES.map((r) => (
+              <option key={r.val} value={r.val}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {list.length === 0 ? (
-        <div className="text-center py-16 px-5 text-ink-faint text-sm">No words match your search.</div>
+        <div className="text-center py-16 px-5 text-ink-faint text-sm">
+          {filter === "recent" ? "No recently learned words in this range." : "No words match your search."}
+        </div>
       ) : (
         <div>
           {list.map((w) => {
