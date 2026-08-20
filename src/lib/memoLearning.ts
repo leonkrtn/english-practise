@@ -1,4 +1,4 @@
-import { MEMO_RULES, MEMO_RULES_BY_ID, memoRulesForSet, type MemoRule, type MemoSetId } from "./memo";
+import { memoRules, memoRuleById, memoRulesForSet, type MemoRule, type MemoSetId } from "./memo";
 import type { AnswerResultKind, LearningStage, WordState } from "./types";
 import type { LearningTuning } from "./learningProfile";
 import {
@@ -14,7 +14,16 @@ import {
 /** Prefix for this domain in the shared attempt/format bookkeeping — mirrors vocabKey()/mathKey(). */
 export const memoKey = (ruleId: string) => "memo:" + ruleId;
 
-export type MemoTaskKind = "learn" | "flashcard" | "cloze" | "mc" | "truefalse" | "order" | "facts" | "review";
+export type MemoTaskKind =
+  | "learn"
+  | "flashcard"
+  | "cloze"
+  | "formulacloze"
+  | "mc"
+  | "truefalse"
+  | "order"
+  | "facts"
+  | "review";
 
 export type MemoActiveKind = Exclude<MemoTaskKind, "learn" | "review">;
 
@@ -22,23 +31,31 @@ export type MemoActiveKind = Exclude<MemoTaskKind, "learn" | "review">;
  * The ladder for rote memorisation, which is a different shape from the math one.
  *
  * Stage 1 is recognition (multiple choice, true/false) — can you pick the right statement out of a
- * line-up. Stage 2 is cued recall (cloze, order) — can you produce the missing piece with the
- * sentence in front of you. Stages 3–4 are free recall (flashcard, facts) — nothing on screen but
- * the rule's name, which is the only test that proves you actually know it.
+ * line-up. Stage 2 is cued recall (cloze, formula cloze, order) — can you produce the missing piece
+ * with the sentence or formula in front of you. Stages 3–4 are free recall (flashcard, facts) —
+ * nothing on screen but the rule's name, which is the only test that proves you actually know it.
+ *
+ * A rule simply doesn't offer the kinds it has no content for, so the same ladder serves prose rules
+ * (cloze, order, true/false) and formula rules (formula cloze, maths multiple choice) unchanged.
  */
 const KINDS_BY_STAGE: Record<1 | 2 | 3 | 4, MemoActiveKind[]> = {
   1: ["mc", "truefalse"],
-  2: ["cloze", "order", "truefalse"],
-  3: ["flashcard", "facts", "cloze"],
+  2: ["cloze", "formulacloze", "order", "truefalse"],
+  3: ["flashcard", "facts", "cloze", "formulacloze"],
   4: ["flashcard", "facts", "mc"],
 };
 
-const REVIEW_KINDS: MemoActiveKind[] = ["flashcard", "facts", "cloze", "mc", "truefalse", "order"];
+const REVIEW_KINDS: MemoActiveKind[] = ["flashcard", "facts", "cloze", "formulacloze", "mc", "truefalse", "order"];
+
+/** A learner's own card carries no authored exercises, so it drills the two kinds that need none. */
+const CUSTOM_KINDS: MemoActiveKind[] = ["flashcard", "facts"];
 
 function poolSize(rule: MemoRule, kind: MemoActiveKind): number {
   switch (kind) {
     case "cloze":
       return rule.cloze.length;
+    case "formulacloze":
+      return rule.formulaCloze.length;
     case "mc":
       return rule.mc.length;
     case "truefalse":
@@ -55,7 +72,8 @@ function poolSize(rule: MemoRule, kind: MemoActiveKind): number {
 
 /** Which kinds this rule has content for. Flashcard is always present, so this is never empty. */
 export function availableMemoKinds(rule: MemoRule): MemoActiveKind[] {
-  return REVIEW_KINDS.filter((k) => poolSize(rule, k) > 0);
+  const kinds = rule.custom ? CUSTOM_KINDS : REVIEW_KINDS;
+  return kinds.filter((k) => poolSize(rule, k) > 0);
 }
 
 export interface MemoQueueItem {
@@ -108,7 +126,7 @@ function reviewItemFor(rule: MemoRule, recent: string[] = []): MemoQueueItem {
 /* ------------------------------------------------------------ batch building ---- */
 
 export function memoRulesInScope(setId: MemoSetId | null): MemoRule[] {
-  return setId === null ? MEMO_RULES : memoRulesForSet(setId);
+  return setId === null ? memoRules() : memoRulesForSet(setId);
 }
 
 export interface MemoBatch {
@@ -199,7 +217,7 @@ export function memoNextAfterAnswer(
     totalPracticeSessions,
     tuning,
   });
-  const rule = MEMO_RULES_BY_ID[item.ruleId];
+  const rule = memoRuleById(item.ruleId);
   return {
     stage: transition.stage,
     reviewStreak: transition.reviewStreak,

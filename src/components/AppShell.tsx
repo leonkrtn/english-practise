@@ -140,6 +140,7 @@ const TestResultScreen = lazyScreen(() => import("./screens/TestResultScreen"));
 const FinanceHomeScreen = lazyScreen(() => import("./screens/FinanceHomeScreen"));
 const MathTheoryScreen = lazyScreen(() => import("./screens/MathTheoryScreen"));
 const MemoReferenceScreen = lazyScreen(() => import("./screens/MemoReferenceScreen"));
+const MemoEditorScreen = lazyScreen(() => import("./screens/MemoEditorScreen"));
 const MathStatsScreen = lazyScreen(() => import("./screens/MathStatsScreen"));
 const MathTestScreen = lazyScreen(() => import("./screens/MathTestScreen"));
 const MathTestResultScreen = lazyScreen(() => import("./screens/MathTestResultScreen"));
@@ -165,7 +166,8 @@ export type Screen =
   | "math-test"
   | "math-test-result"
   | "memo"
-  | "memo-reference";
+  | "memo-reference"
+  | "memo-editor";
 export type SessionMode = "vocab" | "grammar" | "domain" | "idioms" | "linking" | "reading" | "test";
 /** The two modes that run through the adaptive stage engine — everything else is its own flow. */
 export type LearningMode = "vocab" | "grammar";
@@ -1481,6 +1483,7 @@ export default function AppShell() {
         return;
       case "math-theory":
       case "memo-reference":
+      case "memo-editor":
       case "math-stats":
       case "math-test-result":
         setScreen("home");
@@ -1709,6 +1712,7 @@ export default function AppShell() {
             onStartMemo={startMemoSession}
             onOpenTheory={() => setScreen("math-theory")}
             onOpenRules={() => setScreen("memo-reference")}
+            onOpenEditor={() => setScreen("memo-editor")}
             onOpenStats={() => setScreen("math-stats")}
             onStartTest={startMathTest}
           />
@@ -1717,6 +1721,8 @@ export default function AppShell() {
         {screen === "math-theory" && <MathTheoryScreen onExit={goHome} />}
 
         {screen === "memo-reference" && <MemoReferenceScreen onExit={goHome} />}
+
+        {screen === "memo-editor" && <MemoEditorScreen onExit={goHome} onPractise={(setId) => startMemoSession(setId, false)} />}
 
         {screen === "memo" && memoSession && memoSession.queue[memoSession.index] && (
           <SessionScreen

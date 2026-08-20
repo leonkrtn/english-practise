@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { StoreProvider, useStore } from "@/lib/store";
 import { GrammarStoreProvider, useGrammarStore } from "@/lib/grammarStore";
+import { CustomMemoProvider } from "@/lib/customMemoStore";
 import AuthScreen from "@/components/screens/AuthScreen";
 
 // The app itself only ever renders behind the login, and it carries the whole ~2,300-word
@@ -64,7 +65,9 @@ function AuthGate() {
   return (
     <StoreProvider userId={auth.user.id}>
       <GrammarStoreProvider userId={auth.user.id}>
-        <StoreBoot />
+        <CustomMemoProvider userId={auth.user.id}>
+          <StoreBoot />
+        </CustomMemoProvider>
       </GrammarStoreProvider>
     </StoreProvider>
   );

@@ -18,16 +18,15 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
   return (
     <div className="min-h-[100dvh] flex items-center justify-center px-6">
       <div className="w-full max-w-[380px] bg-card border border-line-soft rounded-[18px] p-6 shadow-sm text-center">
-        <h1 className="text-[17px] font-semibold text-ink">Da ist etwas schiefgelaufen</h1>
+        <h1 className="text-[17px] font-semibold text-ink">Something went wrong</h1>
         <p className="text-sm text-ink-soft leading-relaxed mt-2">
-          Dein Lernfortschritt ist gespeichert — er wird nach jeder Antwort gesichert. Nur die gerade laufende Session lässt sich nicht
-          fortsetzen.
+          Your progress is safe — it is saved after every answer. Only the session you were in cannot be resumed.
         </p>
         <Button
           onClick={reset}
           className="mt-5 h-auto w-full rounded-full bg-blue hover:bg-blue-dark text-white font-semibold py-3.5 text-[15px] flex items-center justify-center gap-2"
         >
-          <RotateCcw size={15} /> Neu laden
+          <RotateCcw size={15} /> Reload
         </Button>
       </div>
     </div>

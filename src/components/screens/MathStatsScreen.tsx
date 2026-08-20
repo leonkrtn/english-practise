@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Target, TrendingDown, Trophy, X } from "lucide-react";
 import { MATH_RULES, MATH_TOPICS, MATH_TOPIC_META } from "@/lib/math";
-import { MEMO_RULES, MEMO_SETS, MEMO_SET_META } from "@/lib/memo";
+import { memoRules, memoSets, memoSetMeta } from "@/lib/memo";
 import { topicProgress } from "@/lib/mathLearning";
 import { memoSetProgress } from "@/lib/memoLearning";
 import { labelForScopeId, mathBandFor, type MathTestRecord } from "@/lib/mathTest";
@@ -16,6 +16,7 @@ const FORMAT_LABELS: [string, string][] = [
   ["memo-learn", "Rule cards"],
   ["memo-flashcard", "Flashcards"],
   ["memo-cloze", "Rule cloze"],
+  ["memo-formulacloze", "Formula cloze"],
   ["memo-mc", "Rule multiple choice"],
   ["memo-truefalse", "True / false"],
   ["memo-order", "Step ordering"],
@@ -37,10 +38,9 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
     [store.wordState, store.totalPracticeSessions]
   );
 
-  const memoSets = useMemo(
-    () => MEMO_SETS.map((id) => memoSetProgress(id, store.wordState, store.totalPracticeSessions)),
-    [store.wordState, store.totalPracticeSessions]
-  );
+  // Recomputed each render rather than memoised: the rule pool is a module registry the learner's
+  // own sets are pushed into, and a memo would need a hand-maintained dependency on it to stay fresh.
+  const memoSetStats = memoSets().map((id) => memoSetProgress(id, store.wordState, store.totalPracticeSessions));
 
   const overall = useMemo(() => {
     const learned = topics.reduce((n, t) => n + t.learned, 0);
@@ -58,12 +58,13 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
   }, [topics, store.words]);
 
   /** The rules that most need work: seen at least twice, ranked by how often they went wrong. */
-  const weakest = useMemo(() => {
-    const all = [
-      ...MATH_RULES.map((r) => ({ id: r.id, title: r.title, area: MATH_TOPIC_META[r.topic].label })),
-      ...MEMO_RULES.map((r) => ({ id: r.id, title: r.title, area: MEMO_SET_META[r.setId].label })),
-    ];
-    return all.map((r) => {
+  const weakest = (() => {
+    // A formula set shares its rules' ids with Mathematics, so the same rule appears in both lists.
+    // Keep the Mathematics entry — it names the topic the learner started from.
+    const byId = new Map<string, { id: string; title: string; area: string }>();
+    memoRules().forEach((r) => byId.set(r.id, { id: r.id, title: r.title, area: memoSetMeta(r.setId).label }));
+    MATH_RULES.forEach((r) => byId.set(r.id, { id: r.id, title: r.title, area: MATH_TOPIC_META[r.topic].label }));
+    return [...byId.values()].map((r) => {
       const s = store.words[r.id];
       const seen = s ? s.timesCorrect + s.timesAlmost + s.timesIncorrect : 0;
       const wrong = s ? s.timesIncorrect : 0;
@@ -72,7 +73,7 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
       .filter((e) => e.seen >= 2 && e.wrong > 0)
       .sort((a, b) => b.rate - a.rate || b.wrong - a.wrong)
       .slice(0, 6);
-  }, [store.words]);
+  })();
 
   const formats = useMemo(
     () =>
@@ -137,12 +138,12 @@ export default function MathStatsScreen({ testHistory, onExit }: { testHistory: 
         })}
       </div>
 
-      {memoSets.length > 0 && (
+      {memoSetStats.length > 0 && (
         <>
           <h2 className="text-[13px] font-bold uppercase tracking-wide text-ink-faint mb-2">By rule set</h2>
           <div className="flex flex-col gap-2 mb-5">
-            {memoSets.map((set) => {
-              const meta = MEMO_SET_META[set.setId];
+            {memoSetStats.map((set) => {
+              const meta = memoSetMeta(set.setId);
               const pct = set.total ? Math.round((set.learned / set.total) * 100) : 0;
               return (
                 <div key={set.setId} className="bg-card border border-line-soft rounded-xl px-4 py-3">
