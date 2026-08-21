@@ -43,15 +43,14 @@ the relationship differently shouldn't be marked wrong. No unlock
 requirement — it doesn't depend on learned vocabulary/grammar, so it's
 available from the start.
 
-A sixth mode, **Reading**, drills reading comprehension with finance-themed
-texts (personal finance, stocks & investing, economics, business, and
-cryptocurrency), staggered from B2 up through genuinely difficult C2
-material. Each text has several multiple-choice gaps drawn from a mix of
-finance/business vocabulary (always active) and already-mastered words from
-the main Vocabulary track (only active once you've actually learned that
-word) — so the mix of "words you know" and "finance vocabulary" is
-personalized rather than one fixed text for everyone. No unlock
-requirement, same as Linking.
+A sixth mode, **Reading**, works through complex, advanced-level finance
+texts spanning 22 distinct topics (monetary policy, stock markets, M&A,
+venture capital, bonds, cryptocurrency, derivatives, financial crises, and
+more — see the Reading section below for the full list). Choosing a text
+from the topic-filterable list opens a three-step flow: read the full
+passage, answer four multiple-choice comprehension questions about it, then
+write a short summary in your own words and compare it against a model
+summary. No unlock requirement, same as Linking.
 
 Vocabulary also has a **Speed Round**: a 60-second, typed-answer timed drill
 through your mastered ("gelernt") words, reusing the same review mechanics
@@ -630,33 +629,36 @@ criterion but not the other) / `incorrect` (met neither), logged as
 
 ## Reading (finance texts)
 
-A sixth mode: 25 curated, multi-gap finance/business texts, staggered B2
-through C2, covering personal finance, stocks & investing, economics,
-business, and cryptocurrency.
+A sixth mode: 22 complex, advanced-level (C1/C2) finance texts, one per
+topic — monetary policy, inflation, stock markets, M&A, venture capital,
+bonds, cryptocurrency, forex, private equity, IPOs, corporate governance,
+derivatives, credit ratings, behavioral finance, ESG investing, real
+estate, hedge funds, banking regulation, financial crises, retirement,
+insurance, and commodities.
 
-- `src/lib/financeReading.ts` — `READING_TEXTS`: each text has ~6
-  authored gap tokens (`{{gapId}}` inside the prose), tagged `source:
-  "finance"` or `source: "vocab"`, each with the correct answer plus 3
-  hand-picked wrong-option distractors of the same part of speech.
-- **The mix is personalized, not fixed.** `eligibleGapIds()` decides which
-  of a text's gaps are actually interactive this session: `"finance"` gaps
-  always are (that's the point of the mode — exposure to that
-  vocabulary regardless of progress elsewhere); `"vocab"` gaps only
-  become interactive once the learner has genuinely mastered that word
-  (stage 4) in the main Vocabulary track, checked by looking the gap's
-  answer up in `VOCAB_BY_EN`. A gap that isn't eligible this session is
-  rendered as plain text instead of a blank, so the passage always reads
-  naturally — it just has fewer editable blanks for a total beginner than
-  for someone with 300 mastered words. No unlock gate on the mode itself.
-- `src/components/screens/ReadingScreen.tsx` — renders the passage with
-  numbered inline blanks, and a multiple-choice picker (shuffled options)
-  below the text for each active gap. Grading is deterministic
-  (`correct`/`almost`/`incorrect` by how many gaps were answered right),
-  reusing the shared `FeedbackPanel`.
+- `src/lib/financeReading.ts` — `READING_TEXTS`: each entry has a
+  multi-paragraph `body`, exactly four multiple-choice `questions`
+  (`question`, 4 `options`, `correctIndex`) answerable from the text
+  alone, and a `sampleSummary` the learner compares their own summary
+  against. `READING_TOPIC_META` maps each `ReadingTopic` to its display
+  label.
+- `src/components/screens/ReadingListScreen.tsx` — the mode's entry
+  screen: topic filter chips (reusing the same chip pattern as the
+  Vocabulary word list) above a list of all texts; tapping one opens it.
+- `src/components/screens/ReadingScreen.tsx` — the three-phase flow for
+  one text: **passage** (full text, "Continue to questions"), **questions**
+  (all four shown at once, graded together — green/red highlighting per
+  option, reusing the shared `FeedbackPanel` for the `correct`/`almost`/
+  `incorrect` result), then **summary** (a textarea for the learner's own
+  summary, a word count, and a "Show sample summary" button that reveals
+  `sampleSummary` for comparison before finishing). No unlock gate on the
+  mode itself.
 - Finishing a session logs to `grammar_session_history` with
-  `format: "reading"` plus a `grammar_format_stats` entry per gap
-  (correct/incorrect), the same pattern as Writing/Linking — so Reading
-  gets its own accuracy stat on Home and in the Stats screen.
+  `format: "reading"` plus a `grammar_format_stats` entry per comprehension
+  question (correct/incorrect), the same pattern as Writing/Linking — so
+  Reading gets its own accuracy stat on Home and in the Stats screen. The
+  summary step itself isn't graded — it's a self-check against the model
+  summary, not scored.
 
 ## Speed Round
 
@@ -753,8 +755,9 @@ means at this stage.
   ConnectorLearnScreen.tsx` — Linking's "Wörter lernen" connector-recall
   quiz; `src/components/screens/LinkingEssayScreen.tsx` — Linking's
   "Freies Schreiben" free-writing sub-mode (both see above)
-- `src/lib/financeReading.ts`, `src/components/screens/ReadingScreen.tsx`
-  — the Reading (finance texts) feature (see above)
+- `src/lib/financeReading.ts`, `src/components/screens/
+  ReadingListScreen.tsx`, `src/components/screens/ReadingScreen.tsx` — the
+  Reading (finance texts) feature (see above)
 - `src/lib/sound.ts` — synthesized Web Audio feedback tones (correct/
   almost/incorrect) with a mute toggle persisted in `localStorage`,
   wired into the shared `FeedbackPanel` so every exercise type gets it
@@ -984,6 +987,25 @@ Playwright script and inspecting the queue growth directly.
   correctly places the first two available tiles in order — zero console
   errors throughout. `tsc --noEmit`, `eslint`, and a clean `next build`
   all pass.
+- Reading mode rebuilt from scratch: the old 25-text multi-gap cloze drill
+  was removed entirely (`eligibleGapIds`, `ReadingGap`, the personalized
+  finance/mastered-vocab gap mix) and replaced with 22 complex, C1/C2-level
+  finance texts — one per topic — worked through as passage → four
+  multiple-choice comprehension questions → own-summary-vs-model-summary,
+  reached via a new topic-filterable `ReadingListScreen` — see the Reading
+  section above. Home/Stats integration (the "Texts read"/accuracy stat
+  card, `FMT_LABELS`, `NON_GRAMMAR_FORMATS`) needed no changes at all,
+  since Reading only ever fed a generic `format: "reading"` string into
+  otherwise format-agnostic `grammar_session_history`/`grammar_format_stats`
+  APIs. Verified with Playwright against a mocked Supabase backend: signed
+  in, opened Reading from Home, filtered the topic chips, opened a text,
+  read the full passage, answered all four comprehension questions and saw
+  correct green/red grading with the right "X/4 questions correct."
+  result, wrote a summary and compared it against the sample, finished back
+  onto the Reading list (not Home), and confirmed Escape mid-text raises a
+  "Cancel reading?" modal instead of silently discarding progress — zero
+  console errors throughout. `tsc --noEmit`, `eslint`, and a clean `next
+  build` all pass.
 
 **Needs a one-time manual step (couldn't be automated — no SQL/DDL or Auth
 config access from this session's tools):**

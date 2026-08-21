@@ -8,7 +8,6 @@ import { useAuth } from "@/lib/auth";
 import {
   VOCAB,
   VOCAB_BY_ID,
-  VOCAB_BY_EN,
   allowsSentenceExercises,
   countsTowardVocab,
   inDomainScope,
@@ -20,7 +19,7 @@ import {
 import { GRAMMAR_RULES } from "@/lib/grammar-data";
 import { WRITING_TOPICS, type WritingTopic } from "@/lib/writingTopics";
 import { CLAUSE_PAIRS, type ClausePair } from "@/lib/connectors-data";
-import { READING_TEXTS, eligibleGapIds as computeEligibleGapIds, type ReadingText } from "@/lib/financeReading";
+import { READING_TEXTS, type ReadingText } from "@/lib/financeReading";
 import {
   buildLearningBatch,
   buildInitialQueue,
@@ -131,6 +130,7 @@ const WordDetailScreen = lazyScreen(() => import("./screens/WordDetailScreen"));
 const StatsScreen = lazyScreen(() => import("./screens/StatsScreen"));
 const SettingsScreen = lazyScreen(() => import("./screens/SettingsScreen"));
 const GoalScreen = lazyScreen(() => import("./screens/GoalScreen"));
+const ReadingListScreen = lazyScreen(() => import("./screens/ReadingListScreen"));
 const ReadingScreen = lazyScreen(() => import("./screens/ReadingScreen"));
 const ConnectorLearnScreen = lazyScreen(() => import("./screens/ConnectorLearnScreen"));
 const LinkingEssayScreen = lazyScreen(() => import("./screens/LinkingEssayScreen"));
@@ -157,6 +157,7 @@ export type Screen =
   | "linking-essay"
   | "goal"
   | "reading"
+  | "reading-detail"
   | "test"
   | "test-result"
   | "math"
@@ -242,11 +243,10 @@ interface MathTestSessionState {
   startedAt: number;
 }
 
-/** Finance reading drill: one multi-gap text, with the subset of its gaps that are actually
- * interactive this session (finance terms always; general-vocab gaps only once mastered). */
+/** Finance reading drill: one complex text picked from the Reading list, worked through as
+ * passage → comprehension questions → own-summary-vs-sample-summary. */
 interface ReadingSessionState {
   text: ReadingText;
-  eligibleGapIds: Set<string>;
 }
 
 /** A graded exam in progress. Answers are keyed by question id (not index) so the learner can jump
@@ -637,18 +637,18 @@ export default function AppShell() {
     setTestSession((prev) => (prev && index >= 0 && index < prev.questions.length ? { ...prev, index } : prev));
   }, []);
 
-  // ---------- Reading: multi-gap finance texts, mixing finance vocabulary with mastered words ----------
+  // ---------- Reading: complex finance texts, each with comprehension questions and a summary step ----------
 
   const startReadingSession = useCallback(() => {
-    const text = sample(READING_TEXTS, 1)[0];
-    const isVocabLearned = (en: string) => {
-      const word = VOCAB_BY_EN[en.toLowerCase()];
-      return !!word && !store.blockedWordIds.has(word.id) && store.wordState(word.id).stage === 4;
-    };
-    const eligible = computeEligibleGapIds(text, isVocabLearned);
-    setReadingSession({ text, eligibleGapIds: eligible });
     setScreen("reading");
-  }, [store]);
+  }, []);
+
+  const selectReadingText = useCallback((id: string) => {
+    const text = READING_TEXTS.find((t) => t.id === id);
+    if (!text) return;
+    setReadingSession({ text });
+    setScreen("reading-detail");
+  }, []);
 
   const finishReading = useCallback(
     (result: ReadingCheckResult) => {
@@ -661,7 +661,7 @@ export default function AppShell() {
       grammarStore.recordSession({ date: Date.now(), total, correct, almost: 0, incorrect, accuracy, format: "reading" });
       store.addXp(correct * 10 + XP_SESSION_COMPLETE);
       setReadingSession(null);
-      setScreen("home");
+      setScreen("reading");
     },
     [grammarStore, store]
   );
@@ -1428,6 +1428,10 @@ export default function AppShell() {
       // about the learner, and filing it would drag the "best grade" record down for no reason.
       setTestSession(null);
       setScreen("home");
+    } else if (readingSession) {
+      // Same reasoning as an abandoned exam: a text left mid-questions or mid-summary isn't graded or filed.
+      setReadingSession(null);
+      setScreen("reading");
     }
   }, [
     learningSession,
@@ -1437,6 +1441,7 @@ export default function AppShell() {
     memoSession,
     mathTestSession,
     testSession,
+    readingSession,
     endLearningSession,
     endQuickSession,
     finishLinking,
@@ -1477,16 +1482,14 @@ export default function AppShell() {
       case "math":
       case "math-test":
       case "memo":
+      case "reading-detail":
         setModalOpen(true);
         return;
       case "math-theory":
       case "memo-reference":
       case "math-stats":
       case "math-test-result":
-        setScreen("home");
-        return;
       case "reading":
-        setReadingSession(null);
         setScreen("home");
         return;
       case "linking-learn":
@@ -1511,7 +1514,7 @@ export default function AppShell() {
     screen === "session" ||
     screen === "linking" ||
     screen === "test" ||
-    screen === "reading" ||
+    screen === "reading-detail" ||
     screen === "linking-essay" ||
     screen === "math" ||
     screen === "math-test" ||
@@ -1657,7 +1660,7 @@ export default function AppShell() {
     screen === "linking" ||
     screen === "linking-learn" ||
     screen === "linking-essay" ||
-    screen === "reading" ||
+    screen === "reading-detail" ||
     screen === "test" ||
     screen === "math" ||
     screen === "math-test" ||
@@ -1821,13 +1824,14 @@ export default function AppShell() {
           </SessionScreen>
         )}
 
-        {screen === "reading" && readingSession && (
+        {screen === "reading" && <ReadingListScreen onSelectText={selectReadingText} />}
+
+        {screen === "reading-detail" && readingSession && (
           <ReadingScreen
             text={readingSession.text}
-            eligibleGapIds={readingSession.eligibleGapIds}
             onExit={() => {
               setReadingSession(null);
-              setScreen("home");
+              setScreen("reading");
             }}
             onFinish={finishReading}
           />
@@ -1957,10 +1961,12 @@ export default function AppShell() {
 
       <Modal
         open={modalOpen}
-        title={screen === "test" ? "Cancel test?" : "End session?"}
+        title={screen === "test" ? "Cancel test?" : screen === "reading-detail" ? "Cancel reading?" : "End session?"}
         body={
           screen === "test"
             ? "The test will be discarded and not graded."
+            : screen === "reading-detail"
+            ? "Your answers and summary for this text will be discarded."
             : "Your progress so far will be saved, but the session will end early."
         }
         onCancel={() => setModalOpen(false)}
